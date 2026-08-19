@@ -1,0 +1,11 @@
+# gerados em runtime (o workflow cria)
+sweep.json
+jira_backlog.json
+impedimentos_live.json
+sobra_live.json
+ni_assignee.json
+dash_data.json
+mod_cards.json
+dashboard_setor.html
+public/
+__pycache__/

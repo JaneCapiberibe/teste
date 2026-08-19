@@ -1,0 +1,55 @@
+name: Atualizar dashboard (diário)
+
+on:
+  schedule:
+    - cron: '0 9 * * *'      # 09:00 UTC = 06:00 (horário de Brasília). Ajuste se quiser.
+  workflow_dispatch:          # permite rodar manualmente pelo botão "Run workflow"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Puxar do Jira
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: python fetch_jira.py
+
+      - name: Recalcular dados
+        run: python gen_data.py
+
+      - name: Gerar o dashboard
+        run: python build_dash.py
+
+      - name: Proteger com login e montar publicação
+        run: python inject_login.py
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./public
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
