@@ -25,6 +25,13 @@ sweep=[x for x in sweep if x['m'] not in EXCLUI_MOD]
 sweep_full=sweep
 cancelado_total=sum(1 for x in sweep_full if x['res']=='Cancelado QA')
 sweep=[x for x in sweep_full if x['res']!='Cancelado QA']
+if not sweep:
+    raise RuntimeError(
+        "sweep.json não tem nenhum bug válido depois dos filtros (base líquida ficou vazia). "
+        "Isso não é esperado — a base tem centenas de bugs. Provável causa: fetch_jira.py rodou "
+        "com 0 issues do Jira (confira o log do passo 'Puxar do Jira') ou sweep.json está "
+        "corrompido/vazio. Não dá pra gerar o dashboard sem dados reais do Jira."
+    )
 d={}
 d['meta']={'total_bugs_base_atual':len(sweep),'total_com_descartados':len(sweep_full),'descartados_qa':cancelado_total,'chat_removidos':chat_removidos,'periodo':min(x['c'] for x in sweep).strftime('%Y-%m')+' a '+max(x['c'] for x in sweep).strftime('%Y-%m'),'snapshot':str(TODAY)}
 
