@@ -335,47 +335,38 @@ function kpiCards(){
   const last=DATA.tot_series[DATA.tot_series.length-1];
   const s=DATA.tot_series.find(t=>t.mes===curSafra())||last; // safra selecionada
   const atual=s.mes===DATA.mes_corrente;
+  const pv=DATA.previsibilidade;
   const det=DATA.deteccao;
   return `<div class="cards">
    <div class="card"><div class="kpi-label">${svg('filter','kpi-ico')}Detecção — onde o bug foi pego <span class="info" data-tip="Classificação por tipo de item do Jira: Cliente = bug que escapou e chegou à produção (o cliente sentiu); QA/Dev = bug barrado internamente antes do cliente; Backoffice = ferramenta interna. Quanto maior a fatia interna (QA+Dev), melhor — significa que a gente segura antes de virar problema do cliente. Base líquida, ao vivo do Jira.">i</span></div>
      <div style="display:flex;align-items:center;gap:14px;margin-top:2px">${donutN(detSegs())}
        <div style="font-size:12.5px;line-height:1.55">${detLegend()}</div></div>
      <div class="kpi-sub" style="margin-top:8px">${det.escape_pct}% escapou para o cliente · ${det.interno_pct}% barrado internamente.</div></div>
-   <div class="card" id="prevwrap">${prevCardBody()}</div>
+   <div class="card"><div class="kpi-label">${svg('bullseye','kpi-ico')}Previsibilidade do DEV — % dentro do SLA (Não Iniciado→Produção, p95) <span class="tag-per" title="considera todos os meses até a safra atual">acumulado</span><span class="info" data-tip="% de bugs cujo tempo de DESENVOLVIMENTO (do momento em que entram em 'Não Iniciado' até entrarem em 'Produção') coube no prazo do SLA da sua prioridade, medido em horas úteis. p95: os 5% mais lentos de cada prioridade são excluídos para tirar o efeito de outliers extremos. NÃO inclui o tempo de suporte (Produção → Concluído), que é o período em que o suporte fecha com o cliente — esse é medido à parte no bloco Prioridade & SLA.">i</span></div>
+     <div class="kpi-val" style="color:${prevColor(pv.agregado)}">${pv.agregado}%</div>
+     <div class="kpi-sub">${pv.ok} de ${pv.n} bugs dentro do prazo (p95 — excluídos os 5% mais lentos de cada prioridade, ${pv.excluidos} cards). Horas úteis, tempo em status validado. Não inclui o tempo de suporte pós-produção.</div></div>
    <div class="card"><div class="kpi-label">${svg('truck-fast','kpi-ico')}Taxa de entrega — safra ${mesLbl(s.mes)}${atual?' (em andamento)':''}<span class="info" data-tip="Dos bugs reais que ENTRARAM no mês selecionado, quantos % já foram entregues (estão em produção ou concluídos). É a régua de entrega do dev pela definição da empresa (mandar pra produção = concluído). Muda conforme o mês escolhido no seletor de safra.">i</span></div>
      <div class="kpi-val" style="color:${prevColor(s.pct_entrega)}">${s.pct_entrega}%</div>
      <div class="kpi-sub">${s.mes}: entregou ${s.entregues} de ${s.criados} bugs que entraram · ${s.abertos} ainda abertos dessa safra.${atual?' Mês corrente ainda em andamento — o número tende a subir.':''}</div></div>
   </div>`;
 }
-// Previsibilidade do DEV — segue o recorte ativo (window.__recorte: Todos/BIM/Sem BIM), mesmo
-// controle da "Evolução por recorte". Re-renderizado por setRecorte() via #prevwrap.
-function prevCardBody(){
-  const R=DATA.recortes[window.__recorte], pv=R.previsibilidade;
-  return `<div class="kpi-label">${svg('bullseye','kpi-ico')}Previsibilidade do DEV — % dentro do SLA (Não Iniciado→Produção, p95) <span class="tag-per" title="considera todos os meses até a safra atual">acumulado</span><span class="info" data-tip="% de bugs cujo tempo de DESENVOLVIMENTO (do momento em que entram em 'Não Iniciado' até entrarem em 'Produção') coube no prazo do SLA da sua prioridade, medido em horas úteis. p95: os 5% mais lentos de cada prioridade são excluídos para tirar o efeito de outliers extremos. NÃO inclui o tempo de suporte (Produção → Concluído), que é o período em que o suporte fecha com o cliente — esse é medido à parte no bloco Prioridade & SLA. Segue o recorte Todos/BIM/Sem BIM selecionado em 'Evolução por recorte'.">i</span></div>
-     <div class="kpi-val" style="color:${prevColor(pv.agregado)}">${pv.agregado}%</div>
-     <div class="kpi-sub">${pv.ok} de ${pv.n} bugs dentro do prazo (p95 — excluídos os 5% mais lentos de cada prioridade, ${pv.excluidos} cards). Horas úteis, tempo em status validado. Não inclui o tempo de suporte pós-produção.</div>
-     ${coberturaBadge(window.__recorte)}`;
-}
-// Prioridade & SLA — segue o recorte ativo (window.__recorte: Todos/BIM/Sem BIM), mesmo
-// controle da "Evolução por recorte". Re-renderizado por setRecorte() via #slawrap.
 function slaSection(){
-  const R=DATA.recortes[window.__recorte];
-  const pv=R.previsibilidade, sev=R.severidade;
-  const maxSev=Math.max(1,...sev.map(s=>s.n));
+  const pv=DATA.previsibilidade, sev=DATA.severidade;
+  const maxSev=Math.max(...sev.map(s=>s.n));
   const sevPal=[col('--s8'),col('--s2'),col('--s4'),col('--s1'),col('--s3'),col('--text-3')];
   const sevBars=sev.map((s,i)=>`<div class="bar-row"><div class="lbl">${s.nivel}</div>
      <div class="bar-track"><div class="bar-fill" style="width:${(s.n/maxSev*100).toFixed(1)}%;background:${sevPal[i]}"></div></div>
      <div class="bar-val">${s.n}</div></div>`).join('');
-  const slaRows=pv.por_prio.length?pv.por_prio.map(p=>`<tr><td>${p.nivel}</td><td class="num">≤${p.sla}h</td>
+  const slaRows=pv.por_prio.map(p=>`<tr><td>${p.nivel}</td><td class="num">≤${p.sla}h</td>
      <td class="num">${p.n}</td>
      <td class="num" style="color:${prevColor(p.pct)};font-weight:700">${p.pct}%</td>
-     <td class="num">${p.mttr??'—'}</td></tr>`).join(''):`<tr><td colspan="5" class="num" style="text-align:center;color:${col('--text-3')}">Sem cards com Time-in-Status neste recorte.</td></tr>`;
-  return coberturaBadge(window.__recorte)+`<div class="grid2">
+     <td class="num">${p.mttr}</td></tr>`).join('');
+  return `<div class="grid2">
    <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Bugs por severidade</div>${sevBars}
      <div class="note">Prioridade do card no Jira. "Sem prioridade" = cards em "Preencher Prioridade" — lacuna de triagem.</div></div>
    <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Cumprimento de SLA por prioridade</div>
      <table><thead><tr><th>Nível ${ico('Nível de prioridade do bug no Jira (Muito alta a Muito baixa = Highest a Lowest).')}</th><th class="num">SLA ${ico('Prazo-alvo de resolução do desenvolvimento para aquela prioridade, em horas úteis, conforme a régua de SLA da empresa.')}</th><th class="num">Bugs ${ico('Quantidade de bugs resolvidos naquela prioridade que entraram no cálculo (já com o p95 aplicado, ou seja, sem os 5% mais lentos).')}</th><th class="num">Dentro do SLA ${ico('% desses bugs cujo tempo de desenvolvimento (Não Iniciado→Produção) coube no prazo do SLA da prioridade.',1)}</th><th class="num">Mediana dev (d.úteis) ${ico('Tempo mediano de desenvolvimento (Não Iniciado→Produção) da prioridade, em dias úteis (jornada de 8h). Mediana = valor do meio, menos sensível a extremos que a média.',1)}</th></tr></thead><tbody>${slaRows}</tbody></table>
-     <div class="note"><b>Como ler:</b> % de bugs em que o <b>desenvolvimento</b> (Não Iniciado→Produção) coube no prazo da prioridade, em horas úteis — validado célula a célula contra o histórico real do Jira (Time in Status). SLA: Muito alta 8h, Alta 12h, Média 16h, Baixa 24h, Muito baixa 40h. <b>p95:</b> os 5% mais lentos de cada prioridade são excluídos para tirar o efeito de outliers extremos. <b>Mede o dev, não o "Concluído"</b> — o tempo entre Produção e o fechamento do suporte é medido à parte (mediana ${R.suporte_lag?R.suporte_lag.mediana_h:'—'}h úteis, ${R.suporte_lag?R.suporte_lag.n:0} cards). MTTR geral do recorte (criação→resolução): ${R.mttr_mediana??'—'} dias úteis. Mostra que o SLA antigo — criado sem embasamento — está apertado para a capacidade real; dado para recalibrar. Todos os números deste painel seguem o recorte Todos/BIM/Sem BIM selecionado em "Evolução por recorte".</div></div>
+     <div class="note"><b>Como ler:</b> % de bugs em que o <b>desenvolvimento</b> (Não Iniciado→Produção) coube no prazo da prioridade, em horas úteis — validado célula a célula contra o histórico real do Jira (Time in Status). SLA: Muito alta 8h, Alta 12h, Média 16h, Baixa 24h, Muito baixa 40h. <b>p95:</b> os 5% mais lentos de cada prioridade são excluídos para tirar o efeito de outliers extremos. <b>Mede o dev, não o "Concluído"</b> — o tempo entre Produção e o fechamento do suporte é medido à parte (mediana ${DATA.suporte_lag?DATA.suporte_lag.mediana_h:'—'}h úteis, ${DATA.suporte_lag?DATA.suporte_lag.n:0} cards). Mostra que o SLA antigo — criado sem embasamento — está apertado para a capacidade real; dado para recalibrar.</div></div>
   </div>`;
 }
 
@@ -431,57 +422,43 @@ function escapeChart(){
    <path d="${lp}" fill="none" stroke="${col('--bad')}" stroke-width="2.5"/>
    ${dots}</svg>`;
 }
-window.__recorte='todos';
-function setRecorte(k){
-  window.__recorte=k;
-  document.getElementById('recwrap').innerHTML=recorteBody();
-  const slawrap=document.getElementById('slawrap'); if(slawrap) slawrap.innerHTML=slaSection();
-  const prevwrap=document.getElementById('prevwrap'); if(prevwrap) prevwrap.innerHTML=prevCardBody();
-  document.querySelectorAll('.recbtn').forEach(b=>b.classList.toggle('on',b.dataset.k===k));
-}
-// Selo de cobertura do recorte — bugs no recorte, apontamento de horas e cards com Time-in-Status
-// (base do cálculo de SLA/tempo de dev, que é uma amostra MENOR que o total de bugs). Reaproveitado
-// por "Evolução por recorte", "Prioridade & SLA" e "Previsibilidade do DEV" — mesmo mecanismo, um
-// só selo. Ex.: BIM tem poucas dezenas de bugs e menos ainda com Time-in-Status exportado — os
-// avisos abaixo existem justamente para ninguém tirar conclusão de tendência dessa amostra pequena.
-function coberturaBadge(k){
-  const R=DATA.recortes[k];
-  const small=R.n<120, tisSmall=R.tis_n<40;
-  const mods=(k==='bim'&&R.mods)?` · módulos: ${R.mods.join(', ')}`:'';
-  const warnN=small?` <b style="color:${col('--bad')}">Amostra pequena — leia com cautela; variação mês a mês pode ser ruído, não tendência.</b>`:'';
-  const warnT=tisSmall?` <b style="color:${col('--bad')}">Só ${R.tis_n} card(s) com Time-in-Status — SLA e tempo de dev deste recorte são ilustrativos, não estatisticamente robustos.</b>`:'';
-  return `<div class="note" style="margin-bottom:12px"><b>${R.label}:</b> ${R.n} bugs · apontamento ${R.apont}%${mods} · ${R.tis_n} card(s) no Time-in-Status.${warnN}${warnT}</div>`;
-}
-function recorteEvol(S){
-  const W=1080,H=250,P=42,n=S.length,gw=(W-2*P)/n,bw=Math.min(16,gw*0.34),cx=(i)=>P+(i+0.5)*gw;
-  const maxY=Math.max(1,...S.map(d=>Math.max(d.criados,d.entregues,d.saldo)))*1.12, ys=(v)=>H-P-(v/maxY)*(H-2*P);
-  let grid='';for(let g=0;g<=4;g++){const yy=P+g*(H-2*P)/4,val=Math.round(maxY*(1-g/4));grid+=`<line x1="${P}" y1="${yy}" x2="${W-P}" y2="${yy}" stroke="${col('--line')}" stroke-width="1"/><text x="${P-6}" y="${yy+4}" text-anchor="end" fill="${col('--text-3')}" font-size="10">${val}</text>`;}
-  let xl='';S.forEach((d,i)=>{if(i%2===0||i===n-1)xl+=`<text x="${cx(i)}" y="${H-P+16}" text-anchor="middle" fill="${col('--text-3')}" font-size="9">${d.mes.slice(2)}</text>`;});
-  const si2=S.findIndex(d=>d.mes===curSafra());let band='';if(si2>=0){const w=gw*0.9;band=`<rect x="${(cx(si2)-w/2).toFixed(1)}" y="${P}" width="${w.toFixed(1)}" height="${H-2*P}" fill="${col('--s1')}" opacity="0.10"/>`;}
-  let bars='';S.forEach((d,i)=>{const x1=cx(i)-bw-1.5,x2=cx(i)+1.5,yC=ys(d.criados),yE=ys(d.entregues);
-    bars+=`<rect x="${x1.toFixed(1)}" y="${yC.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-yC).toFixed(1)}" fill="${col('--s2')}" rx="1.5"><title>${d.mes} · criados ${d.criados}</title></rect>`;
-    bars+=`<rect x="${x2.toFixed(1)}" y="${yE.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-yE).toFixed(1)}" fill="${col('--s3')}" rx="1.5"><title>${d.mes} · entregues ${d.entregues}</title></rect>`;});
-  const lp=S.map((d,i)=>(i?'L':'M')+cx(i).toFixed(1)+' '+ys(d.saldo).toFixed(1)).join(' ');
-  let dots='';S.forEach((d,i)=>{dots+=`<circle cx="${cx(i).toFixed(1)}" cy="${ys(d.saldo).toFixed(1)}" r="3" fill="${col('--s1')}" stroke="${col('--surface-1')}" stroke-width="1.3"><title>${d.mes} · saldo ${d.saldo}</title></circle>`;});
-  return `<div class="legend"><span><i class="dot" style="background:var(--s2)"></i>Criados</span><span><i class="dot" style="background:var(--s3)"></i>Entregues</span><span><i class="dot" style="background:var(--s1);border-radius:2px;width:14px;height:3px"></i>Saldo</span></div>
-  <svg viewBox="0 0 ${W} ${H}" width="100%">${band}${grid}${xl}${bars}<path d="${lp}" fill="none" stroke="${col('--s1')}" stroke-width="2.3" stroke-dasharray="5 4"/>${dots}</svg>`;
-}
-function recorteEscape(S){
-  const cur=DATA.recorte_mes_corrente, W=1080,H=210,P=42,n=S.length,gw=(W-2*P)/n,cx=(i)=>P+(i+0.5)*gw;
-  const maxV=Math.max(10,...S.map(d=>d.escape)),maxY=Math.min(100,Math.ceil(maxV*1.2/10)*10),ys=(v)=>H-P-(v/maxY)*(H-2*P);
-  const fech=S.filter(d=>d.mes<cur && (d.criados>0)); const med=fech.length?Math.round(fech.reduce((s,d)=>s+d.escape,0)/fech.length):0;
-  let grid='';for(let g=0;g<=4;g++){const yy=P+g*(H-2*P)/4,val=Math.round(maxY*(1-g/4));grid+=`<line x1="${P}" y1="${yy}" x2="${W-P}" y2="${yy}" stroke="${col('--line')}" stroke-width="1"/><text x="${P-6}" y="${yy+4}" text-anchor="end" fill="${col('--text-3')}" font-size="10">${val}%</text>`;}
-  let xl='';S.forEach((d,i)=>{if(i%2===0||i===n-1)xl+=`<text x="${cx(i)}" y="${H-P+16}" text-anchor="middle" fill="${col('--text-3')}" font-size="9">${d.mes.slice(2)}</text>`;});
-  const my=ys(med),avg=`<line x1="${P}" y1="${my.toFixed(1)}" x2="${W-P}" y2="${my.toFixed(1)}" stroke="${col('--text-3')}" stroke-width="1.3" stroke-dasharray="5 4"/><text x="${W-P}" y="${(my-5).toFixed(1)}" text-anchor="end" fill="${col('--text-3')}" font-size="10">média fechadas ${med}%</text>`;
-  const lp=S.map((d,i)=>(i?'L':'M')+cx(i).toFixed(1)+' '+ys(d.escape).toFixed(1)).join(' ');
-  let dots='';S.forEach((d,i)=>{const at=d.mes===cur;dots+=`<circle cx="${cx(i).toFixed(1)}" cy="${ys(d.escape).toFixed(1)}" r="3.2" fill="${col('--bad')}" stroke="${col('--surface-1')}" stroke-width="1.3" opacity="${at?0.45:1}"><title>${d.mes} · ${d.escape}% escapou</title></circle>`;});
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%">${grid}${xl}${avg}<path d="${lp}" fill="none" stroke="${col('--bad')}" stroke-width="2.5"/>${dots}</svg>`;
-}
-function recorteBody(){
-  const R=DATA.recortes[window.__recorte], S=R.serie;
-  return coberturaBadge(window.__recorte)
-    +`<div class="kpi-label" style="margin:2px 0 6px">Entradas × entregues × saldo por mês</div>`+recorteEvol(S)
-    +`<div class="kpi-label" style="margin:16px 0 6px">Escape rate mensal — % que chegou como Bug Cliente</div>`+recorteEscape(S);
+// Evolução por módulo — mesmos dados e método da Evolução histórica (criados exclui Impedimento
+// Produto e Cancelado QA; concluídos = resolvidos, exclui Cancelado QA; saldo = acumulado
+// criados−concluídos mês a mês, começando em zero), só que por módulo em vez de agregado, com
+// chips de módulo (mesmo padrão visual/mecânica da Tendência dos módulos: window.__*Mods Set,
+// toggle por chip, cor fixa por módulo via trendColor) e um seletor de métrica, porque comparar
+// vários módulos ao mesmo tempo em barras (como a Evolução histórica) não é legível — linhas sim.
+window.__modEvolMods=null;
+function modEvolMods(){if(!window.__modEvolMods)window.__modEvolMods=new Set(DATA.mod_evol.ordem.filter(m=>m!=='Não classificado').slice(0,6));return window.__modEvolMods;}
+function modEvolToggle(m){const s=modEvolMods();if(s.has(m))s.delete(m);else s.add(m);document.getElementById('modevolwrap').innerHTML=moduleEvolChart();}
+window.__modEvolMetric='criados';
+const MODEVOL_LBL={criados:'Criados',concluidos:'Concluídos',saldo:'Saldo'};
+function modEvolSetMetric(k){window.__modEvolMetric=k;document.getElementById('modevolwrap').innerHTML=moduleEvolChart();}
+function moduleEvolChart(){
+  const ME=DATA.mod_evol; if(!ME||!ME.ordem||!ME.ordem.length) return '<div class="note">Sem dados de evolução por módulo.</div>';
+  const meses=ME.meses, n=meses.length, sel=modEvolMods(), metric=window.__modEvolMetric;
+  const val=(m,i)=>{const s=(ME.por_modulo[m]||[])[i]; return s?s[metric]:0;};
+  const metricBtns=Object.keys(MODEVOL_LBL).map(k=>`<button class="prodbtn${k===metric?' on':''}" onclick="modEvolSetMetric('${k}')">${MODEVOL_LBL[k]}</button>`).join('');
+  const barra=`<div class="safra-prod" style="margin-bottom:8px">${metricBtns}</div>`;
+  const chips=ME.ordem.map(m=>{const on=sel.has(m),c=trendColor(m),lv=val(m,n-1);
+    return `<button class="trend-chip${on?' on':''}" ${on?`style="background:${c};border-color:${c}"`:''} onclick="modEvolToggle('${m}')"><i style="background:${c}"></i>${m}${on?` <b>${lv}</b>`:''}</button>`;}).join('');
+  const series=ME.ordem.filter(m=>sel.has(m)).map(m=>({name:m,vals:meses.map((mm,i)=>val(m,i)),color:trendColor(m)}));
+  if(!series.length) return barra+`<div class="trend-chips">${chips}</div><div class="note" style="margin-top:8px">Selecione ao menos um módulo acima para desenhar a evolução.</div>`;
+  const W=1080,H=330,P=44;
+  const xs=(i)=>P+i*(W-2*P)/(n-1);
+  const allVals=series.flatMap(s=>s.vals);
+  const minV=Math.min(0,...allVals), maxV=Math.max(4,...allVals)*1.12;
+  const ys=(v)=>H-P-((v-minV)/(maxV-minV))*(H-2*P);
+  const path=(vals)=>vals.map((v,i)=>(i?'L':'M')+xs(i).toFixed(1)+' '+ys(v).toFixed(1)).join(' ');
+  let grid='';for(let g=0;g<=4;g++){const yy=P+g*(H-2*P)/4;const gv=Math.round(maxV-g*(maxV-minV)/4);grid+=`<line x1="${P}" y1="${yy}" x2="${W-P}" y2="${yy}" stroke="${col('--line')}"/><text x="${P-6}" y="${yy+4}" text-anchor="end" fill="${col('--text-3')}" font-size="10">${gv}</text>`;}
+  let xl='';meses.forEach((m,i)=>{if(i%2===0||i===n-1)xl+=`<text x="${xs(i)}" y="${H-P+16}" text-anchor="middle" fill="${col('--text-3')}" font-size="9">${m.slice(2)}</text>`;});
+  const band=safraBand((i)=>xs(i),(W-2*P)/(n-1),P,H);
+  let zero='';if(minV<0){const y0=ys(0);zero=`<line x1="${P}" y1="${y0.toFixed(1)}" x2="${W-P}" y2="${y0.toFixed(1)}" stroke="${col('--text-3')}" stroke-width="1" stroke-dasharray="3 3"/>`;}
+  const lines=series.map(s=>`<path d="${path(s.vals)}" fill="none" stroke="${s.color}" stroke-width="2.3" opacity="0.92"><title>${s.name}</title></path>`).join('');
+  const dots=series.map(s=>`<circle cx="${xs(n-1)}" cy="${ys(s.vals[n-1])}" r="3.6" fill="${s.color}"/>`).join('');
+  return barra+`<div class="trend-chips">${chips}</div>
+    <svg viewBox="0 0 ${W} ${H}" width="100%">${band}${grid}${zero}${xl}${lines}${dots}</svg>
+    <div class="note"><b>Como ler:</b> mesmos dados e método da Evolução histórica acima — <b>criados</b> exclui Impedimento Produto e Cancelado QA; <b>concluídos</b> = resolvidos no mês (exclui Cancelado QA); <b>saldo</b> = acumulado criados−concluídos mês a mês, por módulo, começando em zero — só que agora por módulo em vez de agregado. Escolha a métrica acima e ligue/desligue módulos nos chips para comparar tendências entre eles.</div>`;
 }
 window.__sobraStatus='Não Iniciado';
 function sobraSetStatus(s){window.__sobraStatus=s;document.getElementById('sobrawrap').innerHTML=sobraChart();}
@@ -744,15 +721,8 @@ function render(){
    <h2>${si('chart-line')}Evolução histórica — entradas × concluídos × saldo por mês <span class="info" data-tip="Idêntico à planilha do Diego (aba Resumo). Laranja = cards que ENTRARAM no mês (criados); verde = cards que SAÍRAM no mês (concluídos = Em produção ou Concluído); azul tracejado = SALDO que passou para o mês seguinte (início + criados − concluídos). Quando entra mais do que sai, o saldo sobe; quando sai mais, o saldo cai.">i</span></h2>
    <div class="panel">${lineChart()}
      <details class="note-c"><summary>Como ler este gráfico</summary><div class="note-body"><b>Como ler (mesma lógica da planilha do Diego):</b> a linha laranja é quanto <b>entrou</b> por mês (<b>cards criados</b>); a verde é quanto <b>saiu</b> no mês (<b>cards concluídos</b> — em produção ou concluído); a tracejada azul é o <b>saldo</b> que passou para o mês seguinte. As três se conectam: <b>saldo do mês = início + criados − concluídos</b>, e esse saldo vira o início do mês seguinte (começando em zero em jan/2025). Por isso, quando o laranja fica acima do verde, o azul <b>sobe</b> (entrou mais do que saiu); quando o verde supera o laranja, o azul <b>cai</b>. Hoje o saldo está em <b>${(DATA.diego_series&&DATA.diego_series.length?DATA.diego_series[DATA.diego_series.length-1].saldo:'—')}</b>. Regras do Diego: "criados" exclui os status <b>Impedimento Produto</b> e <b>Cancelado QA</b>; "concluídos" considera <b>Em produção</b> ou <b>Concluído</b> (fora Cancelado QA). <i>Fonte: aba "Resumo" da planilha do Diego — atualiza quando a planilha é atualizada.</i></div></details></div>
-   <h2>${si('layer-group')}Evolução por recorte — Todos · BIM · Sem BIM <span class="info" data-tip="Separa a base em BIM (produtos de time externo/PJ: OF Elétrico, OrçaBim, OF Hidráulico, OF Estrutural, OF BI) e Sem BIM (todo o resto). 'Sem BIM' é sempre o complemento — módulo novo entra aqui até ser classificado. Civil 3D é externo mas está gravado como Orçamento no Jira, então NÃO é separável por módulo (precisaria de label/component próprio). Ao lado do recorte vai a cobertura (nº de bugs, apontamento e cards com Time-in-Status) para não tirar conclusão de amostra pequena. Este seletor também controla os painéis 'Prioridade & SLA' e 'Previsibilidade do DEV' mais abaixo.">i</span></h2>
-   <div class="panel">
-     <div class="safra-prod" style="margin-bottom:6px">
-       <button class="prodbtn recbtn on" data-k="todos" onclick="setRecorte('todos')">Todos</button>
-       <button class="prodbtn recbtn" data-k="bim" onclick="setRecorte('bim')">BIM (externo)</button>
-       <button class="prodbtn recbtn" data-k="interno" onclick="setRecorte('interno')">Sem BIM</button>
-     </div>
-     <div id="recwrap">${recorteBody()}</div>
-   </div>
+   <h2>${si('layer-group')}Evolução por módulo — criados × concluídos × saldo <span class="info" data-tip="Mesmos dados e método da Evolução histórica acima (criados exclui Impedimento Produto e Cancelado QA; concluídos = resolvidos, exclui Cancelado QA; saldo = acumulado criados−concluídos mês a mês), agora comparando módulos entre si em vez do agregado. Escolha a métrica (Criados/Concluídos/Saldo) e ligue/desligue módulos nos chips abaixo.">i</span></h2>
+   <div class="panel"><div id="modevolwrap">${moduleEvolChart()}</div></div>
    <h2>${si('filter')}Diagnóstico do mês — funil de entrega do dev</h2>${funilPanel()}
    <h2>${si('hourglass-half')}Sobra por status — número de cards por mês <span class="info" data-tip="Explorador de status: escolha um status no seletor e o gráfico mostra, mês a mês (por mês de criação do card), quantos cards estão nesse status HOJE. Ex.: 'Não Iniciado' mostra o que sobrou sem começar; 'Impedimento Dev' mostra os travados; 'Done' mostra os entregues. Barra clara = mês corrente. Base líquida — exclui descartados pelo QA e Chat de Suporte.">i</span></h2>
    <div class="panel">
@@ -776,8 +746,7 @@ function render(){
    <h2>${si('layer-group')}Histórico evolutivo — bugs criados por módulo <span class="info" data-tip="Escolha um módulo no seletor e veja quantos bugs ele gerou em cada mês (por mês de criação). Isola o módulo para enxergar a tendência dele com clareza, sem o ruído dos outros. Contagem líquida (exclui Cancelado QA e Chat de Suporte).">i</span></h2>
    <div class="panel"><div id="mhwrap">${moduleHistoryChart()}</div>
      <div class="note"><b>Como ler:</b> selecione um <b>módulo</b> no menu para ver a evolução mensal de bugs criados só dele. Cada barra é um mês, com o número exato. Serve para acompanhar se um produto está gerando mais ou menos bugs ao longo do tempo. Contagem líquida — exclui os descartados pelo QA e o módulo Chat de Suporte, igual à Evolução histórica.</div></div>
-   <h2>${si('triangle-exclamation')}Prioridade &amp; SLA <span class="info" data-tip="Segue o recorte Todos/BIM/Sem BIM selecionado acima em 'Evolução por recorte' — muda junto quando você troca o recorte.">i</span></h2>
-   <div id="slawrap">${slaSection()}</div>
+   <h2>${si('triangle-exclamation')}Prioridade &amp; SLA</h2>${slaSection()}
    <h2>${si('users')}Carga por squad — folha × contrato</h2>${squadSection()}
    <h2>${si('coins')}Esforço e alocação — bugs</h2>
    <div class="grid2">

@@ -26,28 +26,23 @@ Publicado via GitHub Actions (roda diário). Ver `README.md` para rodar localmen
   `sweep` (em `gen_data.py`) já é a base líquida. `sweep_full` mantém tudo (cancelados incluídos)
   e só é usado onde isso é intencional (funil, indicador de descarte).
 
-- **Recorte BIM / Sem BIM já existe — não crie um mecanismo novo.** Em `gen_data.py`, a função
-  `_grupo` (com `_gk`, `_BIM_KEYS`, `_INTERNO_KEYS`) classifica cada módulo em `'bim'` ou
-  `'interno'`. **"Sem BIM" é sempre o complemento de BIM** — nunca uma lista separada. Se aparecer
-  um módulo não classificado, o build imprime `[AVISO recorte]` e assume `'interno'` até alguém
-  adicionar o módulo em `_BIM_KEYS`/`_INTERNO_KEYS`.
+- **Não existe mais recorte BIM / Sem BIM no dashboard.** Esse corte (Todos/BIM/Sem BIM, com a
+  classificação `_grupo`/`_BIM_KEYS`/`_INTERNO_KEYS`) existiu e chegou a alimentar os painéis de
+  SLA e Previsibilidade do DEV, mas foi removido — os módulos "BIM" (produtos de time
+  externo/PJ: OF Elétrico, OrçaBim, OF Hidráulico, OF Estrutural, OF BI) não têm mais um corte
+  dedicado; os painéis de SLA/Previsibilidade voltaram a mostrar só o agregado geral
+  (`d['previsibilidade']`, `d['severidade']`, `d['suporte_lag']`, sem indireção por grupo). Não
+  reintroduza `d['recortes']`/`_grupo`/`_is_bim` "porque já existiu" — se precisar de um corte por
+  módulo de novo, veja `d['mod_evol']` abaixo.
 
-  `d['recortes'] = {'todos': ..., 'bim': ..., 'interno': ...}` guarda, por grupo: a série mensal
-  (criados/entregues/saldo/escape), a cobertura (`n` bugs, `apont` % apontamento, `tis_n` cards com
-  Time-in-Status) e, desde a extensão de SLA/previsibilidade, também `severidade`,
-  `previsibilidade` (SLA p95 por prioridade) `mttr_mediana` e `suporte_lag`. Qualquer painel novo
-  que precise de um corte BIM/Sem BIM deve ler daqui — não recriar a classificação.
-
-  Em `build_dash.py`, o controle Todos/BIM/Sem BIM vive em `window.__recorte` +
-  `setRecorte(k)`. `setRecorte` re-renderiza todos os painéis que dependem do recorte
-  (`#recwrap`, `#slawrap`, `#prevwrap`, ...) — ao adicionar um painel recortável, dê a ele um id e
-  atualize-o dentro de `setRecorte`, em vez de duplicar a lógica de seleção.
-
-  **Selo de cobertura:** `coberturaBadge(k)` é o único selo de amostra pequena (nº de bugs,
-  apontamento, cards no Time-in-Status). Reaproveite-o em vez de escrever um aviso novo. Exemplo
-  real: o recorte **BIM** tem só ~73 bugs, ~42% de apontamento e ~15 cards no Time-in-Status — é
-  pouco, então qualquer variação mês a mês (ou de SLA/MTTR) nesse recorte é ruído, não tendência.
-  Isso é esperado, não um bug nos dados.
+  **Evolução por módulo** (`d['mod_evol']`, painel homônimo em `build_dash.py`) é o que substituiu
+  aquele painel: para cada módulo, a mesma série `criados`/`concluidos`/`saldo` e o mesmo método da
+  Evolução histórica (`criaD`/`concD` — criados exclui Impedimento Produto e Cancelado QA;
+  concluídos = resolvidos no mês, exclui Cancelado QA; saldo = acumulado criados−concluídos,
+  começando em zero), só que por módulo em vez de agregado. A UI é comparativa (vários módulos ao
+  mesmo tempo, uma métrica por vez), com chips reaproveitados do padrão da "Tendência dos módulos"
+  (`window.__modEvolMods`, `modEvolToggle`, cor fixa por módulo via `trendColor`) — não duplique
+  esse padrão de chip, estenda-o.
 
 - **Civil 3D não é separável.** Ele é um produto/integração externa (mesma família do BIM), mas no
   Jira é gravado como módulo **"Orçamento"** (interno) — não há campo próprio para isolá-lo. Não
@@ -58,9 +53,8 @@ Publicado via GitHub Actions (roda diário). Ver `README.md` para rodar localmen
 
 1. Confirme que a mudança usa `sweep` (base líquida), não `sweep_full`, a menos que o objetivo seja
    explicitamente mostrar os descartados.
-2. Se a métrica precisa de recorte BIM/Sem BIM, adicione o cálculo dentro de
-   `d['recortes'][grupo]` em `gen_data.py` (reaproveitando `_is_bim`/`_grupo`) — não crie um mapa
-   de módulos paralelo.
+2. Se a métrica precisa de um corte por módulo, veja se dá pra reaproveitar `d['mod_evol']` (mesmo
+   método da Evolução histórica, por módulo) em vez de criar um cálculo novo do zero.
 3. Se a métrica depende do CSV de Time-in-Status, lembre que ele é uma amostra **menor** que o
    total de bugs (nem todo card tem export de tempo em status) — trate a cobertura (`tis_n`) como
    um número à parte de `n` (total de bugs) e avise quando for pequena.
