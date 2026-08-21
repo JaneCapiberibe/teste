@@ -8,7 +8,7 @@ Credenciais via variáveis de ambiente (segredos do GitHub Actions):
   JIRA_EMAIL      seu e-mail do Atlassian
   JIRA_API_TOKEN  token de API (id.atlassian.com/manage-profile/security/api-tokens)
 """
-import os, json, base64, datetime, collections, urllib.parse
+import os, json, base64, datetime, collections, urllib.parse, time
 import requests
 
 BASE = os.environ.get('JIRA_BASE_URL', 'https://orcafascio.atlassian.net').rstrip('/')
@@ -36,6 +36,21 @@ def fetch_all():
         if not token:
             break
     return out
+
+def fetch_all_com_retentativa(tentativas=3, espera_s=15):
+    """Chama fetch_all() com retentativas. O projeto BUG tem centenas de issues — uma resposta
+    200 com 0 issues é sinal de instabilidade transitória da API do Jira (ou credencial/permissão
+    ruim), nunca de que o projeto ficou vazio de verdade. Sem isso, um blip momentâneo já derrubou
+    o pipeline (gen_data.py crasha mais na frente com um ValueError sem contexto)."""
+    issues = []
+    for tentativa in range(1, tentativas + 1):
+        issues = fetch_all()
+        if issues:
+            return issues
+        print(f'aviso: tentativa {tentativa}/{tentativas} do Jira voltou com 0 issues.')
+        if tentativa < tentativas:
+            time.sleep(espera_s)
+    return issues
 
 def norm(issue):
     f = issue.get('fields', {})
@@ -131,7 +146,15 @@ def build_outputs(recs):
 
 if __name__ == '__main__':
     print('Puxando do Jira...')
-    issues = fetch_all()
+    issues = fetch_all_com_retentativa()
+    if not issues:
+        raise RuntimeError(
+            'O Jira retornou 0 issues do projeto BUG mesmo após retentativas — isso não é '
+            'esperado (a base tem centenas de bugs). Abortando SEM sobrescrever sweep.json/'
+            'jira_backlog.json/etc. Prováveis causas: JIRA_BASE_URL, JIRA_EMAIL ou '
+            'JIRA_API_TOKEN inválidos/expirados, ou perda de permissão de acesso ao projeto '
+            'BUG. Confira os segredos em Settings > Secrets and variables > Actions.'
+        )
     recs = [norm(i) for i in issues]
     build_outputs(recs)
     print('OK — arquivos gerados.')
