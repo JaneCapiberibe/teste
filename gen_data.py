@@ -154,49 +154,28 @@ _defech=[s for s in det_series if s['mes']<cur_ym and s['total']>0][-6:]
 d['det_series_meta']={'media_fechadas':round(statistics.mean([s['escape'] for s in _defech])) if _defech else 0,
                       'mes_corrente':cur_ym}
 
-# ---- RECORTES: BIM (externo) x Sem BIM (internos) ----
-# Mapa ÚNICO módulo->grupo. "Internos" nunca é lista à parte: é o complemento de BIM.
-# Comparação sem acento/caixa (typo/acentuação não fazem card vazar de grupo em silêncio).
-import unicodedata as _ud
-def _gk(s):
-    s=(s or '').strip().lower()
-    return ''.join(c for c in _ud.normalize('NFD',s) if _ud.category(c)!='Mn')
-_BIM_KEYS={'of eletrico','orcabim','orcabim web','of hidraulico','of estrutural','of bi'}
-_INTERNO_KEYS={'orcamento','bases de preco','gestao de base propria','sofia','arquivos publicos','cadastro',
- 'administrar empresa','cadastro/administrar empresa','prime','chat de suporte','ti','medicao','diario de obras',
- 'planejamento','compras','of manager','of cde','nao classificado'}
-def _grupo(m):
-    k=_gk(m)
-    if k in _BIM_KEYS: return 'bim'
-    if k in _INTERNO_KEYS: return 'interno'
-    print(f"[AVISO recorte] módulo NÃO classificado como BIM/interno: {m!r} -> assumindo INTERNO. "
-          f"Classifique em _BIM_KEYS/_INTERNO_KEYS no gen_data.")
-    return 'interno'
-# valida UMA vez sobre os módulos que existem (warnings saem aqui, não no loop por bug)
-_bim_mods={m for m in {x['m'] for x in sweep} if _grupo(m)=='bim'}
-_is_bim=lambda x: x['m'] in _bim_mods
-def _rec_serie(pred):
-    cri=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep if x['c'] and pred(x))
-    ent=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep if x['c'] and pred(x) and x['status'] in ENTREGUE)
-    dm=collections.defaultdict(lambda:collections.Counter())
-    for x in sweep:
-        if x['c'] and pred(x): dm[x['c'].strftime('%Y-%m')][x['itype']]+=1
+# ---- EVOLUÇÃO POR MÓDULO ----
+# Mesmos dados/método da Evolução histórica (ver criaD/concD acima): criados exclui Impedimento
+# Produto e Cancelado QA; concluídos = resolvidos no mês, exclui Cancelado QA; saldo = acumulado
+# criados−concluídos mês a mês, começando em zero — só que por módulo em vez de agregado, para o
+# painel "Evolução por módulo" (chips de módulo, estilo Tendência dos módulos).
+_mod_cria=collections.defaultdict(lambda:collections.Counter())
+_mod_conc=collections.defaultdict(lambda:collections.Counter())
+for x in sweep_full:
+    if x['c'] and x['res']!='Cancelado QA' and x['status']!='IMPEDIMENTO PRODUTO':
+        _mod_cria[x['m']][x['c'].strftime('%Y-%m')]+=1
+    if x['r'] and x['res']!='Cancelado QA':
+        _mod_conc[x['m']][x['r'].strftime('%Y-%m')]+=1
+_mod_evol_ordem=[m for m,_ in collections.Counter({mod:sum(c.values()) for mod,c in _mod_cria.items()}).most_common()]
+def _mod_evol_serie(mod):
+    cria_c, conc_c = _mod_cria[mod], _mod_conc[mod]
     out=[]; saldo=0
     for m in meses:
-        cc=cri.get(m,0); ee=ent.get(m,0); saldo+=cc-ee
-        cm=dm[m]; tt=sum(cm.values()); cli=cm.get('Bug Cliente',0)
-        out.append({'mes':m,'criados':cc,'entregues':ee,'saldo':saldo,'escape':round(100*cli/tt) if tt else 0})
+        cc=cria_c.get(m,0); ee=conc_c.get(m,0); saldo+=cc-ee
+        out.append({'mes':m,'criados':cc,'concluidos':ee,'saldo':saldo})
     return out
-def _rec_meta(pred):
-    sub=[x for x in sweep if pred(x)]; n=len(sub)
-    apo=sum(1 for x in sub if isinstance(x.get('timespent'),(int,float)) and x['timespent']>0)
-    return {'n':n,'apont':round(100*apo/n) if n else 0}
-d['recortes']={
- 'todos':{'label':'Todos','serie':_rec_serie(lambda x:True),**_rec_meta(lambda x:True)},
- 'bim':{'label':'BIM (externo)','serie':_rec_serie(_is_bim),**_rec_meta(_is_bim),'mods':sorted(_bim_mods)},
- 'interno':{'label':'Sem BIM','serie':_rec_serie(lambda x:not _is_bim(x)),**_rec_meta(lambda x:not _is_bim(x))},
-}
-d['recorte_mes_corrente']=cur_ym
+d['mod_evol']={'meses':meses,'ordem':_mod_evol_ordem,
+               'por_modulo':{m:_mod_evol_serie(m) for m in _mod_evol_ordem}}
 
 # por modulo: bugs, horas, mttr, trend
 mods=collections.defaultdict(lambda:{'bugs':0,'seg':0.0,'mttr':[]})
@@ -303,51 +282,6 @@ for p in ORDER:
                'mttr':round(statistics.median(kept)/8,1)})
 d['previsibilidade']={'agregado':round(100*tk/tn),'ok':tk,'n':tn,'metodo':'dev-p95','excluidos':total_bruto-tn,'por_prio':pr}
 d['suporte_lag']={'n':len(lag),'mediana_h':round(statistics.median(lag),1),'media_h':round(statistics.mean(lag),1)}
-
-# ---- severidade / previsibilidade (SLA) / MTTR / tempo de resposta do suporte, por RECORTE ----
-# Mesmo recorte BIM/interno de d['recortes'] acima (mesma _grupo/_is_bim — não é um mecanismo novo).
-# inputs/suporte_list.csv (Time-in-Status) é uma amostra MENOR que a base líquida de bugs: nem todo
-# card tem export de tempo em status. Por isso guardamos os dois números (n de bugs do recorte E
-# tis_n = cards com Time-in-Status) — o selo de cobertura do dashboard usa os dois para avisar
-# quando a base do SLA/dev daquele recorte é pequena demais pra tirar conclusão.
-def _rec_prev(pred):
-    sub=[x for x in sweep if pred(x)]
-    pcr=collections.Counter(x['prio'] for x in sub)
-    sev_r=[{'nivel':NIVEL[p],'n':pcr.get(p,0)} for p in ORDER]
-    sev_r.append({'nivel':'Sem prioridade','n':pcr.get('Preencher Prioridade',0)+pcr.get(None,0)})
-    mt_r=[busdays(x['c'].date(),x['r'].date()) for x in sub if x['c'] and x['r']]
-    keys_r={x['key'] for x in sub}
-    by_r=collections.defaultdict(list); lag_r=[]; tis_n=0
-    for r_ in csv.DictReader(open('inputs/suporte_list.csv',encoding='utf-8-sig')):
-        if r_['Key'] not in keys_r: continue
-        tis_n+=1
-        dev_r=sum(_h(r_.get(c,'')) for c in DEV); prod_r=_h(r_.get('Em produção',''))
-        if prod_r>0: lag_r.append(prod_r)
-        p=prio_live.get(r_['Key'])
-        if p not in SLA: continue
-        by_r[p].append(dev_r)
-    pr_r=[]; tn_r=tk_r=0; total_bruto_r=0
-    for p in ORDER:
-        if p not in by_r: continue
-        devs=sorted(by_r[p]); total_bruto_r+=len(devs)
-        keep=int(round(len(devs)*0.95)) or len(devs)
-        kept=devs[:keep]
-        ok=sum(1 for v in kept if v<=SLA[p]); n=len(kept)
-        tn_r+=n; tk_r+=ok
-        pr_r.append({'nivel':NIVEL[p],'sla':SLA[p],'n':n,'ok':ok,
-                     'pct':round(100*ok/n) if n else 0,
-                     'mttr':round(statistics.median(kept)/8,1) if kept else None})
-    return {
-        'severidade':sev_r,
-        'mttr_mediana':round(statistics.median(mt_r),1) if mt_r else None,
-        'previsibilidade':{'agregado':round(100*tk_r/tn_r) if tn_r else 0,'ok':tk_r,'n':tn_r,
-                            'metodo':'dev-p95','excluidos':total_bruto_r-tn_r,'por_prio':pr_r},
-        'suporte_lag':{'n':len(lag_r),'mediana_h':round(statistics.median(lag_r),1) if lag_r else 0,
-                       'media_h':round(statistics.mean(lag_r),1) if lag_r else 0},
-        'tis_n':tis_n,
-    }
-for _k,_pred in (('todos',lambda x:True),('bim',_is_bim),('interno',lambda x:not _is_bim(x))):
-    d['recortes'][_k].update(_rec_prev(_pred))
 
 # ---- FUNIL DE ENTREGA DO DEV — para CADA mês (safra) ----
 ENTREGUE={'Em produção','Done','Concluído','Concluido'}
