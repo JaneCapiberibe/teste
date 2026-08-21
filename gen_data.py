@@ -33,6 +33,20 @@ pc=collections.Counter(x['prio'] for x in sweep)
 d['severidade']=[{'nivel':NIVEL[p],'n':pc.get(p,0)} for p in ORDER]
 d['severidade'].append({'nivel':'Sem prioridade','n':pc.get('Preencher Prioridade',0)+pc.get(None,0)})
 
+# DETECÇÃO — onde o bug foi pego (issuetype). Cliente = escapou p/ produção; QA/Dev = barrado interno.
+# Visão geral de qualidade de entrega, ao vivo do Jira (sem campo novo).
+DET_ORDER=[('Bug Cliente','Cliente'),('Bug QA','QA'),('Bug Dev','Dev'),('Bug Backoffice','Backoffice')]
+itc=collections.Counter(x['itype'] for x in sweep)
+det_itens=[{'tipo':lbl,'n':itc.get(key,0)} for key,lbl in DET_ORDER]
+det_outros=sum(v for k,v in itc.items() if k not in dict(DET_ORDER))
+if det_outros: det_itens.append({'tipo':'Outros','n':det_outros})
+det_tot=sum(i['n'] for i in det_itens) or 1
+for i in det_itens: i['pct']=round(100*i['n']/det_tot)
+cliente_n=itc.get('Bug Cliente',0)
+d['deteccao']={'itens':det_itens,'total':det_tot,
+               'escape_pct':round(100*cliente_n/det_tot),
+               'interno_pct':round(100*(det_tot-cliente_n)/det_tot)}
+
 # tot_series mensal: criados (intake) vs entregues (da safra do mês, já em produção/concluído)
 # "entregues" usa o status ATUAL do card (Em produção/Done/Concluído = dev entregou), pela
 # régua da empresa ("mandar pra produção é o nosso concluído"). Assim o gráfico mostra, de cada
@@ -118,6 +132,65 @@ d['taxa_sobra']={'media_fechadas':round(statistics.mean([t['taxa_sobra'] for t i
                  'mes_corrente':cur_ym,
                  'ult_fechada':fech[-1] if fech else None}
 
+# DETECÇÃO ao longo do tempo — escape rate mensal (Bug Cliente ÷ total criado no mês, base líquida, por mês de criação)
+det_mes=collections.defaultdict(lambda:collections.Counter())
+for x in sweep:
+    if x['c']: det_mes[x['c'].strftime('%Y-%m')][x['itype']]+=1
+det_series=[]
+for m in meses:
+    cc=det_mes[m]; tot=sum(cc.values()); cli=cc.get('Bug Cliente',0)
+    det_series.append({'mes':m,'total':tot,'cliente':cli,'qa':cc.get('Bug QA',0),
+        'dev':cc.get('Bug Dev',0),'bo':cc.get('Bug Backoffice',0),
+        'escape':round(100*cli/tot) if tot else 0})
+d['det_series']=det_series
+_defech=[s for s in det_series if s['mes']<cur_ym and s['total']>0][-6:]
+d['det_series_meta']={'media_fechadas':round(statistics.mean([s['escape'] for s in _defech])) if _defech else 0,
+                      'mes_corrente':cur_ym}
+
+# ---- RECORTES: BIM (externo) x Sem BIM (internos) ----
+# Mapa ÚNICO módulo->grupo. "Internos" nunca é lista à parte: é o complemento de BIM.
+# Comparação sem acento/caixa (typo/acentuação não fazem card vazar de grupo em silêncio).
+import unicodedata as _ud
+def _gk(s):
+    s=(s or '').strip().lower()
+    return ''.join(c for c in _ud.normalize('NFD',s) if _ud.category(c)!='Mn')
+_BIM_KEYS={'of eletrico','orcabim','orcabim web','of hidraulico','of estrutural','of bi'}
+_INTERNO_KEYS={'orcamento','bases de preco','gestao de base propria','sofia','arquivos publicos','cadastro',
+ 'administrar empresa','cadastro/administrar empresa','prime','chat de suporte','ti','medicao','diario de obras',
+ 'planejamento','compras','of manager','of cde','nao classificado'}
+def _grupo(m):
+    k=_gk(m)
+    if k in _BIM_KEYS: return 'bim'
+    if k in _INTERNO_KEYS: return 'interno'
+    print(f"[AVISO recorte] módulo NÃO classificado como BIM/interno: {m!r} -> assumindo INTERNO. "
+          f"Classifique em _BIM_KEYS/_INTERNO_KEYS no gen_data.")
+    return 'interno'
+# valida UMA vez sobre os módulos que existem (warnings saem aqui, não no loop por bug)
+_bim_mods={m for m in {x['m'] for x in sweep} if _grupo(m)=='bim'}
+_is_bim=lambda x: x['m'] in _bim_mods
+def _rec_serie(pred):
+    cri=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep if x['c'] and pred(x))
+    ent=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep if x['c'] and pred(x) and x['status'] in ENTREGUE)
+    dm=collections.defaultdict(lambda:collections.Counter())
+    for x in sweep:
+        if x['c'] and pred(x): dm[x['c'].strftime('%Y-%m')][x['itype']]+=1
+    out=[]; saldo=0
+    for m in meses:
+        cc=cri.get(m,0); ee=ent.get(m,0); saldo+=cc-ee
+        cm=dm[m]; tt=sum(cm.values()); cli=cm.get('Bug Cliente',0)
+        out.append({'mes':m,'criados':cc,'entregues':ee,'saldo':saldo,'escape':round(100*cli/tt) if tt else 0})
+    return out
+def _rec_meta(pred):
+    sub=[x for x in sweep if pred(x)]; n=len(sub)
+    apo=sum(1 for x in sub if isinstance(x.get('timespent'),(int,float)) and x['timespent']>0)
+    return {'n':n,'apont':round(100*apo/n) if n else 0}
+d['recortes']={
+ 'todos':{'label':'Todos','serie':_rec_serie(lambda x:True),**_rec_meta(lambda x:True)},
+ 'bim':{'label':'BIM (externo)','serie':_rec_serie(_is_bim),**_rec_meta(_is_bim),'mods':sorted(_bim_mods)},
+ 'interno':{'label':'Sem BIM','serie':_rec_serie(lambda x:not _is_bim(x)),**_rec_meta(lambda x:not _is_bim(x))},
+}
+d['recorte_mes_corrente']=cur_ym
+
 # por modulo: bugs, horas, mttr, trend
 mods=collections.defaultdict(lambda:{'bugs':0,'seg':0.0,'mttr':[]})
 cria_mod=collections.defaultdict(lambda:collections.Counter())
@@ -172,7 +245,7 @@ d['squads']=sqs
 # cancelado QA
 d['cancelado_qa']=cancelado_total
 
-# ---- do xlsx: sentry, PEM(build side), aloc ----
+# ---- do xlsx: PEM(build side), aloc ----
 wb=openpyxl.load_workbook('inputs/Resumo_bugs.xlsx',data_only=True)
 # Série do Diego (aba "Resumo") — para o gráfico de evolução ficar IDÊNTICO à planilha dele.
 d['diego_series']=[]
@@ -185,8 +258,6 @@ try:
                                   'concluidos':int(r_[4] or 0),'saldo':int(r_[5] or 0)})
 except Exception as e:
     print('aviso: aba Resumo do Diego não lida:',e)
-sr=list(wb['sentry-kpi'].iter_rows(values_only=True))
-d['sentry']=[{'mes':x[0].strftime('%Y-%m'),'incid':x[3]} for x in sr[1:] if isinstance(x[0],datetime.datetime)]
 pem=[x for x in list(wb['ProdutoMelhorias'].iter_rows(values_only=True))[1:] if x[1]]
 build_seg=sum(x[14] for x in pem if isinstance(x[14],(int,float)))
 run_seg=sum(x['timespent'] for x in sweep if isinstance(x['timespent'],(int,float)))

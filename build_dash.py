@@ -297,9 +297,6 @@ function safraSelector(){
         <div class="safra-hint">clique no mês para trocar a safra · o funil mostra esta safra e ela fica destacada em azul-claro nos gráficos</div>
       </div>
     </div>
-    <div class="safra-prod">
-      ${['todos','prime','novo','antigo'].map(k=>`<button class="prodbtn${curProduto()===k?' on':''}" onclick="setProduto('${k}')">${PRODLBL[k]}</button>`).join('')}
-    </div>
   </div>`;
 }
 const PRODLBL={todos:'Todos',prime:'Prime',novo:'Orçafascio',antigo:'Orçafascio antigo'};
@@ -321,6 +318,17 @@ function donut(runPct,buildPct){
     <text x="45" y="42" text-anchor="middle" fill="${col('--text-1')}" font-size="17" font-weight="800">${runPct}%</text>
     <text x="45" y="57" text-anchor="middle" fill="${col('--text-3')}" font-size="9">Run</text></svg>`;
 }
+function donutN(segs){
+  const R=32,C=2*Math.PI*R; const tot=segs.reduce((s,x)=>s+x.val,0)||1;
+  let off=0, arcs='';
+  segs.forEach(x=>{ const len=C*x.val/tot;
+    arcs+=`<circle cx="45" cy="45" r="${R}" fill="none" stroke="${x.color}" stroke-width="13" stroke-dasharray="${len.toFixed(2)} ${(C-len).toFixed(2)}" stroke-dashoffset="${(-C*off).toFixed(2)}" transform="rotate(-90 45 45)" stroke-linecap="butt"/>`;
+    off+=x.val/tot; });
+  return `<svg viewBox="0 0 90 90" width="84" height="84" style="flex:none">${arcs}<text x="45" y="43" text-anchor="middle" fill="${col('--text-1')}" font-size="15" font-weight="800">${tot}</text><text x="45" y="55" text-anchor="middle" fill="${col('--text-3')}" font-size="8.5">bugs</text></svg>`;
+}
+function detColors(){return {Cliente:col('--s4'),QA:col('--good'),Dev:col('--brand-blue'),Backoffice:col('--text-3'),Outros:col('--text-3')};}
+function detSegs(){const cm=detColors();return DATA.deteccao.itens.map(i=>({val:i.n,color:cm[i.tipo]||col('--text-3')}));}
+function detLegend(){const cm=detColors();return DATA.deteccao.itens.map(i=>`<div><span class="dot" style="background:${cm[i.tipo]||col('--text-3')}"></span> ${i.tipo} <b>${i.pct}%</b> · ${i.n}</div>`).join('');}
 function prevColor(p){return p>=70?'var(--good)':(p>=40?'var(--warn)':'var(--bad)');}
 function kpiCards(){
   const rvb=DATA.rvb;
@@ -328,20 +336,18 @@ function kpiCards(){
   const s=DATA.tot_series.find(t=>t.mes===curSafra())||last; // safra selecionada
   const atual=s.mes===DATA.mes_corrente;
   const pv=DATA.previsibilidade;
+  const det=DATA.deteccao;
   return `<div class="cards">
-   <div class="card"><div class="kpi-label">${svg('scale-balanced','kpi-ico')}Run vs Build (esforço, por tempo gasto) <span class="tag-per" title="considera todos os meses até a safra atual">acumulado</span></div>
-     <div style="display:flex;align-items:center;gap:14px;margin-top:2px">${donut(rvb.run_pct,rvb.build_pct)}
-       <div><div style="font-size:13px"><span class="dot" style="background:var(--s2)"></span> Run (correção) <b>${rvb.run_pct}%</b> · ${rvb.run_h}h</div>
-       <div style="font-size:13px;margin-top:4px"><span class="dot" style="background:var(--s3)"></span> Build (produto+melhoria) <b>${rvb.build_pct}%</b> · ${rvb.build_h}h</div></div></div></div>
+   <div class="card"><div class="kpi-label">${svg('filter','kpi-ico')}Detecção — onde o bug foi pego <span class="info" data-tip="Classificação por tipo de item do Jira: Cliente = bug que escapou e chegou à produção (o cliente sentiu); QA/Dev = bug barrado internamente antes do cliente; Backoffice = ferramenta interna. Quanto maior a fatia interna (QA+Dev), melhor — significa que a gente segura antes de virar problema do cliente. Base líquida, ao vivo do Jira.">i</span></div>
+     <div style="display:flex;align-items:center;gap:14px;margin-top:2px">${donutN(detSegs())}
+       <div style="font-size:12.5px;line-height:1.55">${detLegend()}</div></div>
+     <div class="kpi-sub" style="margin-top:8px">${det.escape_pct}% escapou para o cliente · ${det.interno_pct}% barrado internamente.</div></div>
    <div class="card"><div class="kpi-label">${svg('bullseye','kpi-ico')}Previsibilidade do DEV — % dentro do SLA (Não Iniciado→Produção, p95) <span class="tag-per" title="considera todos os meses até a safra atual">acumulado</span><span class="info" data-tip="% de bugs cujo tempo de DESENVOLVIMENTO (do momento em que entram em 'Não Iniciado' até entrarem em 'Produção') coube no prazo do SLA da sua prioridade, medido em horas úteis. p95: os 5% mais lentos de cada prioridade são excluídos para tirar o efeito de outliers extremos. NÃO inclui o tempo de suporte (Produção → Concluído), que é o período em que o suporte fecha com o cliente — esse é medido à parte no bloco Prioridade & SLA.">i</span></div>
      <div class="kpi-val" style="color:${prevColor(pv.agregado)}">${pv.agregado}%</div>
      <div class="kpi-sub">${pv.ok} de ${pv.n} bugs dentro do prazo (p95 — excluídos os 5% mais lentos de cada prioridade, ${pv.excluidos} cards). Horas úteis, tempo em status validado. Não inclui o tempo de suporte pós-produção.</div></div>
    <div class="card"><div class="kpi-label">${svg('truck-fast','kpi-ico')}Taxa de entrega — safra ${mesLbl(s.mes)}${atual?' (em andamento)':''}<span class="info" data-tip="Dos bugs reais que ENTRARAM no mês selecionado, quantos % já foram entregues (estão em produção ou concluídos). É a régua de entrega do dev pela definição da empresa (mandar pra produção = concluído). Muda conforme o mês escolhido no seletor de safra.">i</span></div>
      <div class="kpi-val" style="color:${prevColor(s.pct_entrega)}">${s.pct_entrega}%</div>
      <div class="kpi-sub">${s.mes}: entregou ${s.entregues} de ${s.criados} bugs que entraram · ${s.abertos} ainda abertos dessa safra.${atual?' Mês corrente ainda em andamento — o número tende a subir.':''}</div></div>
-   <div class="card"><div class="kpi-label">${svg('rocket','kpi-ico')}% novos produtos com bug em produção (30/60/90d)</div>
-     <div class="kpi-val na">N/D</div>
-     <div class="kpi-sub">Requer vínculo bug↔release. Capturar release/versão no bug para habilitar.</div></div>
   </div>`;
 }
 function slaSection(){
@@ -398,6 +404,59 @@ function lineChart(){
    ${dots}</svg>`;
 }
 
+function escapeChart(){
+  const S=DATA.det_series, meta=DATA.det_series_meta;
+  const W=1080,H=260,P=42,n=S.length, gw=(W-2*P)/n, cx=(i)=>P+(i+0.5)*gw;
+  const maxV=Math.max(10,...S.map(d=>d.escape)), maxY=Math.min(100,Math.ceil(maxV*1.2/10)*10);
+  const ys=(v)=>H-P-(v/maxY)*(H-2*P);
+  let grid='';for(let g=0;g<=4;g++){const yy=P+g*(H-2*P)/4,val=Math.round(maxY*(1-g/4));grid+=`<line x1="${P}" y1="${yy}" x2="${W-P}" y2="${yy}" stroke="${col('--line')}" stroke-width="1"/><text x="${P-6}" y="${yy+4}" text-anchor="end" fill="${col('--text-3')}" font-size="10">${val}%</text>`;}
+  let xl='';S.forEach((d,i)=>{if(i%2===0||i===n-1)xl+=`<text x="${cx(i)}" y="${H-P+16}" text-anchor="middle" fill="${col('--text-3')}" font-size="9">${d.mes.slice(2)}</text>`;});
+  const si2=S.findIndex(d=>d.mes===curSafra());let band='';
+  if(si2>=0){const w=gw*0.9;band=`<rect x="${(cx(si2)-w/2).toFixed(1)}" y="${P}" width="${w.toFixed(1)}" height="${H-2*P}" fill="${col('--s1')}" opacity="0.10"/>`;}
+  const my=ys(meta.media_fechadas);
+  const avg=`<line x1="${P}" y1="${my.toFixed(1)}" x2="${W-P}" y2="${my.toFixed(1)}" stroke="${col('--text-3')}" stroke-width="1.3" stroke-dasharray="5 4"/><text x="${W-P}" y="${(my-5).toFixed(1)}" text-anchor="end" fill="${col('--text-3')}" font-size="10">média safras fechadas ${meta.media_fechadas}%</text>`;
+  const lp=S.map((d,i)=>(i?'L':'M')+cx(i).toFixed(1)+' '+ys(d.escape).toFixed(1)).join(' ');
+  let dots='';S.forEach((d,i)=>{const atual=d.mes===meta.mes_corrente;dots+=`<circle cx="${cx(i).toFixed(1)}" cy="${ys(d.escape).toFixed(1)}" r="3.5" fill="${col('--bad')}" stroke="${col('--surface-1')}" stroke-width="1.5" opacity="${atual?0.45:1}"><title>${d.mes} · ${d.escape}% escapou (${d.cliente} de ${d.total})</title></circle>`;});
+  return `<div class="legend"><span><i class="dot" style="background:var(--bad);border-radius:2px;width:14px;height:3px"></i>% que escapou p/ o cliente</span><span><i class="dot" style="background:var(--text-3);border-radius:2px;width:14px;height:3px"></i>média das safras fechadas</span></div>
+  <svg viewBox="0 0 ${W} ${H}" width="100%">${band}${grid}${xl}${avg}
+   <path d="${lp}" fill="none" stroke="${col('--bad')}" stroke-width="2.5"/>
+   ${dots}</svg>`;
+}
+window.__recorte='todos';
+function setRecorte(k){window.__recorte=k;document.getElementById('recwrap').innerHTML=recorteBody();
+  document.querySelectorAll('.recbtn').forEach(b=>b.classList.toggle('on',b.dataset.k===k));}
+function recorteEvol(S){
+  const W=1080,H=250,P=42,n=S.length,gw=(W-2*P)/n,bw=Math.min(16,gw*0.34),cx=(i)=>P+(i+0.5)*gw;
+  const maxY=Math.max(1,...S.map(d=>Math.max(d.criados,d.entregues,d.saldo)))*1.12, ys=(v)=>H-P-(v/maxY)*(H-2*P);
+  let grid='';for(let g=0;g<=4;g++){const yy=P+g*(H-2*P)/4,val=Math.round(maxY*(1-g/4));grid+=`<line x1="${P}" y1="${yy}" x2="${W-P}" y2="${yy}" stroke="${col('--line')}" stroke-width="1"/><text x="${P-6}" y="${yy+4}" text-anchor="end" fill="${col('--text-3')}" font-size="10">${val}</text>`;}
+  let xl='';S.forEach((d,i)=>{if(i%2===0||i===n-1)xl+=`<text x="${cx(i)}" y="${H-P+16}" text-anchor="middle" fill="${col('--text-3')}" font-size="9">${d.mes.slice(2)}</text>`;});
+  const si2=S.findIndex(d=>d.mes===curSafra());let band='';if(si2>=0){const w=gw*0.9;band=`<rect x="${(cx(si2)-w/2).toFixed(1)}" y="${P}" width="${w.toFixed(1)}" height="${H-2*P}" fill="${col('--s1')}" opacity="0.10"/>`;}
+  let bars='';S.forEach((d,i)=>{const x1=cx(i)-bw-1.5,x2=cx(i)+1.5,yC=ys(d.criados),yE=ys(d.entregues);
+    bars+=`<rect x="${x1.toFixed(1)}" y="${yC.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-yC).toFixed(1)}" fill="${col('--s2')}" rx="1.5"><title>${d.mes} · criados ${d.criados}</title></rect>`;
+    bars+=`<rect x="${x2.toFixed(1)}" y="${yE.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-yE).toFixed(1)}" fill="${col('--s3')}" rx="1.5"><title>${d.mes} · entregues ${d.entregues}</title></rect>`;});
+  const lp=S.map((d,i)=>(i?'L':'M')+cx(i).toFixed(1)+' '+ys(d.saldo).toFixed(1)).join(' ');
+  let dots='';S.forEach((d,i)=>{dots+=`<circle cx="${cx(i).toFixed(1)}" cy="${ys(d.saldo).toFixed(1)}" r="3" fill="${col('--s1')}" stroke="${col('--surface-1')}" stroke-width="1.3"><title>${d.mes} · saldo ${d.saldo}</title></circle>`;});
+  return `<div class="legend"><span><i class="dot" style="background:var(--s2)"></i>Criados</span><span><i class="dot" style="background:var(--s3)"></i>Entregues</span><span><i class="dot" style="background:var(--s1);border-radius:2px;width:14px;height:3px"></i>Saldo</span></div>
+  <svg viewBox="0 0 ${W} ${H}" width="100%">${band}${grid}${xl}${bars}<path d="${lp}" fill="none" stroke="${col('--s1')}" stroke-width="2.3" stroke-dasharray="5 4"/>${dots}</svg>`;
+}
+function recorteEscape(S){
+  const cur=DATA.recorte_mes_corrente, W=1080,H=210,P=42,n=S.length,gw=(W-2*P)/n,cx=(i)=>P+(i+0.5)*gw;
+  const maxV=Math.max(10,...S.map(d=>d.escape)),maxY=Math.min(100,Math.ceil(maxV*1.2/10)*10),ys=(v)=>H-P-(v/maxY)*(H-2*P);
+  const fech=S.filter(d=>d.mes<cur && (d.criados>0)); const med=fech.length?Math.round(fech.reduce((s,d)=>s+d.escape,0)/fech.length):0;
+  let grid='';for(let g=0;g<=4;g++){const yy=P+g*(H-2*P)/4,val=Math.round(maxY*(1-g/4));grid+=`<line x1="${P}" y1="${yy}" x2="${W-P}" y2="${yy}" stroke="${col('--line')}" stroke-width="1"/><text x="${P-6}" y="${yy+4}" text-anchor="end" fill="${col('--text-3')}" font-size="10">${val}%</text>`;}
+  let xl='';S.forEach((d,i)=>{if(i%2===0||i===n-1)xl+=`<text x="${cx(i)}" y="${H-P+16}" text-anchor="middle" fill="${col('--text-3')}" font-size="9">${d.mes.slice(2)}</text>`;});
+  const my=ys(med),avg=`<line x1="${P}" y1="${my.toFixed(1)}" x2="${W-P}" y2="${my.toFixed(1)}" stroke="${col('--text-3')}" stroke-width="1.3" stroke-dasharray="5 4"/><text x="${W-P}" y="${(my-5).toFixed(1)}" text-anchor="end" fill="${col('--text-3')}" font-size="10">média fechadas ${med}%</text>`;
+  const lp=S.map((d,i)=>(i?'L':'M')+cx(i).toFixed(1)+' '+ys(d.escape).toFixed(1)).join(' ');
+  let dots='';S.forEach((d,i)=>{const at=d.mes===cur;dots+=`<circle cx="${cx(i).toFixed(1)}" cy="${ys(d.escape).toFixed(1)}" r="3.2" fill="${col('--bad')}" stroke="${col('--surface-1')}" stroke-width="1.3" opacity="${at?0.45:1}"><title>${d.mes} · ${d.escape}% escapou</title></circle>`;});
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%">${grid}${xl}${avg}<path d="${lp}" fill="none" stroke="${col('--bad')}" stroke-width="2.5"/>${dots}</svg>`;
+}
+function recorteBody(){
+  const R=DATA.recortes[window.__recorte], S=R.serie, small=R.n<120;
+  const badge=`<div class="note" style="margin-bottom:12px"><b>${R.label}:</b> ${R.n} bugs · apontamento ${R.apont}%${window.__recorte==='bim'&&R.mods?` · módulos: ${R.mods.join(', ')}`:''}. ${small?`<b style="color:${col('--bad')}">Amostra pequena — leia com cautela; variação mês a mês pode ser ruído, não tendência.</b>`:''}</div>`;
+  return badge
+    +`<div class="kpi-label" style="margin:2px 0 6px">Entradas × entregues × saldo por mês</div>`+recorteEvol(S)
+    +`<div class="kpi-label" style="margin:16px 0 6px">Escape rate mensal — % que chegou como Bug Cliente</div>`+recorteEscape(S);
+}
 window.__sobraStatus='Não Iniciado';
 function sobraSetStatus(s){window.__sobraStatus=s;document.getElementById('sobrawrap').innerHTML=sobraChart();}
 function sobraOptions(){return DATA.status_series.ordem.map(s=>`<option value="${s}" ${s===window.__sobraStatus?'selected':''}>${s}</option>`).join('');}
@@ -483,11 +542,6 @@ function custoModulo(){
   const rows=DATA.tabela_modulo.filter(r=>r.horas>0).slice(0,10);
   const obj={};rows.forEach(r=>obj[r.mod]=r.horas);
   return barChart(obj,[col('--s1')],'h');
-}
-function sentryChart(){
-  const S=DATA.sentry; if(!S||!S.length)return '<div class="note">Sem dados de Sentry.</div>';
-  const obj={};S.forEach(s=>obj[s.mes]=s.incid||0);
-  return barChart(obj,[col('--s2')]);
 }
 
 function alertCard(){
@@ -664,6 +718,15 @@ function render(){
    <h2>${si('chart-line')}Evolução histórica — entradas × concluídos × saldo por mês <span class="info" data-tip="Idêntico à planilha do Diego (aba Resumo). Laranja = cards que ENTRARAM no mês (criados); verde = cards que SAÍRAM no mês (concluídos = Em produção ou Concluído); azul tracejado = SALDO que passou para o mês seguinte (início + criados − concluídos). Quando entra mais do que sai, o saldo sobe; quando sai mais, o saldo cai.">i</span></h2>
    <div class="panel">${lineChart()}
      <details class="note-c"><summary>Como ler este gráfico</summary><div class="note-body"><b>Como ler (mesma lógica da planilha do Diego):</b> a linha laranja é quanto <b>entrou</b> por mês (<b>cards criados</b>); a verde é quanto <b>saiu</b> no mês (<b>cards concluídos</b> — em produção ou concluído); a tracejada azul é o <b>saldo</b> que passou para o mês seguinte. As três se conectam: <b>saldo do mês = início + criados − concluídos</b>, e esse saldo vira o início do mês seguinte (começando em zero em jan/2025). Por isso, quando o laranja fica acima do verde, o azul <b>sobe</b> (entrou mais do que saiu); quando o verde supera o laranja, o azul <b>cai</b>. Hoje o saldo está em <b>${(DATA.diego_series&&DATA.diego_series.length?DATA.diego_series[DATA.diego_series.length-1].saldo:'—')}</b>. Regras do Diego: "criados" exclui os status <b>Impedimento Produto</b> e <b>Cancelado QA</b>; "concluídos" considera <b>Em produção</b> ou <b>Concluído</b> (fora Cancelado QA). <i>Fonte: aba "Resumo" da planilha do Diego — atualiza quando a planilha é atualizada.</i></div></details></div>
+   <h2>${si('layer-group')}Evolução por recorte — Todos · BIM · Sem BIM <span class="info" data-tip="Separa a base em BIM (produtos de time externo/PJ: OF Elétrico, OrçaBim, OF Hidráulico, OF Estrutural, OF BI) e Sem BIM (todo o resto). 'Sem BIM' é sempre o complemento — módulo novo entra aqui até ser classificado. Civil 3D é externo mas está gravado como Orçamento no Jira, então NÃO é separável por módulo (precisaria de label/component próprio). Ao lado do recorte vai a cobertura (nº de bugs e apontamento) para não tirar conclusão de amostra pequena.">i</span></h2>
+   <div class="panel">
+     <div class="safra-prod" style="margin-bottom:6px">
+       <button class="prodbtn recbtn on" data-k="todos" onclick="setRecorte('todos')">Todos</button>
+       <button class="prodbtn recbtn" data-k="bim" onclick="setRecorte('bim')">BIM (externo)</button>
+       <button class="prodbtn recbtn" data-k="interno" onclick="setRecorte('interno')">Sem BIM</button>
+     </div>
+     <div id="recwrap">${recorteBody()}</div>
+   </div>
    <h2>${si('filter')}Diagnóstico do mês — funil de entrega do dev</h2>${funilPanel()}
    <h2>${si('hourglass-half')}Sobra por status — número de cards por mês <span class="info" data-tip="Explorador de status: escolha um status no seletor e o gráfico mostra, mês a mês (por mês de criação do card), quantos cards estão nesse status HOJE. Ex.: 'Não Iniciado' mostra o que sobrou sem começar; 'Impedimento Dev' mostra os travados; 'Done' mostra os entregues. Barra clara = mês corrente. Base líquida — exclui descartados pelo QA e Chat de Suporte.">i</span></h2>
    <div class="panel">
@@ -674,6 +737,9 @@ function render(){
      <div id="sobrawrap">${sobraChart()}</div>
      <div class="note"><b>Como ler:</b> selecione um status no menu acima para ver, em cada mês, quantos cards daquela safra estão nele hoje. Cada barra traz o número exato; a barra clara é o mês corrente (ainda em andamento). Útil para: "Não Iniciado" = o que ficou sem começar; "Impedimento Produto/Dev" = onde estão os travados; "Em Desenvolvimento" = o que o time tem em mãos agora. Base líquida — exclui descartados pelo QA e o módulo Chat de Suporte.</div></div>
    <h2>${si('gauge-high')}Panorama do período</h2>${kpiCards()}
+   <h2>${si('chart-line')}Detecção ao longo do tempo — escape rate mensal <span class="info" data-tip="% dos bugs criados em cada mês que vieram como 'Bug Cliente' (escaparam para produção). Por mês de criação, base líquida. Linha tracejada = média das safras fechadas. O mês corrente aparece esmaecido porque ainda está em andamento. Quanto MAIS BAIXA a linha, melhor — mais bugs barrados antes do cliente.">i</span></h2>
+   <div class="panel"><div id="escwrap">${escapeChart()}</div>
+     <div class="note"><b>Como ler:</b> cada ponto é o % dos bugs daquele mês que chegaram como Bug Cliente (escaparam). <b>Linha caindo = melhorando</b> — mais bugs barrados internamente (QA/Dev) antes do cliente. Mês corrente esmaecido, ainda em andamento. Base líquida, por mês de criação.</div></div>
    ${isAll?'':responsavelPanel()}
    ${isAll?`
    <h2>${si('cubes')}Qualidade por módulo</h2>
@@ -686,21 +752,14 @@ function render(){
      <div class="note"><b>Como ler:</b> selecione um <b>módulo</b> no menu para ver a evolução mensal de bugs criados só dele. Cada barra é um mês, com o número exato. Serve para acompanhar se um produto está gerando mais ou menos bugs ao longo do tempo. Contagem líquida — exclui os descartados pelo QA e o módulo Chat de Suporte, igual à Evolução histórica.</div></div>
    <h2>${si('triangle-exclamation')}Prioridade &amp; SLA</h2>${slaSection()}
    <h2>${si('users')}Carga por squad — folha × contrato</h2>${squadSection()}
-   <h2>${si('coins')}Custo e alocação</h2>
+   <h2>${si('coins')}Esforço e alocação — bugs</h2>
    <div class="grid2">
-     <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Esforço por tipo de trabalho (Run × Build)</div>
-       ${barChart(DATA.custo_tipo,[col('--s2'),col('--s3')],'h')}
-       <div class="note"><b>Custo distribuído (estimativa).</b> Em horas de esforço (Σ Tempo Gasto). Para converter em R$: custo = horas × custo-hora carregado do time — pendente do valor exato de salários+encargos. Run = correção de bugs; Build = produtos+melhorias.</div></div>
      <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Esforço por módulo (top 10, horas)</div>
-       ${custoModulo()}</div>
-   </div>
-   <div class="grid2">
+       ${custoModulo()}
+       <div class="note"><b>Esforço distribuído (estimativa)</b>, em horas apontadas (Σ Tempo Gasto) só de bugs. Para virar R$: horas × custo-hora carregado — pendente das taxas de folha e de cada contrato. Cuidado: onde o apontamento é baixo, o esforço aparece subestimado.</div></div>
      <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Alocação — bugs por responsável (top 10)</div>
        ${barChart(Object.fromEntries(DATA.aloc_top),[col('--s1')])}
        <div class="note">"Sem responsável" é o maior balde — sinal de triagem/atribuição a melhorar, não de ociosidade. Enquadramento de sistema, não de pessoa.</div></div>
-     <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Saúde de produção — incidências Sentry/mês</div>
-       ${sentryChart()}
-       <div class="note">Total de incidências capturadas em produção (Sentry). Complementa o backlog de bugs do Jira com o que o cliente sente.</div></div>
    </div>
    <h2>${si('bell')}Alerta operacional</h2>${alertCard()}`:''}`;
   collapsibleNotes();
