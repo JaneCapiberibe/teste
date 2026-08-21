@@ -297,6 +297,51 @@ for p in ORDER:
 d['previsibilidade']={'agregado':round(100*tk/tn),'ok':tk,'n':tn,'metodo':'dev-p95','excluidos':total_bruto-tn,'por_prio':pr}
 d['suporte_lag']={'n':len(lag),'mediana_h':round(statistics.median(lag),1),'media_h':round(statistics.mean(lag),1)}
 
+# ---- severidade / previsibilidade (SLA) / MTTR / tempo de resposta do suporte, por RECORTE ----
+# Mesmo recorte BIM/interno de d['recortes'] acima (mesma _grupo/_is_bim — não é um mecanismo novo).
+# inputs/suporte_list.csv (Time-in-Status) é uma amostra MENOR que a base líquida de bugs: nem todo
+# card tem export de tempo em status. Por isso guardamos os dois números (n de bugs do recorte E
+# tis_n = cards com Time-in-Status) — o selo de cobertura do dashboard usa os dois para avisar
+# quando a base do SLA/dev daquele recorte é pequena demais pra tirar conclusão.
+def _rec_prev(pred):
+    sub=[x for x in sweep if pred(x)]
+    pcr=collections.Counter(x['prio'] for x in sub)
+    sev_r=[{'nivel':NIVEL[p],'n':pcr.get(p,0)} for p in ORDER]
+    sev_r.append({'nivel':'Sem prioridade','n':pcr.get('Preencher Prioridade',0)+pcr.get(None,0)})
+    mt_r=[busdays(x['c'].date(),x['r'].date()) for x in sub if x['c'] and x['r']]
+    keys_r={x['key'] for x in sub}
+    by_r=collections.defaultdict(list); lag_r=[]; tis_n=0
+    for r_ in csv.DictReader(open('inputs/suporte_list.csv',encoding='utf-8-sig')):
+        if r_['Key'] not in keys_r: continue
+        tis_n+=1
+        dev_r=sum(_h(r_.get(c,'')) for c in DEV); prod_r=_h(r_.get('Em produção',''))
+        if prod_r>0: lag_r.append(prod_r)
+        p=prio_live.get(r_['Key'])
+        if p not in SLA: continue
+        by_r[p].append(dev_r)
+    pr_r=[]; tn_r=tk_r=0; total_bruto_r=0
+    for p in ORDER:
+        if p not in by_r: continue
+        devs=sorted(by_r[p]); total_bruto_r+=len(devs)
+        keep=int(round(len(devs)*0.95)) or len(devs)
+        kept=devs[:keep]
+        ok=sum(1 for v in kept if v<=SLA[p]); n=len(kept)
+        tn_r+=n; tk_r+=ok
+        pr_r.append({'nivel':NIVEL[p],'sla':SLA[p],'n':n,'ok':ok,
+                     'pct':round(100*ok/n) if n else 0,
+                     'mttr':round(statistics.median(kept)/8,1) if kept else None})
+    return {
+        'severidade':sev_r,
+        'mttr_mediana':round(statistics.median(mt_r),1) if mt_r else None,
+        'previsibilidade':{'agregado':round(100*tk_r/tn_r) if tn_r else 0,'ok':tk_r,'n':tn_r,
+                            'metodo':'dev-p95','excluidos':total_bruto_r-tn_r,'por_prio':pr_r},
+        'suporte_lag':{'n':len(lag_r),'mediana_h':round(statistics.median(lag_r),1) if lag_r else 0,
+                       'media_h':round(statistics.mean(lag_r),1) if lag_r else 0},
+        'tis_n':tis_n,
+    }
+for _k,_pred in (('todos',lambda x:True),('bim',_is_bim),('interno',lambda x:not _is_bim(x))):
+    d['recortes'][_k].update(_rec_prev(_pred))
+
 # ---- FUNIL DE ENTREGA DO DEV — para CADA mês (safra) ----
 ENTREGUE={'Em produção','Done','Concluído','Concluido'}
 def build_funil(ref):
