@@ -25,13 +25,6 @@ sweep=[x for x in sweep if x['m'] not in EXCLUI_MOD]
 sweep_full=sweep
 cancelado_total=sum(1 for x in sweep_full if x['res']=='Cancelado QA')
 sweep=[x for x in sweep_full if x['res']!='Cancelado QA']
-if not sweep:
-    raise RuntimeError(
-        "sweep.json não tem nenhum bug válido depois dos filtros (base líquida ficou vazia). "
-        "Isso não é esperado — a base tem centenas de bugs. Provável causa: fetch_jira.py rodou "
-        "com 0 issues do Jira (confira o log do passo 'Puxar do Jira') ou sweep.json está "
-        "corrompido/vazio. Não dá pra gerar o dashboard sem dados reais do Jira."
-    )
 d={}
 d['meta']={'total_bugs_base_atual':len(sweep),'total_com_descartados':len(sweep_full),'descartados_qa':cancelado_total,'chat_removidos':chat_removidos,'periodo':min(x['c'] for x in sweep).strftime('%Y-%m')+' a '+max(x['c'] for x in sweep).strftime('%Y-%m'),'snapshot':str(TODAY)}
 
@@ -154,28 +147,64 @@ _defech=[s for s in det_series if s['mes']<cur_ym and s['total']>0][-6:]
 d['det_series_meta']={'media_fechadas':round(statistics.mean([s['escape'] for s in _defech])) if _defech else 0,
                       'mes_corrente':cur_ym}
 
-# ---- EVOLUÇÃO POR MÓDULO ----
-# Mesmos dados/método da Evolução histórica (ver criaD/concD acima): criados exclui Impedimento
-# Produto e Cancelado QA; concluídos = resolvidos no mês, exclui Cancelado QA; saldo = acumulado
-# criados−concluídos mês a mês, começando em zero — só que por módulo em vez de agregado, para o
-# painel "Evolução por módulo" (chips de módulo, estilo Tendência dos módulos).
-_mod_cria=collections.defaultdict(lambda:collections.Counter())
-_mod_conc=collections.defaultdict(lambda:collections.Counter())
-for x in sweep_full:
-    if x['c'] and x['res']!='Cancelado QA' and x['status']!='IMPEDIMENTO PRODUTO':
-        _mod_cria[x['m']][x['c'].strftime('%Y-%m')]+=1
-    if x['r'] and x['res']!='Cancelado QA':
-        _mod_conc[x['m']][x['r'].strftime('%Y-%m')]+=1
-_mod_evol_ordem=[m for m,_ in collections.Counter({mod:sum(c.values()) for mod,c in _mod_cria.items()}).most_common()]
-def _mod_evol_serie(mod):
-    cria_c, conc_c = _mod_cria[mod], _mod_conc[mod]
+# ---- RECORTES: BIM (externo) x Sem BIM (internos) ----
+# Mapa ÚNICO módulo->grupo. "Internos" nunca é lista à parte: é o complemento de BIM.
+# Comparação sem acento/caixa (typo/acentuação não fazem card vazar de grupo em silêncio).
+import unicodedata as _ud
+def _gk(s):
+    s=(s or '').strip().lower()
+    return ''.join(c for c in _ud.normalize('NFD',s) if _ud.category(c)!='Mn')
+_BIM_KEYS={'of eletrico','orcabim','orcabim web','of hidraulico','of estrutural','of bi'}
+_INTERNO_KEYS={'orcamento','bases de preco','gestao de base propria','sofia','arquivos publicos','cadastro',
+ 'administrar empresa','cadastro/administrar empresa','prime','chat de suporte','ti','medicao','diario de obras',
+ 'planejamento','compras','of manager','of cde','nao classificado'}
+def _grupo(m):
+    k=_gk(m)
+    if k in _BIM_KEYS: return 'bim'
+    if k in _INTERNO_KEYS: return 'interno'
+    print(f"[AVISO recorte] módulo NÃO classificado como BIM/interno: {m!r} -> assumindo INTERNO. "
+          f"Classifique em _BIM_KEYS/_INTERNO_KEYS no gen_data.")
+    return 'interno'
+# valida UMA vez sobre os módulos que existem (warnings saem aqui, não no loop por bug)
+_bim_mods={m for m in {x['m'] for x in sweep} if _grupo(m)=='bim'}
+_is_bim=lambda x: x['m'] in _bim_mods
+def _rec_serie(pred):
+    cri=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep if x['c'] and pred(x))
+    ent=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep if x['c'] and pred(x) and x['status'] in ENTREGUE)
+    dm=collections.defaultdict(lambda:collections.Counter())
+    for x in sweep:
+        if x['c'] and pred(x): dm[x['c'].strftime('%Y-%m')][x['itype']]+=1
     out=[]; saldo=0
     for m in meses:
-        cc=cria_c.get(m,0); ee=conc_c.get(m,0); saldo+=cc-ee
-        out.append({'mes':m,'criados':cc,'concluidos':ee,'saldo':saldo})
+        cc=cri.get(m,0); ee=ent.get(m,0); saldo+=cc-ee
+        cm=dm[m]; tt=sum(cm.values()); cli=cm.get('Bug Cliente',0)
+        out.append({'mes':m,'criados':cc,'entregues':ee,'saldo':saldo,'escape':round(100*cli/tt) if tt else 0})
     return out
-d['mod_evol']={'meses':meses,'ordem':_mod_evol_ordem,
-               'por_modulo':{m:_mod_evol_serie(m) for m in _mod_evol_ordem}}
+def _rec_meta(pred):
+    sub=[x for x in sweep if pred(x)]; n=len(sub)
+    apo=sum(1 for x in sub if isinstance(x.get('timespent'),(int,float)) and x['timespent']>0)
+    return {'n':n,'apont':round(100*apo/n) if n else 0}
+d['recortes']={
+ 'todos':{'label':'Todos','serie':_rec_serie(lambda x:True),**_rec_meta(lambda x:True)},
+ 'bim':{'label':'BIM (externo)','serie':_rec_serie(_is_bim),**_rec_meta(_is_bim),'mods':sorted(_bim_mods)},
+ 'interno':{'label':'Sem BIM','serie':_rec_serie(lambda x:not _is_bim(x)),**_rec_meta(lambda x:not _is_bim(x))},
+}
+d['recorte_mes_corrente']=cur_ym
+
+# ---- EVOLUÇÃO POR MÓDULO (criados + entregues por mês, cohort por mês de criação) ----
+# Mesma régua da Evolução histórica: entregues = da safra do mês (status atual em produção/concluído).
+_emc=collections.defaultdict(lambda:collections.Counter())
+_eme=collections.defaultdict(lambda:collections.Counter())
+for x in sweep:
+    if not x['c']: continue
+    _mm=x['c'].strftime('%Y-%m')
+    _emc[x['m']][_mm]+=1
+    if x['status'] in ENTREGUE: _eme[x['m']][_mm]+=1
+_emtot={md:sum(_emc[md].values()) for md in _emc}
+_emordem=sorted(_emtot, key=lambda md:-_emtot[md])
+d['evol_modulo']={'meses':meses,'ordem':_emordem,
+  'por_modulo':{md:{'criados':[_emc[md].get(m,0) for m in meses],
+                    'concluidos':[_eme[md].get(m,0) for m in meses]} for md in _emordem}}
 
 # por modulo: bugs, horas, mttr, trend
 mods=collections.defaultdict(lambda:{'bugs':0,'seg':0.0,'mttr':[]})
