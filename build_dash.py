@@ -718,6 +718,14 @@ function impedimentoSpotlight(){
     </div>
   </div>`;
 }
+function funilDetc(f){
+  if(!f.detc||!f.detc.length) return '';
+  const cm=detColors(), max=Math.max(1,...f.detc.map(i=>i.n));
+  const rows=f.detc.map(i=>`<div class="bar-row"><div class="lbl">${i.tipo}</div>
+     <div class="bar-track"><div class="bar-fill" style="width:${(i.n/max*100).toFixed(1)}%;background:${cm[i.tipo]||col('--text-3')}"></div></div>
+     <div class="bar-val">${i.n} <span style="color:${col('--text-3')};font-weight:400">(${i.pct}%)</span></div></div>`).join('');
+  return `<div class="kpi-label" style="margin:16px 0 6px">Detecção do mês — todos os ${f.total} cards da safra, por onde foram pegos <span class="info" data-tip="Classificação por tipo de item do Jira, sobre TODOS os cards que entraram no mês (inclusive os descartados pelo QA — diferente do funil acima, que já filtra pra 'chegaram ao dev'). Cliente = escapou e chegou à produção; QA/Dev = barrado internamente; Backoffice = ferramenta interna.">i</span></div>${rows}`;
+}
 function funilPanel(){
   const f=(DATA.funil_por_mes&&DATA.funil_por_mes[curSafra()])||DATA.funil; if(!f) return '';
   const isCorrente=f.mes===DATA.mes_corrente;
@@ -729,6 +737,7 @@ function funilPanel(){
   const sevTxt=f.sev.map(s=>`${s.nivel} ${s.n}`).join(' · ');
   const modTxt=f.mod_top.map(m=>`${m[0]} ${m[1]}`).join(' · ');
   const filaTxt=f.fila_det.length?f.fila_det.map(x=>`${x[1]} ${x[0].toLowerCase()}`).join(', '):'—';
+  const detTxt=(f.detc||[]).map(i=>`${i.tipo} ${i.n} (${i.pct}%)`).join(' · ');
   return `<div class="panel" style="border-left:5px solid var(--s1)">
     <div class="kpi-label" style="margin-bottom:14px;font-size:13px">Carga real que chegou ao desenvolvimento — safra de <b>${mesLbl(f.mes)}</b>${isCorrente?' (mês corrente, em andamento)':' (mês fechado)'}
       <span class="info" data-tip="O funil mostra a carga REAL do desenvolvimento no mês. Parte do total de bugs criados, remove os que o QA descartou (Cancelado QA — não eram defeito de produto), e o que sobra é o volume que efetivamente chegou ao dev. 'Entregues' = cards que o dev colocou em produção/concluiu; 'na fila' = o que ainda está no pipeline. É a leitura honesta de capacidade: mede o dev pelo que ele recebeu de verdade, não pelo volume bruto inflado por triagem.">i</span></div>
@@ -742,8 +751,9 @@ function funilPanel(){
       ${step(f.fila,'na fila','ainda no pipeline',col('--warn'))}
     </div>
     ${filaBreakdown(f)}
+    ${funilDetc(f)}
     ${impedimentoSpotlight()}
-    <div class="note" style="margin-top:16px"><b>Leitura de capacidade:</b> o dev recebeu de verdade <b>${f.dev}</b> bugs (não ${f.total} — ${f.descartados_qa} eram ruído de triagem que o QA barrou, ${f.pct_descarte}% do total). Desses ${f.dev}, entregou <b>${f.entregues} (${f.pct_entrega}%)</b> dentro do mês; a fila restante são ${f.fila} cards (${filaTxt}), a maior parte já adiantada. Velocidade: MTTR mediano de <b>${f.mttr_mediana} dias úteis</b> (média ${f.mttr_media}). Severidade do que chegou ao dev: ${sevTxt}. Concentração: ${modTxt}. Apontamento de horas em ${f.apont_cov[0]} de ${f.apont_cov[1]} cards. <b>O gargalo do mês não foi o desenvolvimento</b> — foi a triagem deixando ${f.pct_descarte}% de ruído entrar.</div></div>`;
+    <div class="note" style="margin-top:16px"><b>Leitura de capacidade:</b> o dev recebeu de verdade <b>${f.dev}</b> bugs (não ${f.total} — ${f.descartados_qa} eram ruído de triagem que o QA barrou, ${f.pct_descarte}% do total). Desses ${f.dev}, entregou <b>${f.entregues} (${f.pct_entrega}%)</b> dentro do mês; a fila restante são ${f.fila} cards (${filaTxt}), a maior parte já adiantada. Velocidade: MTTR mediano de <b>${f.mttr_mediana} dias úteis</b> (média ${f.mttr_media}). Severidade do que chegou ao dev: ${sevTxt}. Concentração: ${modTxt}. Detecção da safra (todos os cards): ${detTxt}. Apontamento de horas em ${f.apont_cov[0]} de ${f.apont_cov[1]} cards. <b>O gargalo do mês não foi o desenvolvimento</b> — foi a triagem deixando ${f.pct_descarte}% de ruído entrar.</div></div>`;
 }
 function prodBanner(){
   const lbl=PRODLBL[curProduto()];

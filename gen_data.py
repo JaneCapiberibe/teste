@@ -324,13 +324,22 @@ def build_funil(ref):
     sevd=collections.Counter(x['prio'] for x in dev)
     sev_ord=[{'nivel':NIVEL[p],'n':sevd.get(p,0)} for p in ORDER if sevd.get(p,0)]
     modd=collections.Counter(x['m'] for x in dev).most_common(5)
+    # DETECÇÃO do mês — TODOS os cards da safra (inclusive os descartados pelo QA), por tipo do
+    # Jira: Cliente = escapou p/ produção; QA/Dev = barrado interno; Backoffice = ferramenta interna.
+    # Mesmo DET_ORDER/critério de d['deteccao'] (agregado), só que recortado por safra do mês.
+    itc=collections.Counter(x['itype'] for x in crj)
+    det_itens=[{'tipo':lbl,'n':itc.get(key,0)} for key,lbl in DET_ORDER]
+    det_outros=sum(v for k,v in itc.items() if k not in dict(DET_ORDER))
+    if det_outros: det_itens.append({'tipo':'Outros','n':det_outros})
+    det_tot=sum(i['n'] for i in det_itens) or 1
+    for i in det_itens: i['pct']=round(100*i['n']/det_tot)
     mt=[busdays(x['c'].date(),x['r'].date()) for x in dev if x['c'] and x['r']]
     napont=sum(1 for x in dev if isinstance(x['timespent'],(int,float)) and x['timespent'])
     return {'mes':ref,'total':len(crj),'descartados_qa':len(disc),'dev':len(dev),
         'entregues':len(entregues),'fila':len(fila),'fila_det':fila_det,
         'pct_descarte':round(100*len(disc)/len(crj)) if crj else 0,
         'pct_entrega':round(100*len(entregues)/len(dev)) if dev else 0,
-        'sev':sev_ord,'mod_top':modd,
+        'sev':sev_ord,'mod_top':modd,'detc':det_itens,
         'mttr_mediana':round(statistics.median(mt),1) if mt else None,
         'mttr_media':round(statistics.mean(mt),1) if mt else None,
         'apont_cov':[napont,len(dev)]}
