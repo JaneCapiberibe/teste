@@ -384,15 +384,16 @@ function slaSection(){
 }
 
 function lineChart(){
-  // Combo IDÊNTICO à planilha do Diego: barras agrupadas (criados × concluídos) + linha do saldo.
-  const S=(DATA.diego_series&&DATA.diego_series.length)?DATA.diego_series:DATA.tot_series;
-  const kD=(DATA.diego_series&&DATA.diego_series.length)?'concluidos':'entregues';
-  const kS=(DATA.diego_series&&DATA.diego_series.length)?'saldo':'acumulado';
+  // Combo SEMPRE ao vivo do Jira (mesmo método de d['evol_modulo'] — "Todos" na Evolução por
+  // módulo tem que bater com este gráfico, não só parecer com ele): barras criados × concluídos
+  // (backlog_criados/backlog_concluidos) + linha do saldo (acumulado).
+  const S=DATA.tot_series;
+  const kC='backlog_criados', kD='backlog_concluidos', kS='acumulado';
   const W=1080,H=280,P=42, n=S.length;
   const gw=(W-2*P)/n;                 // largura do grupo (mês)
   const bw=Math.min(16, gw*0.34);     // largura de cada barra
   const cx=(i)=>P+(i+0.5)*gw;         // centro do grupo
-  const maxY=Math.max(...S.map(d=>Math.max(d.criados,d[kD],d[kS])))*1.12;
+  const maxY=Math.max(...S.map(d=>Math.max(d[kC],d[kD],d[kS])))*1.12;
   const ys=(v)=>H-P-(v/maxY)*(H-2*P);
   let grid='';
   for(let g=0;g<=4;g++){const yy=P+g*(H-2*P)/4;const val=Math.round(maxY*(1-g/4));grid+=`<line x1="${P}" y1="${yy}" x2="${W-P}" y2="${yy}" stroke="${col('--line')}" stroke-width="1"/><text x="${P-6}" y="${yy+4}" text-anchor="end" fill="${col('--text-3')}" font-size="10">${val}</text>`;}
@@ -404,8 +405,8 @@ function lineChart(){
   // barras agrupadas
   let bars='';
   S.forEach((d,i)=>{
-    const x1=cx(i)-bw-1.5, x2=cx(i)+1.5, yC=ys(d.criados), yD=ys(d[kD]);
-    bars+=`<rect x="${x1.toFixed(1)}" y="${yC.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-yC).toFixed(1)}" fill="${col('--s2')}" rx="1.5"><title>${d.mes} · criados ${d.criados}</title></rect>`;
+    const x1=cx(i)-bw-1.5, x2=cx(i)+1.5, yC=ys(d[kC]), yD=ys(d[kD]);
+    bars+=`<rect x="${x1.toFixed(1)}" y="${yC.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-yC).toFixed(1)}" fill="${col('--s2')}" rx="1.5"><title>${d.mes} · criados ${d[kC]}</title></rect>`;
     bars+=`<rect x="${x2.toFixed(1)}" y="${yD.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-yD).toFixed(1)}" fill="${col('--s3')}" rx="1.5"><title>${d.mes} · concluídos ${d[kD]}</title></rect>`;
   });
   // linha do saldo (vermelha) + pontos com tooltip
@@ -718,6 +719,14 @@ function impedimentoSpotlight(){
     </div>
   </div>`;
 }
+function funilDetc(f){
+  if(!f.detc||!f.detc.length) return '';
+  const cm=detColors(), max=Math.max(1,...f.detc.map(i=>i.n));
+  const rows=f.detc.map(i=>`<div class="bar-row"><div class="lbl">${i.tipo}</div>
+     <div class="bar-track"><div class="bar-fill" style="width:${(i.n/max*100).toFixed(1)}%;background:${cm[i.tipo]||col('--text-3')}"></div></div>
+     <div class="bar-val">${i.n} <span style="color:${col('--text-3')};font-weight:400">(${i.pct}%)</span></div></div>`).join('');
+  return `<div class="kpi-label" style="margin:16px 0 6px">Detecção do mês — todos os ${f.total} cards da safra, por onde foram pegos <span class="info" data-tip="Classificação por tipo de item do Jira, sobre TODOS os cards que entraram no mês (inclusive os descartados pelo QA — diferente do funil acima, que já filtra pra 'chegaram ao dev'). Cliente = escapou e chegou à produção; QA/Dev = barrado internamente; Backoffice = ferramenta interna.">i</span></div>${rows}`;
+}
 function funilPanel(){
   const f=(DATA.funil_por_mes&&DATA.funil_por_mes[curSafra()])||DATA.funil; if(!f) return '';
   const isCorrente=f.mes===DATA.mes_corrente;
@@ -729,6 +738,7 @@ function funilPanel(){
   const sevTxt=f.sev.map(s=>`${s.nivel} ${s.n}`).join(' · ');
   const modTxt=f.mod_top.map(m=>`${m[0]} ${m[1]}`).join(' · ');
   const filaTxt=f.fila_det.length?f.fila_det.map(x=>`${x[1]} ${x[0].toLowerCase()}`).join(', '):'—';
+  const detTxt=(f.detc||[]).map(i=>`${i.tipo} ${i.n} (${i.pct}%)`).join(' · ');
   return `<div class="panel" style="border-left:5px solid var(--s1)">
     <div class="kpi-label" style="margin-bottom:14px;font-size:13px">Carga real que chegou ao desenvolvimento — safra de <b>${mesLbl(f.mes)}</b>${isCorrente?' (mês corrente, em andamento)':' (mês fechado)'}
       <span class="info" data-tip="O funil mostra a carga REAL do desenvolvimento no mês. Parte do total de bugs criados, remove os que o QA descartou (Cancelado QA — não eram defeito de produto), e o que sobra é o volume que efetivamente chegou ao dev. 'Entregues' = cards que o dev colocou em produção/concluiu; 'na fila' = o que ainda está no pipeline. É a leitura honesta de capacidade: mede o dev pelo que ele recebeu de verdade, não pelo volume bruto inflado por triagem.">i</span></div>
@@ -742,8 +752,9 @@ function funilPanel(){
       ${step(f.fila,'na fila','ainda no pipeline',col('--warn'))}
     </div>
     ${filaBreakdown(f)}
+    ${funilDetc(f)}
     ${impedimentoSpotlight()}
-    <div class="note" style="margin-top:16px"><b>Leitura de capacidade:</b> o dev recebeu de verdade <b>${f.dev}</b> bugs (não ${f.total} — ${f.descartados_qa} eram ruído de triagem que o QA barrou, ${f.pct_descarte}% do total). Desses ${f.dev}, entregou <b>${f.entregues} (${f.pct_entrega}%)</b> dentro do mês; a fila restante são ${f.fila} cards (${filaTxt}), a maior parte já adiantada. Velocidade: MTTR mediano de <b>${f.mttr_mediana} dias úteis</b> (média ${f.mttr_media}). Severidade do que chegou ao dev: ${sevTxt}. Concentração: ${modTxt}. Apontamento de horas em ${f.apont_cov[0]} de ${f.apont_cov[1]} cards. <b>O gargalo do mês não foi o desenvolvimento</b> — foi a triagem deixando ${f.pct_descarte}% de ruído entrar.</div></div>`;
+    <div class="note" style="margin-top:16px"><b>Leitura de capacidade:</b> o dev recebeu de verdade <b>${f.dev}</b> bugs (não ${f.total} — ${f.descartados_qa} eram ruído de triagem que o QA barrou, ${f.pct_descarte}% do total). Desses ${f.dev}, entregou <b>${f.entregues} (${f.pct_entrega}%)</b> dentro do mês; a fila restante são ${f.fila} cards (${filaTxt}), a maior parte já adiantada. Velocidade: MTTR mediano de <b>${f.mttr_mediana} dias úteis</b> (média ${f.mttr_media}). Severidade do que chegou ao dev: ${sevTxt}. Concentração: ${modTxt}. Detecção da safra (todos os cards): ${detTxt}. Apontamento de horas em ${f.apont_cov[0]} de ${f.apont_cov[1]} cards. <b>O gargalo do mês não foi o desenvolvimento</b> — foi a triagem deixando ${f.pct_descarte}% de ruído entrar.</div></div>`;
 }
 function prodBanner(){
   const lbl=PRODLBL[curProduto()];
@@ -778,10 +789,10 @@ function render(){
   document.getElementById('app').innerHTML=`
    ${safraSelector()}
    ${isAll?'':prodBanner()}
-   <h2>${si('chart-line')}Evolução histórica — entradas × concluídos × saldo por mês <span class="info" data-tip="Idêntico à planilha do Diego (aba Resumo). Laranja = cards que ENTRARAM no mês (criados); verde = cards que SAÍRAM no mês (concluídos = Em produção ou Concluído); azul tracejado = SALDO que passou para o mês seguinte (início + criados − concluídos). Quando entra mais do que sai, o saldo sobe; quando sai mais, o saldo cai.">i</span></h2>
+   <h2>${si('chart-line')}Evolução histórica — entradas × concluídos × saldo por mês <span class="info" data-tip="Método Diego (criaD/concD), sempre ao vivo do Jira. Laranja = cards que ENTRARAM no mês (criados, exclui Impedimento Produto e Cancelado QA); verde = cards que SAÍRAM no mês (concluídos = resolvidos naquele mês, exclui Cancelado QA); azul tracejado = SALDO que passou para o mês seguinte (início + criados − concluídos). Quando entra mais do que sai, o saldo sobe; quando sai mais, o saldo cai. Mesmo cálculo usado em 'Evolução por módulo' logo abaixo — os dois batem exatamente quando lá está selecionado 'Todos'.">i</span></h2>
    <div class="panel">${lineChart()}
-     <details class="note-c"><summary>Como ler este gráfico</summary><div class="note-body"><b>Como ler (mesma lógica da planilha do Diego):</b> a linha laranja é quanto <b>entrou</b> por mês (<b>cards criados</b>); a verde é quanto <b>saiu</b> no mês (<b>cards concluídos</b> — em produção ou concluído); a tracejada azul é o <b>saldo</b> que passou para o mês seguinte. As três se conectam: <b>saldo do mês = início + criados − concluídos</b>, e esse saldo vira o início do mês seguinte (começando em zero em jan/2025). Por isso, quando o laranja fica acima do verde, o azul <b>sobe</b> (entrou mais do que saiu); quando o verde supera o laranja, o azul <b>cai</b>. Hoje o saldo está em <b>${(DATA.diego_series&&DATA.diego_series.length?DATA.diego_series[DATA.diego_series.length-1].saldo:'—')}</b>. Regras do Diego: "criados" exclui os status <b>Impedimento Produto</b> e <b>Cancelado QA</b>; "concluídos" considera <b>Em produção</b> ou <b>Concluído</b> (fora Cancelado QA). <i>Fonte: aba "Resumo" da planilha do Diego — atualiza quando a planilha é atualizada.</i></div></details></div>
-   <h2>${si('layer-group')}Evolução por módulo <span class="info" data-tip="Clone da Evolução histórica, por módulo. Marque um ou vários módulos (chips) e o gráfico SOMA os selecionados no mesmo modelo do gráfico de cima — barras de criados/concluídos + linha de quanto passou pro mês seguinte. 'Todos' reproduz exatamente a Evolução histórica. Para ver um recorte (ex.: BIM), marque os módulos daquele grupo. Contagem líquida, por mês de criação. O selo avisa quando a amostra fica pequena.">i</span></h2>
+     <details class="note-c"><summary>Como ler este gráfico</summary><div class="note-body"><b>Como ler (método Diego, sempre ao vivo do Jira):</b> a linha laranja é quanto <b>entrou</b> por mês (<b>cards criados</b>, exclui Impedimento Produto e Cancelado QA); a verde é quanto <b>saiu</b> no mês (<b>cards concluídos</b> — resolvidos naquele mês, exclui Cancelado QA); a tracejada azul é o <b>saldo</b> que passou para o mês seguinte. As três se conectam: <b>saldo do mês = início + criados − concluídos</b>, e esse saldo vira o início do mês seguinte (começando em zero em jan/2025). Por isso, quando o laranja fica acima do verde, o azul <b>sobe</b> (entrou mais do que saiu); quando o verde supera o laranja, o azul <b>cai</b>. Hoje o saldo está em <b>${DATA.tot_series[DATA.tot_series.length-1].acumulado}</b>. <i>Mesmo cálculo (criaD/concD) usado em "Evolução por módulo" — somando "Todos" os módulos lá dá exatamente estes números.</i></div></details></div>
+   <h2>${si('layer-group')}Evolução por módulo <span class="info" data-tip="Mesmo cálculo da Evolução histórica (criaD/concD), por módulo. Marque um ou vários módulos (chips) e o gráfico SOMA os selecionados no mesmo modelo do gráfico de cima — barras de criados/concluídos + linha de quanto passou pro mês seguinte. 'Todos' reproduz EXATAMENTE os números da Evolução histórica (mesmo método, ambos ao vivo do Jira). Para ver um recorte (ex.: BIM), marque os módulos daquele grupo. Contagem líquida, por mês de criação/resolução. O selo avisa quando a amostra fica pequena.">i</span></h2>
    <div class="panel">
      <div class="emchiprow" id="emchiprow">${emChips()}</div>
      <div class="selcount" id="emselcount">${emSelcount()}</div>
@@ -821,7 +832,7 @@ function render(){
    </div>
    <h2>${si('bell')}Alerta operacional</h2>${alertCard()}`:''}`;
   collapsibleNotes();
-  document.querySelectorAll('.pt').forEach(c=>{c.addEventListener('mousemove',e=>{const SS=(DATA.diego_series&&DATA.diego_series.length)?DATA.diego_series:DATA.tot_series;const d=SS[e.target.dataset.i];const conc=(d.concluidos!==undefined)?d.concluidos:d.entregues;const sal=(d.saldo!==undefined)?d.saldo:d.acumulado;showTT(e,`<b>${d.mes}</b><br>entraram ${d.criados} · concluídos ${conc}<br>saldo p/ o próximo mês: ${sal}`);});c.addEventListener('mouseleave',hideTT);});
+  document.querySelectorAll('.pt').forEach(c=>{c.addEventListener('mousemove',e=>{const d=DATA.tot_series[e.target.dataset.i];showTT(e,`<b>${d.mes}</b><br>entraram ${d.backlog_criados} · concluídos ${d.backlog_concluidos}<br>saldo p/ o próximo mês: ${d.acumulado}`);});c.addEventListener('mouseleave',hideTT);});
 }
 document.getElementById('ft').innerHTML='Gerado a partir de "Resumo bugs" (export Jira). Métricas marcadas N/D não têm dado de origem — ver notas. Custo sempre rotulado como estimativa distribuída. Substitua o objeto DATA no topo do arquivo para atualizar.';
 render();

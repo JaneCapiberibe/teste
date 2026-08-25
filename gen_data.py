@@ -66,26 +66,28 @@ criaD=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep_full if x['c']
 concD=collections.Counter(x['r'].strftime('%Y-%m') for x in sweep_full if x['r'] and x['res']!='Cancelado QA')
 meses=sorted(cria)
 import os
-# Backlog acumulado no MÉTODO DO DIEGO, mas puxado AO VIVO do Jira (sem depender da planilha dele):
+# Backlog acumulado, MÉTODO DIEGO, SEMPRE ao vivo a partir do sweep (criaD/concD acima) — não
+# depende mais de jira_backlog.json nem da planilha do Diego. É o mesmo método usado em
+# d['evol_modulo'] (por módulo), de propósito: "Todos" na Evolução por módulo tem que somar
+# EXATAMENTE os números daqui (backlog_criados/backlog_concluidos/acumulado), senão os dois
+# gráficos divergem mesmo mostrando "o mesmo modelo".
 #   criados (D)  = criados no mês, status != IMPEDIMENTO PRODUTO, resolução != Cancelado QA, fora Chat de Suporte
-#   concluídos (E) = cards em {Concluído/Done, Em produção}, fora Cancelado QA e Chat, pela data de ATUALIZAÇÃO
+#   concluídos (E) = resolvidos no mês (data de resolução), fora Cancelado QA e Chat
 #   acumulado (F) = início + D - E, rolando mês a mês (o F de um mês é o início do próximo)
-# jira_backlog.json é gerado por fetch_backlog.py (21 contagens JQL). Ver reference/fetch_backlog.py.
-jb = json.load(open('jira_backlog.json')) if os.path.exists('jira_backlog.json') else {}
 ts=[]; inicio=0
 for m in meses:
     cc=cria.get(m,0); ee=entr.get(m,0); ni=naoini.get(m,0)
-    b = jb.get(m)
-    acum = b['acumulado'] if b else (inicio + criaD.get(m,0) - concD.get(m,0))  # fallback: mesmo método com o sweep
+    dd=criaD.get(m,0); ff=concD.get(m,0)
+    acum = inicio + dd - ff
     ts.append({'mes':m,'criados':cc,'entregues':ee,'abertos':cc-ee,
                'acumulado':acum,
-               'backlog_criados':(b['criados'] if b else criaD.get(m,0)),
-               'backlog_concluidos':(b['concluidos'] if b else concD.get(m,0)),
+               'backlog_criados':dd,
+               'backlog_concluidos':ff,
                'nao_iniciado':ni,
                'pct_entrega':round(100*ee/cc) if cc else 0,
                'taxa_sobra':round(100*ni/cc) if cc else 0})
     inicio = acum
-d['acum_fonte']="Jira ao vivo · método Diego (Concluído + Em produção, pela data de atualização)"
+d['acum_fonte']="Jira ao vivo · método Diego (criaD/concD — mesmo cálculo usado em Evolução por módulo)"
 d['tot_series']=ts
 
 # Divisão da safra por PRODUTO: Prime (módulo próprio) · Orçafascio (novo) · Orçafascio antigo.
@@ -191,15 +193,19 @@ d['recortes']={
 }
 d['recorte_mes_corrente']=cur_ym
 
-# ---- EVOLUÇÃO POR MÓDULO (criados + entregues por mês, cohort por mês de criação) ----
-# Mesma régua da Evolução histórica: entregues = da safra do mês (status atual em produção/concluído).
+# ---- EVOLUÇÃO POR MÓDULO ----
+# MESMO método da Evolução histórica (criaD/concD acima): criados exclui Impedimento Produto e
+# Cancelado QA (por mês de criação); concluídos = resolvidos no mês (por data de resolução),
+# exclui Cancelado QA — só que por módulo em vez de agregado. Somando "Todos" os módulos aqui dá
+# EXATAMENTE d['tot_series'][...]['backlog_criados']/['backlog_concluidos'] — os dois gráficos
+# têm que bater, não só "parecer" o mesmo modelo.
 _emc=collections.defaultdict(lambda:collections.Counter())
 _eme=collections.defaultdict(lambda:collections.Counter())
-for x in sweep:
-    if not x['c']: continue
-    _mm=x['c'].strftime('%Y-%m')
-    _emc[x['m']][_mm]+=1
-    if x['status'] in ENTREGUE: _eme[x['m']][_mm]+=1
+for x in sweep_full:
+    if x['c'] and x['res']!='Cancelado QA' and x['status']!='IMPEDIMENTO PRODUTO':
+        _emc[x['m']][x['c'].strftime('%Y-%m')]+=1
+    if x['r'] and x['res']!='Cancelado QA':
+        _eme[x['m']][x['r'].strftime('%Y-%m')]+=1
 _emtot={md:sum(_emc[md].values()) for md in _emc}
 _emordem=sorted(_emtot, key=lambda md:-_emtot[md])
 d['evol_modulo']={'meses':meses,'ordem':_emordem,
@@ -324,13 +330,22 @@ def build_funil(ref):
     sevd=collections.Counter(x['prio'] for x in dev)
     sev_ord=[{'nivel':NIVEL[p],'n':sevd.get(p,0)} for p in ORDER if sevd.get(p,0)]
     modd=collections.Counter(x['m'] for x in dev).most_common(5)
+    # DETECÇÃO do mês — TODOS os cards da safra (inclusive os descartados pelo QA), por tipo do
+    # Jira: Cliente = escapou p/ produção; QA/Dev = barrado interno; Backoffice = ferramenta interna.
+    # Mesmo DET_ORDER/critério de d['deteccao'] (agregado), só que recortado por safra do mês.
+    itc=collections.Counter(x['itype'] for x in crj)
+    det_itens=[{'tipo':lbl,'n':itc.get(key,0)} for key,lbl in DET_ORDER]
+    det_outros=sum(v for k,v in itc.items() if k not in dict(DET_ORDER))
+    if det_outros: det_itens.append({'tipo':'Outros','n':det_outros})
+    det_tot=sum(i['n'] for i in det_itens) or 1
+    for i in det_itens: i['pct']=round(100*i['n']/det_tot)
     mt=[busdays(x['c'].date(),x['r'].date()) for x in dev if x['c'] and x['r']]
     napont=sum(1 for x in dev if isinstance(x['timespent'],(int,float)) and x['timespent'])
     return {'mes':ref,'total':len(crj),'descartados_qa':len(disc),'dev':len(dev),
         'entregues':len(entregues),'fila':len(fila),'fila_det':fila_det,
         'pct_descarte':round(100*len(disc)/len(crj)) if crj else 0,
         'pct_entrega':round(100*len(entregues)/len(dev)) if dev else 0,
-        'sev':sev_ord,'mod_top':modd,
+        'sev':sev_ord,'mod_top':modd,'detc':det_itens,
         'mttr_mediana':round(statistics.median(mt),1) if mt else None,
         'mttr_media':round(statistics.mean(mt),1) if mt else None,
         'apont_cov':[napont,len(dev)]}
