@@ -47,12 +47,12 @@ d['deteccao']={'itens':det_itens,'total':det_tot,
                'escape_pct':round(100*cliente_n/det_tot),
                'interno_pct':round(100*(det_tot-cliente_n)/det_tot)}
 
-# tot_series mensal: criados (intake) vs entregues (da safra do mês, já em produção/concluído)
-# "entregues" usa o status ATUAL do card (Em produção/Done/Concluído = dev entregou), pela
-# régua da empresa ("mandar pra produção é o nosso concluído"). Assim o gráfico mostra, de cada
-# safra mensal, quanto já foi entregue — e não o fechamento do suporte (que escorrega pro mês seguinte
-# e fazia parecer que o time não entregava).
-ENTREGUE={'Em produção','Done','Concluído','Concluido'}
+# tot_series mensal: criados (intake) vs entregues (da safra do mês, já em produção)
+# "entregues" usa o status ATUAL do card — SÓ "Em produção" conta como entregue (régua da
+# empresa: "mandar pra produção é o nosso concluído"). "Concluído" NÃO conta aqui — é o
+# fechamento do suporte com o cliente, que escorrega pro mês seguinte e fazia parecer que o
+# time não entregava.
+ENTREGUE={'Em produção'}
 cria=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep if x['c'])
 entr=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep if x['c'] and x['status'] in ENTREGUE)
 # SOBRA = cards que terminaram o mês SEM serem iniciados (status atual "Não Iniciado").
@@ -338,7 +338,7 @@ d['previsibilidade']={'agregado':round(100*tk/tn),'ok':tk,'n':tn,'metodo':'dev-p
 d['suporte_lag']={'n':len(lag),'mediana_h':round(statistics.median(lag),1),'media_h':round(statistics.mean(lag),1)}
 
 # ---- FUNIL DE ENTREGA DO DEV — para CADA mês (safra) ----
-ENTREGUE={'Em produção','Done','Concluído','Concluido'}
+ENTREGUE={'Em produção'}   # só "Em produção" conta como entregue; "Concluído" não conta
 def build_funil(ref):
     crj=[x for x in sweep_full if x['c'] and x['c'].strftime('%Y-%m')==ref]
     disc=[x for x in crj if x['res']=='Cancelado QA']
