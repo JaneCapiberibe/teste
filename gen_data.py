@@ -209,12 +209,12 @@ d['recortes']={
 d['recorte_mes_corrente']=cur_ym
 
 # ---- EVOLUÇÃO POR MÓDULO ----
-# MESMO método da Evolução histórica (criaD/concD acima, RES_EXCLUI_ACUM = Cancelado QA + Cancelado
-# Dev): criados exclui Impedimento Produto e esses dois cancelamentos (por mês de criação);
-# concluídos = resolvidos no mês (por data de resolução), exclui os mesmos dois — só que por módulo
-# em vez de agregado. Somando "Todos" os módulos aqui dá EXATAMENTE
-# d['tot_series'][...]['backlog_criados']/['backlog_concluidos'] — os dois gráficos têm que bater,
-# não só "parecer" o mesmo modelo.
+# MESMO método usado em d['tot_series'] acima (criaD/concD, RES_EXCLUI_ACUM = Cancelado QA +
+# Cancelado Dev): criados exclui Impedimento Produto e esses dois cancelamentos (por mês de
+# criação); concluídos = resolvidos no mês (por data de resolução), exclui os mesmos dois — só que
+# por módulo em vez de agregado. Somando "Todos" os módulos aqui dá EXATAMENTE
+# d['tot_series'][...]['backlog_criados']/['backlog_concluidos'] — não há painel separado pra esse
+# agregado (foi removido); "Todos" aqui É o agregado geral.
 _emc=collections.defaultdict(lambda:collections.Counter())
 _eme=collections.defaultdict(lambda:collections.Counter())
 _emck=collections.defaultdict(lambda:collections.defaultdict(list))

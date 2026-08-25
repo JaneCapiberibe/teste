@@ -391,42 +391,6 @@ function abrirCardsBar(el){
   const base=DATA.jira_base||'https://orcafascio.atlassian.net';
   window.open(base+'/issues/?jql='+encodeURIComponent('key in ('+keys.join(',')+')'),'_blank');
 }
-function lineChart(){
-  // Combo SEMPRE ao vivo do Jira (mesmo método de d['evol_modulo'] — "Todos" na Evolução por
-  // módulo tem que bater com este gráfico, não só parecer com ele): barras criados × concluídos
-  // (backlog_criados/backlog_concluidos) + linha do saldo (acumulado).
-  const S=DATA.tot_series;
-  const kC='backlog_criados', kD='backlog_concluidos', kS='acumulado';
-  const W=1080,H=280,P=42, n=S.length;
-  const gw=(W-2*P)/n;                 // largura do grupo (mês)
-  const bw=Math.min(16, gw*0.34);     // largura de cada barra
-  const cx=(i)=>P+(i+0.5)*gw;         // centro do grupo
-  const maxY=Math.max(...S.map(d=>Math.max(d[kC],d[kD],d[kS])))*1.12;
-  const ys=(v)=>H-P-(v/maxY)*(H-2*P);
-  let grid='';
-  for(let g=0;g<=4;g++){const yy=P+g*(H-2*P)/4;const val=Math.round(maxY*(1-g/4));grid+=`<line x1="${P}" y1="${yy}" x2="${W-P}" y2="${yy}" stroke="${col('--line')}" stroke-width="1"/><text x="${P-6}" y="${yy+4}" text-anchor="end" fill="${col('--text-3')}" font-size="10">${val}</text>`;}
-  let xl='';S.forEach((d,i)=>{if(i%2===0||i===n-1)xl+=`<text x="${cx(i)}" y="${H-P+16}" text-anchor="middle" fill="${col('--text-3')}" font-size="9">${d.mes.slice(2)}</text>`;});
-  // faixa do mês em foco
-  const si=S.findIndex(d=>d.mes===curSafra());
-  let band='';
-  if(si>=0){const w=gw*0.9;band=`<rect x="${(cx(si)-w/2).toFixed(1)}" y="${P}" width="${w.toFixed(1)}" height="${H-2*P}" fill="${col('--s1')}" opacity="0.10"/>`;}
-  // barras agrupadas
-  let bars='';
-  S.forEach((d,i)=>{
-    const x1=cx(i)-bw-1.5, x2=cx(i)+1.5, yC=ys(d[kC]), yD=ys(d[kD]);
-    const kCkeys=(d.backlog_criados_keys||[]).join(','), kDkeys=(d.backlog_concluidos_keys||[]).join(',');
-    bars+=`<rect x="${x1.toFixed(1)}" y="${yC.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-yC).toFixed(1)}" fill="${col('--s2')}" rx="1.5" style="cursor:pointer" data-keys="${kCkeys}" onclick="abrirCardsBar(this)"><title>${d.mes} · criados ${d[kC]} · clique p/ ver os cards no Jira</title></rect>`;
-    bars+=`<rect x="${x2.toFixed(1)}" y="${yD.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-yD).toFixed(1)}" fill="${col('--s3')}" rx="1.5" style="cursor:pointer" data-keys="${kDkeys}" onclick="abrirCardsBar(this)"><title>${d.mes} · concluídos ${d[kD]} · clique p/ ver os cards no Jira</title></rect>`;
-  });
-  // linha do saldo (vermelha) + pontos com tooltip
-  const lp=S.map((d,i)=>(i?'L':'M')+cx(i).toFixed(1)+' '+ys(d[kS]).toFixed(1)).join(' ');
-  let dots='';S.forEach((d,i)=>{dots+=`<circle cx="${cx(i).toFixed(1)}" cy="${ys(d[kS]).toFixed(1)}" r="3.5" fill="${col('--bad')}" stroke="${col('--surface-1')}" stroke-width="1.5" data-i="${i}" class="pt"/>`;});
-  return `<div class="legend"><span><i class="dot" style="background:var(--s2)"></i>Cards criados</span><span><i class="dot" style="background:var(--s3)"></i>Cards concluídos</span><span><i class="dot" style="background:var(--bad);border-radius:2px;width:14px;height:3px"></i>Quantos passaram p/ próximo mês</span><span style="color:${col('--text-3')}">Clique numa barra p/ ver os cards no Jira</span></div>
-  <svg viewBox="0 0 ${W} ${H}" width="100%">${band}${grid}${xl}${bars}
-   <path d="${lp}" fill="none" stroke="${col('--bad')}" stroke-width="2.5"/>
-   ${dots}</svg>`;
-}
-
 function escapeChart(){
   const S=DATA.det_series, meta=DATA.det_series_meta;
   const W=1080,H=260,P=42,n=S.length, gw=(W-2*P)/n, cx=(i)=>P+(i+0.5)*gw;
@@ -457,7 +421,7 @@ function emSelcount(){
   const EM=DATA.evol_modulo, sel=emSel(), n=sel.size;
   const vol=[...sel].reduce((s,m)=>s+(EM.por_modulo[m]?EM.por_modulo[m].criados.reduce((a,b)=>a+b,0):0),0);
   const small=n>0&&vol<120;
-  const base=n===EM.ordem.length?`Todos os ${n} módulos somados (equivale ao agregado da Evolução histórica).`:n===0?'Nenhum módulo selecionado.':`${n} módulo(s) somado(s) · ${vol} bugs no período.`;
+  const base=n===EM.ordem.length?`Todos os ${n} módulos somados (agregado geral).`:n===0?'Nenhum módulo selecionado.':`${n} módulo(s) somado(s) · ${vol} bugs no período.`;
   return base+(small?` <b style="color:${col('--bad')}">Amostra pequena — variação mês a mês pode ser ruído, não tendência.</b>`:'');
 }
 function emComputeSeries(){
@@ -801,15 +765,12 @@ function render(){
   document.getElementById('app').innerHTML=`
    ${safraSelector()}
    ${isAll?'':prodBanner()}
-   <h2>${si('chart-line')}Evolução histórica — entradas × concluídos × saldo por mês <span class="info" data-tip="Método Diego (criaD/concD), sempre ao vivo do Jira. Laranja = cards que ENTRARAM no mês (criados, exclui Impedimento Produto, Cancelado QA e Cancelado Dev); verde = cards que SAÍRAM no mês (concluídos = resolvidos naquele mês, exclui Cancelado QA e Cancelado Dev — 'Não Pode Reproduzir' conta como concluído); azul tracejado = SALDO que passou para o mês seguinte. Regra fixa: saldo que passa para o próximo mês = cards no início do mês + cards criados − cards concluídos. Quando entra mais do que sai, o saldo sobe; quando sai mais, o saldo cai. Mesmo cálculo usado em 'Evolução por módulo' logo abaixo — os dois batem exatamente quando lá está selecionado 'Todos'.">i</span></h2>
-   <div class="panel">${lineChart()}
-     <details class="note-c"><summary>Como ler este gráfico</summary><div class="note-body"><b>Como ler (método Diego, sempre ao vivo do Jira):</b> a linha laranja é quanto <b>entrou</b> por mês (<b>cards criados</b>, exclui Impedimento Produto, Cancelado QA e Cancelado Dev); a verde é quanto <b>saiu</b> no mês (<b>cards concluídos</b> — resolvidos naquele mês, exclui Cancelado QA e Cancelado Dev; 'Não Pode Reproduzir' conta como concluído, pois o bug foi investigado e fechado); a tracejada azul é o <b>saldo</b> que passou para o mês seguinte. Regra fixa: <b>saldo que passa para o próximo mês = cards no início do mês + cards criados − cards concluídos</b>, e esse saldo vira o início do mês seguinte (começando em zero em jan/2025). Por isso, quando o laranja fica acima do verde, o azul <b>sobe</b> (entrou mais do que saiu); quando o verde supera o laranja, o azul <b>cai</b>. Hoje o saldo está em <b>${DATA.tot_series[DATA.tot_series.length-1].acumulado}</b>. <i>Mesma regra usada em "Evolução por módulo" — somando "Todos" os módulos lá dá exatamente estes números.</i></div></details></div>
-   <h2>${si('layer-group')}Evolução por módulo <span class="info" data-tip="Mesmo cálculo da Evolução histórica (criaD/concD), por módulo. Marque um ou vários módulos (chips) e o gráfico SOMA os selecionados no mesmo modelo do gráfico de cima — barras de criados/concluídos + linha de quanto passou pro mês seguinte. Cancelado QA e Cancelado Dev não contam nem como criado nem como concluído. Regra fixa: saldo que passa para o próximo mês = cards no início do mês + cards criados − cards concluídos. 'Todos' reproduz EXATAMENTE os números da Evolução histórica (mesmo método, ambos ao vivo do Jira). Para ver um recorte (ex.: BIM), marque os módulos daquele grupo. Contagem líquida, por mês de criação/resolução. O selo avisa quando a amostra fica pequena.">i</span></h2>
+   <h2>${si('layer-group')}Evolução por módulo <span class="info" data-tip="Método Diego (criaD/concD), sempre ao vivo do Jira. Marque um ou vários módulos (chips) e o gráfico SOMA os selecionados: barras de criados (laranja) × concluídos (verde) + linha de quanto passou pro mês seguinte (saldo). Criados exclui Impedimento Produto, Cancelado QA e Cancelado Dev (por mês de criação); concluídos exclui Cancelado QA e Cancelado Dev — 'Não Pode Reproduzir' conta como concluído. Regra fixa: saldo que passa para o próximo mês = cards no início do mês + cards criados − cards concluídos. Marque 'Todos' para ver o agregado geral. Para ver um recorte (ex.: BIM), marque os módulos daquele grupo. Contagem líquida, por mês de criação/resolução. O selo avisa quando a amostra fica pequena.">i</span></h2>
    <div class="panel">
      <div class="emchiprow" id="emchiprow">${emChips()}</div>
      <div class="selcount" id="emselcount">${emSelcount()}</div>
      <div id="emwrap">${emChart()}</div>
-     <div class="note"><b>Como ler:</b> mesmo modelo da Evolução histórica, agora por módulo — marque os módulos nos chips e o gráfico soma os selecionados. Barra laranja = criados, verde = concluídos, linha vermelha = quantos passaram pro mês seguinte (saldo acumulado da seleção). Regra fixa: <b>saldo que passa para o próximo mês = cards no início do mês + cards criados − cards concluídos</b>. "Todos" reproduz o agregado de cima; marcar só um grupo (ex.: os módulos BIM) dá o recorte daquele grupo. Contagem líquida, por mês de criação.</div>
+     <div class="note"><b>Como ler:</b> marque os módulos nos chips e o gráfico soma os selecionados. Barra laranja = criados, verde = concluídos, linha vermelha = quantos passaram pro mês seguinte (saldo acumulado da seleção). Regra fixa: <b>saldo que passa para o próximo mês = cards no início do mês + cards criados − cards concluídos</b>. "Todos" dá o agregado geral; marcar só um grupo (ex.: os módulos BIM) dá o recorte daquele grupo. Contagem líquida, por mês de criação.</div>
    </div>
    <h2>${si('filter')}Diagnóstico do mês — funil de entrega do dev</h2>${funilPanel()}
    <h2>${si('hourglass-half')}Sobra por status — número de cards por mês <span class="info" data-tip="Explorador de status: escolha um status no seletor e o gráfico mostra, mês a mês (por mês de criação do card), quantos cards estão nesse status HOJE. Ex.: 'Não Iniciado' mostra o que sobrou sem começar; 'Impedimento Dev' mostra os travados; 'Done' mostra os entregues. Barra clara = mês corrente. Base líquida — exclui descartados pelo QA e Chat de Suporte.">i</span></h2>
@@ -844,7 +805,6 @@ function render(){
    </div>
    <h2>${si('bell')}Alerta operacional</h2>${alertCard()}`:''}`;
   collapsibleNotes();
-  document.querySelectorAll('.pt').forEach(c=>{c.addEventListener('mousemove',e=>{const d=DATA.tot_series[e.target.dataset.i];showTT(e,`<b>${d.mes}</b><br>entraram ${d.backlog_criados} · concluídos ${d.backlog_concluidos}<br>saldo p/ o próximo mês: ${d.acumulado}`);});c.addEventListener('mouseleave',hideTT);});
 }
 document.getElementById('ft').innerHTML='Gerado a partir de "Resumo bugs" (export Jira). Métricas marcadas N/D não têm dado de origem — ver notas. Custo sempre rotulado como estimativa distribuída. Substitua o objeto DATA no topo do arquivo para atualizar.';
 render();
