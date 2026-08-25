@@ -64,6 +64,14 @@ naoini=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep if x['c'] and
 # sweep_full = chat-free e inclui cancelados (necessário para separar as duas contagens).
 criaD=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep_full if x['c'] and x['res']!='Cancelado QA' and x['status']!='IMPEDIMENTO PRODUTO')
 concD=collections.Counter(x['r'].strftime('%Y-%m') for x in sweep_full if x['r'] and x['res']!='Cancelado QA')
+# keys por mês (mesmo critério de criaD/concD) — usadas p/ o clique na barra abrir a lista exata
+# desses cards no Jira (key in (...)), sem depender de refazer o JQL/filtro na mão.
+criaD_keys=collections.defaultdict(list); concD_keys=collections.defaultdict(list)
+for x in sweep_full:
+    if x['c'] and x['res']!='Cancelado QA' and x['status']!='IMPEDIMENTO PRODUTO':
+        criaD_keys[x['c'].strftime('%Y-%m')].append(x['key'])
+    if x['r'] and x['res']!='Cancelado QA':
+        concD_keys[x['r'].strftime('%Y-%m')].append(x['key'])
 meses=sorted(cria)
 import os
 # Backlog acumulado, MÉTODO DIEGO, SEMPRE ao vivo a partir do sweep (criaD/concD acima) — não
@@ -83,12 +91,15 @@ for m in meses:
                'acumulado':acum,
                'backlog_criados':dd,
                'backlog_concluidos':ff,
+               'backlog_criados_keys':criaD_keys.get(m,[]),
+               'backlog_concluidos_keys':concD_keys.get(m,[]),
                'nao_iniciado':ni,
                'pct_entrega':round(100*ee/cc) if cc else 0,
                'taxa_sobra':round(100*ni/cc) if cc else 0})
     inicio = acum
 d['acum_fonte']="Jira ao vivo · método Diego (criaD/concD — mesmo cálculo usado em Evolução por módulo)"
 d['tot_series']=ts
+d['jira_base']='https://orcafascio.atlassian.net'
 
 # Divisão da safra por PRODUTO: Prime (módulo próprio) · Orçafascio (novo) · Orçafascio antigo.
 # Prime = módulo 'Prime'. "antigo" vem de marcador na descrição (contagens em antigo_por_mes.json,
@@ -201,16 +212,22 @@ d['recorte_mes_corrente']=cur_ym
 # têm que bater, não só "parecer" o mesmo modelo.
 _emc=collections.defaultdict(lambda:collections.Counter())
 _eme=collections.defaultdict(lambda:collections.Counter())
+_emck=collections.defaultdict(lambda:collections.defaultdict(list))
+_emek=collections.defaultdict(lambda:collections.defaultdict(list))
 for x in sweep_full:
     if x['c'] and x['res']!='Cancelado QA' and x['status']!='IMPEDIMENTO PRODUTO':
         _emc[x['m']][x['c'].strftime('%Y-%m')]+=1
+        _emck[x['m']][x['c'].strftime('%Y-%m')].append(x['key'])
     if x['r'] and x['res']!='Cancelado QA':
         _eme[x['m']][x['r'].strftime('%Y-%m')]+=1
+        _emek[x['m']][x['r'].strftime('%Y-%m')].append(x['key'])
 _emtot={md:sum(_emc[md].values()) for md in _emc}
 _emordem=sorted(_emtot, key=lambda md:-_emtot[md])
 d['evol_modulo']={'meses':meses,'ordem':_emordem,
   'por_modulo':{md:{'criados':[_emc[md].get(m,0) for m in meses],
-                    'concluidos':[_eme[md].get(m,0) for m in meses]} for md in _emordem}}
+                    'concluidos':[_eme[md].get(m,0) for m in meses],
+                    'criados_keys':[_emck[md].get(m,[]) for m in meses],
+                    'concluidos_keys':[_emek[md].get(m,[]) for m in meses]} for md in _emordem}}
 
 # por modulo: bugs, horas, mttr, trend
 mods=collections.defaultdict(lambda:{'bugs':0,'seg':0.0,'mttr':[]})

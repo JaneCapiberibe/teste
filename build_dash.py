@@ -383,6 +383,14 @@ function slaSection(){
   </div>`;
 }
 
+// Clique numa barra de criados/concluídos abre no Jira a lista EXATA dos cards daquele grupo
+// (key in (...)), os mesmos que entraram na contagem — nada de refazer o JQL/filtro na mão.
+function abrirCardsBar(el){
+  const keys=(el.dataset.keys||'').split(',').filter(Boolean);
+  if(!keys.length) return;
+  const base=DATA.jira_base||'https://orcafascio.atlassian.net';
+  window.open(base+'/issues/?jql='+encodeURIComponent('key in ('+keys.join(',')+')'),'_blank');
+}
 function lineChart(){
   // Combo SEMPRE ao vivo do Jira (mesmo método de d['evol_modulo'] — "Todos" na Evolução por
   // módulo tem que bater com este gráfico, não só parecer com ele): barras criados × concluídos
@@ -406,13 +414,14 @@ function lineChart(){
   let bars='';
   S.forEach((d,i)=>{
     const x1=cx(i)-bw-1.5, x2=cx(i)+1.5, yC=ys(d[kC]), yD=ys(d[kD]);
-    bars+=`<rect x="${x1.toFixed(1)}" y="${yC.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-yC).toFixed(1)}" fill="${col('--s2')}" rx="1.5"><title>${d.mes} · criados ${d[kC]}</title></rect>`;
-    bars+=`<rect x="${x2.toFixed(1)}" y="${yD.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-yD).toFixed(1)}" fill="${col('--s3')}" rx="1.5"><title>${d.mes} · concluídos ${d[kD]}</title></rect>`;
+    const kCkeys=(d.backlog_criados_keys||[]).join(','), kDkeys=(d.backlog_concluidos_keys||[]).join(',');
+    bars+=`<rect x="${x1.toFixed(1)}" y="${yC.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-yC).toFixed(1)}" fill="${col('--s2')}" rx="1.5" style="cursor:pointer" data-keys="${kCkeys}" onclick="abrirCardsBar(this)"><title>${d.mes} · criados ${d[kC]} · clique p/ ver os cards no Jira</title></rect>`;
+    bars+=`<rect x="${x2.toFixed(1)}" y="${yD.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-yD).toFixed(1)}" fill="${col('--s3')}" rx="1.5" style="cursor:pointer" data-keys="${kDkeys}" onclick="abrirCardsBar(this)"><title>${d.mes} · concluídos ${d[kD]} · clique p/ ver os cards no Jira</title></rect>`;
   });
   // linha do saldo (vermelha) + pontos com tooltip
   const lp=S.map((d,i)=>(i?'L':'M')+cx(i).toFixed(1)+' '+ys(d[kS]).toFixed(1)).join(' ');
   let dots='';S.forEach((d,i)=>{dots+=`<circle cx="${cx(i).toFixed(1)}" cy="${ys(d[kS]).toFixed(1)}" r="3.5" fill="${col('--bad')}" stroke="${col('--surface-1')}" stroke-width="1.5" data-i="${i}" class="pt"/>`;});
-  return `<div class="legend"><span><i class="dot" style="background:var(--s2)"></i>Cards criados</span><span><i class="dot" style="background:var(--s3)"></i>Cards concluídos</span><span><i class="dot" style="background:var(--bad);border-radius:2px;width:14px;height:3px"></i>Quantos passaram p/ próximo mês</span></div>
+  return `<div class="legend"><span><i class="dot" style="background:var(--s2)"></i>Cards criados</span><span><i class="dot" style="background:var(--s3)"></i>Cards concluídos</span><span><i class="dot" style="background:var(--bad);border-radius:2px;width:14px;height:3px"></i>Quantos passaram p/ próximo mês</span><span style="color:${col('--text-3')}">Clique numa barra p/ ver os cards no Jira</span></div>
   <svg viewBox="0 0 ${W} ${H}" width="100%">${band}${grid}${xl}${bars}
    <path d="${lp}" fill="none" stroke="${col('--bad')}" stroke-width="2.5"/>
    ${dots}</svg>`;
@@ -455,7 +464,9 @@ function emComputeSeries(){
   const EM=DATA.evol_modulo, sel=[...emSel()];
   const base=EM.meses.map((mes,i)=>({mes,
     criados:sel.reduce((s,m)=>s+((EM.por_modulo[m]&&EM.por_modulo[m].criados[i])||0),0),
-    concluidos:sel.reduce((s,m)=>s+((EM.por_modulo[m]&&EM.por_modulo[m].concluidos[i])||0),0)}));
+    concluidos:sel.reduce((s,m)=>s+((EM.por_modulo[m]&&EM.por_modulo[m].concluidos[i])||0),0),
+    criados_keys:sel.flatMap(m=>(EM.por_modulo[m]&&EM.por_modulo[m].criados_keys&&EM.por_modulo[m].criados_keys[i])||[]),
+    concluidos_keys:sel.flatMap(m=>(EM.por_modulo[m]&&EM.por_modulo[m].concluidos_keys&&EM.por_modulo[m].concluidos_keys[i])||[])}));
   let saldo=0;
   return base.map((d,i)=>{ saldo+=d.criados-d.concluidos;
     const lo=Math.max(0,i-1),hi=Math.min(base.length,i+2),jan=base.slice(lo,hi).map(x=>x.criados);
@@ -475,11 +486,12 @@ function emChart(){
   let xl='';S.forEach((d,i)=>{if(i%2===0||i===n-1)xl+=`<text x="${cx(i)}" y="${H-P+16}" text-anchor="middle" fill="${col('--text-3')}" font-size="9">${d.mes.slice(2)}</text>`;});
   const si=S.findIndex(d=>d.mes===curSafra());let band='';if(si>=0){const w=gw*0.9;band=`<rect x="${(cx(si)-w/2).toFixed(1)}" y="${P}" width="${w.toFixed(1)}" height="${H-2*P}" fill="${col('--s1')}" opacity="0.10"/>`;}
   let bars='';S.forEach((d,i)=>{const x1=cx(i)-bw-1.5,x2=cx(i)+1.5,yC=ys(d.criados),yD=ys(d.concluidos);
-    bars+=`<rect x="${x1.toFixed(1)}" y="${yC.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-yC).toFixed(1)}" fill="${col('--s2')}" rx="1.5"><title>${d.mes} · criados ${d.criados}</title></rect>`;
-    bars+=`<rect x="${x2.toFixed(1)}" y="${yD.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-yD).toFixed(1)}" fill="${col('--s3')}" rx="1.5"><title>${d.mes} · concluídos ${d.concluidos}</title></rect>`;});
+    const kCkeys=(d.criados_keys||[]).join(','), kDkeys=(d.concluidos_keys||[]).join(',');
+    bars+=`<rect x="${x1.toFixed(1)}" y="${yC.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-yC).toFixed(1)}" fill="${col('--s2')}" rx="1.5" style="cursor:pointer" data-keys="${kCkeys}" onclick="abrirCardsBar(this)"><title>${d.mes} · criados ${d.criados} · clique p/ ver os cards no Jira</title></rect>`;
+    bars+=`<rect x="${x2.toFixed(1)}" y="${yD.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-yD).toFixed(1)}" fill="${col('--s3')}" rx="1.5" style="cursor:pointer" data-keys="${kDkeys}" onclick="abrirCardsBar(this)"><title>${d.mes} · concluídos ${d.concluidos} · clique p/ ver os cards no Jira</title></rect>`;});
   const lp=S.map((d,i)=>(i?'L':'M')+cx(i).toFixed(1)+' '+ys(d.saldo).toFixed(1)).join(' ');
   let dots='';S.forEach((d,i)=>{dots+=`<circle cx="${cx(i).toFixed(1)}" cy="${ys(d.saldo).toFixed(1)}" r="3.5" fill="${col('--bad')}" stroke="${col('--surface-1')}" stroke-width="1.5"><title>${d.mes} · passou adiante ${d.saldo}</title></circle>`;});
-  return `<div class="legend"><span><i class="dot" style="background:var(--s2)"></i>Cards criados</span><span><i class="dot" style="background:var(--s3)"></i>Cards concluídos</span><span><i class="dot" style="background:var(--bad);border-radius:2px;width:14px;height:3px"></i>Quantos passaram p/ próximo mês</span></div>
+  return `<div class="legend"><span><i class="dot" style="background:var(--s2)"></i>Cards criados</span><span><i class="dot" style="background:var(--s3)"></i>Cards concluídos</span><span><i class="dot" style="background:var(--bad);border-radius:2px;width:14px;height:3px"></i>Quantos passaram p/ próximo mês</span><span style="color:${col('--text-3')}">Clique numa barra p/ ver os cards no Jira</span></div>
   <svg viewBox="0 0 ${W} ${H}" width="100%">${band}${grid}${xl}${bars}<path d="${lp}" fill="none" stroke="${col('--bad')}" stroke-width="2.5"/>${dots}</svg>`;
 }
 function emRerender(){document.getElementById('emchiprow').innerHTML=emChips();document.getElementById('emselcount').innerHTML=emSelcount();document.getElementById('emwrap').innerHTML=emChart();}
