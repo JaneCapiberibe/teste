@@ -59,13 +59,10 @@ entr=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep if x['c'] and x
 naoini=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep if x['c'] and x['status']=='Não Iniciado')
 # ACUMULADO = "Cards no Início" (saldo rolante), MÉTODO DIEGO / planilha Resumo:
 #   início(mês) = início(anterior) + criados(anterior) − concluídos(anterior), começando em 0.
-#   criados  = criados no mês, excluindo Cancelado QA/Cancelado Dev e Impedimento Produto (coluna T da planilha).
+#   criados  = criados no mês, excluindo Cancelado QA e Impedimento Produto (coluna T da planilha).
 #   concluídos = por mês de conclusão (data de resolução), sem cancelados (coluna S).
 # sweep_full = chat-free e inclui cancelados (necessário para separar as duas contagens).
-# REGRA: além de "Cancelado QA", "Cancelado Dev" também não conta como concluído/criado aqui — é um
-# card abandonado pelo dev (nunca foi entregue), não um bug resolvido. "Não Pode Reproduzir" CONTA
-# como concluído (o bug foi investigado e fechado, é um desfecho válido do fluxo).
-RES_EXCLUI_ACUM={'Cancelado QA','Cancelado Dev'}
+RES_EXCLUI_ACUM={'Cancelado QA'}
 criaD=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep_full if x['c'] and x['res'] not in RES_EXCLUI_ACUM and x['status']!='IMPEDIMENTO PRODUTO')
 concD=collections.Counter(x['r'].strftime('%Y-%m') for x in sweep_full if x['r'] and x['res'] not in RES_EXCLUI_ACUM)
 # keys por mês (mesmo critério de criaD/concD) — usadas p/ o clique na barra abrir a lista exata
@@ -209,10 +206,10 @@ d['recortes']={
 d['recorte_mes_corrente']=cur_ym
 
 # ---- EVOLUÇÃO POR MÓDULO ----
-# MESMO método usado em d['tot_series'] acima (criaD/concD, RES_EXCLUI_ACUM = Cancelado QA +
-# Cancelado Dev): criados exclui Impedimento Produto e esses dois cancelamentos (por mês de
-# criação); concluídos = resolvidos no mês (por data de resolução), exclui os mesmos dois — só que
-# por módulo em vez de agregado. Somando "Todos" os módulos aqui dá EXATAMENTE
+# MESMO método usado em d['tot_series'] acima (criaD/concD, RES_EXCLUI_ACUM = Cancelado QA):
+# criados exclui Impedimento Produto e Cancelado QA (por mês de criação); concluídos = resolvidos
+# no mês (por data de resolução), exclui Cancelado QA — só que por módulo em vez de agregado.
+# Somando "Todos" os módulos aqui dá EXATAMENTE
 # d['tot_series'][...]['backlog_criados']/['backlog_concluidos'] — não há painel separado pra esse
 # agregado (foi removido); "Todos" aqui É o agregado geral.
 _emc=collections.defaultdict(lambda:collections.Counter())

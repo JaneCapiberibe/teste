@@ -37,11 +37,11 @@ Publicado via GitHub Actions (roda diário). Ver `README.md` para rodar localmen
 
   **Evolução por módulo** (`d['evol_modulo']`, painel homônimo em `build_dash.py`) é o que
   substituiu aquele painel: para cada módulo, a mesma série `criados`/`concluidos`/`saldo`, método
-  `criaD`/`concD` — criados exclui Impedimento Produto, Cancelado QA e Cancelado Dev (por mês de
-  criação); concluídos = resolvidos no mês, exclui Cancelado QA e Cancelado Dev ("Não Pode
-  Reproduzir" conta como concluído); saldo = acumulado criados−concluídos, começando em zero —, só
-  que por módulo em vez de agregado. A UI é comparativa (vários módulos ao mesmo tempo, uma métrica
-  por vez, com "Todos" reproduzindo o agregado geral), com chips reaproveitados do padrão da
+  `criaD`/`concD` — criados exclui Impedimento Produto e Cancelado QA (por mês de criação);
+  concluídos = resolvidos no mês, exclui Cancelado QA; saldo = acumulado criados−concluídos,
+  começando em zero —, só que por módulo em vez de agregado. A UI é comparativa (vários módulos ao
+  mesmo tempo, uma métrica por vez, com "Todos" reproduzindo o agregado geral), com chips
+  reaproveitados do padrão da
   "Tendência dos módulos" (`window.__emSel`, `emToggle`/`emSelectAll`/`emClearAll`, cor fixa por
   módulo via `trendColor`) — não duplique esse padrão de chip, estenda-o.
 
