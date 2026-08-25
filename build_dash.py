@@ -358,7 +358,7 @@ function kpiCards(){
    <div class="card"><div class="kpi-label">${svg('bullseye','kpi-ico')}Previsibilidade do DEV — % dentro do SLA (Não Iniciado→Produção, p95) <span class="tag-per" title="considera todos os meses até a safra atual">acumulado</span><span class="info" data-tip="% de bugs cujo tempo de DESENVOLVIMENTO (do momento em que entram em 'Não Iniciado' até entrarem em 'Produção') coube no prazo do SLA da sua prioridade, medido em horas úteis. p95: os 5% mais lentos de cada prioridade são excluídos para tirar o efeito de outliers extremos. NÃO inclui o tempo de suporte (Produção → Concluído), que é o período em que o suporte fecha com o cliente — esse é medido à parte no bloco Prioridade & SLA.">i</span></div>
      <div class="kpi-val" style="color:${prevColor(pv.agregado)}">${pv.agregado}%</div>
      <div class="kpi-sub">${pv.ok} de ${pv.n} bugs dentro do prazo (p95 — excluídos os 5% mais lentos de cada prioridade, ${pv.excluidos} cards). Horas úteis, tempo em status validado. Não inclui o tempo de suporte pós-produção.</div></div>
-   <div class="card"><div class="kpi-label">${svg('truck-fast','kpi-ico')}Taxa de entrega — safra ${mesLbl(s.mes)}${atual?' (em andamento)':''}<span class="info" data-tip="Dos bugs reais que ENTRARAM no mês selecionado, quantos % já foram entregues (estão em produção ou concluídos). É a régua de entrega do dev pela definição da empresa (mandar pra produção = concluído). Muda conforme o mês escolhido no seletor de safra.">i</span></div>
+   <div class="card"><div class="kpi-label">${svg('truck-fast','kpi-ico')}Taxa de entrega — safra ${mesLbl(s.mes)}${atual?' (em andamento)':''}<span class="info" data-tip="Dos bugs reais que ENTRARAM no mês selecionado, quantos % já foram entregues — status atual 'Em produção'. 'Concluído' não conta aqui (é o fechamento do suporte, medido à parte). É a régua de entrega do dev pela definição da empresa (mandar pra produção = concluído). Muda conforme o mês escolhido no seletor de safra.">i</span></div>
      <div class="kpi-val" style="color:${prevColor(s.pct_entrega)}">${s.pct_entrega}%</div>
      <div class="kpi-sub">${s.mes}: entregou ${s.entregues} de ${s.criados} bugs que entraram · ${s.abertos} ainda abertos dessa safra.${atual?' Mês corrente ainda em andamento — o número tende a subir.':''}</div></div>
   </div>`;
@@ -717,13 +717,13 @@ function funilPanel(){
   const detTxt=(f.detc||[]).map(i=>`${i.tipo} ${i.n} (${i.pct}%)`).join(' · ');
   return `<div class="panel" style="border-left:5px solid var(--s1)">
     <div class="kpi-label" style="margin-bottom:14px;font-size:13px">Carga real que chegou ao desenvolvimento — safra de <b>${mesLbl(f.mes)}</b>${isCorrente?' (mês corrente, em andamento)':' (mês fechado)'}
-      <span class="info" data-tip="O funil mostra a carga REAL do desenvolvimento no mês. Parte do total de bugs criados, remove os que o QA descartou (Cancelado QA — não eram defeito de produto), e o que sobra é o volume que efetivamente chegou ao dev. 'Entregues' = cards que o dev colocou em produção/concluiu; 'na fila' = o que ainda está no pipeline. É a leitura honesta de capacidade: mede o dev pelo que ele recebeu de verdade, não pelo volume bruto inflado por triagem.">i</span></div>
+      <span class="info" data-tip="O funil mostra a carga REAL do desenvolvimento no mês. Parte do total de bugs criados, remove os que o QA descartou (Cancelado QA — não eram defeito de produto), e o que sobra é o volume que efetivamente chegou ao dev. 'Entregues' = cards que o dev colocou em produção (status atual 'Em produção'; 'Concluído' não conta — é o fechamento do suporte); 'na fila' = o que ainda está no pipeline. É a leitura honesta de capacidade: mede o dev pelo que ele recebeu de verdade, não pelo volume bruto inflado por triagem.">i</span></div>
     <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:stretch">
       ${step(f.total,'bugs criados','entraram como bug',col('--text-2'))}
       ${arrow('−'+f.descartados_qa+' ('+f.pct_descarte+'%)')}
       ${step(f.dev,'chegaram ao dev','descartados os do QA',col('--s1'))}
       ${arrow('dev entregou')}
-      ${step(f.entregues,'entregues','em produção/concluído',col('--good'))}
+      ${step(f.entregues,'entregues','status Em produção',col('--good'))}
       ${arrow('restou')}
       ${step(f.fila,'na fila','ainda no pipeline',col('--warn'))}
     </div>
