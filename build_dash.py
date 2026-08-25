@@ -384,15 +384,16 @@ function slaSection(){
 }
 
 function lineChart(){
-  // Combo IDÊNTICO à planilha do Diego: barras agrupadas (criados × concluídos) + linha do saldo.
-  const S=(DATA.diego_series&&DATA.diego_series.length)?DATA.diego_series:DATA.tot_series;
-  const kD=(DATA.diego_series&&DATA.diego_series.length)?'concluidos':'entregues';
-  const kS=(DATA.diego_series&&DATA.diego_series.length)?'saldo':'acumulado';
+  // Combo SEMPRE ao vivo do Jira (mesmo método de d['evol_modulo'] — "Todos" na Evolução por
+  // módulo tem que bater com este gráfico, não só parecer com ele): barras criados × concluídos
+  // (backlog_criados/backlog_concluidos) + linha do saldo (acumulado).
+  const S=DATA.tot_series;
+  const kC='backlog_criados', kD='backlog_concluidos', kS='acumulado';
   const W=1080,H=280,P=42, n=S.length;
   const gw=(W-2*P)/n;                 // largura do grupo (mês)
   const bw=Math.min(16, gw*0.34);     // largura de cada barra
   const cx=(i)=>P+(i+0.5)*gw;         // centro do grupo
-  const maxY=Math.max(...S.map(d=>Math.max(d.criados,d[kD],d[kS])))*1.12;
+  const maxY=Math.max(...S.map(d=>Math.max(d[kC],d[kD],d[kS])))*1.12;
   const ys=(v)=>H-P-(v/maxY)*(H-2*P);
   let grid='';
   for(let g=0;g<=4;g++){const yy=P+g*(H-2*P)/4;const val=Math.round(maxY*(1-g/4));grid+=`<line x1="${P}" y1="${yy}" x2="${W-P}" y2="${yy}" stroke="${col('--line')}" stroke-width="1"/><text x="${P-6}" y="${yy+4}" text-anchor="end" fill="${col('--text-3')}" font-size="10">${val}</text>`;}
@@ -404,8 +405,8 @@ function lineChart(){
   // barras agrupadas
   let bars='';
   S.forEach((d,i)=>{
-    const x1=cx(i)-bw-1.5, x2=cx(i)+1.5, yC=ys(d.criados), yD=ys(d[kD]);
-    bars+=`<rect x="${x1.toFixed(1)}" y="${yC.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-yC).toFixed(1)}" fill="${col('--s2')}" rx="1.5"><title>${d.mes} · criados ${d.criados}</title></rect>`;
+    const x1=cx(i)-bw-1.5, x2=cx(i)+1.5, yC=ys(d[kC]), yD=ys(d[kD]);
+    bars+=`<rect x="${x1.toFixed(1)}" y="${yC.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-yC).toFixed(1)}" fill="${col('--s2')}" rx="1.5"><title>${d.mes} · criados ${d[kC]}</title></rect>`;
     bars+=`<rect x="${x2.toFixed(1)}" y="${yD.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-yD).toFixed(1)}" fill="${col('--s3')}" rx="1.5"><title>${d.mes} · concluídos ${d[kD]}</title></rect>`;
   });
   // linha do saldo (vermelha) + pontos com tooltip
@@ -788,10 +789,10 @@ function render(){
   document.getElementById('app').innerHTML=`
    ${safraSelector()}
    ${isAll?'':prodBanner()}
-   <h2>${si('chart-line')}Evolução histórica — entradas × concluídos × saldo por mês <span class="info" data-tip="Idêntico à planilha do Diego (aba Resumo). Laranja = cards que ENTRARAM no mês (criados); verde = cards que SAÍRAM no mês (concluídos = Em produção ou Concluído); azul tracejado = SALDO que passou para o mês seguinte (início + criados − concluídos). Quando entra mais do que sai, o saldo sobe; quando sai mais, o saldo cai.">i</span></h2>
+   <h2>${si('chart-line')}Evolução histórica — entradas × concluídos × saldo por mês <span class="info" data-tip="Método Diego (criaD/concD), sempre ao vivo do Jira. Laranja = cards que ENTRARAM no mês (criados, exclui Impedimento Produto e Cancelado QA); verde = cards que SAÍRAM no mês (concluídos = resolvidos naquele mês, exclui Cancelado QA); azul tracejado = SALDO que passou para o mês seguinte (início + criados − concluídos). Quando entra mais do que sai, o saldo sobe; quando sai mais, o saldo cai. Mesmo cálculo usado em 'Evolução por módulo' logo abaixo — os dois batem exatamente quando lá está selecionado 'Todos'.">i</span></h2>
    <div class="panel">${lineChart()}
-     <details class="note-c"><summary>Como ler este gráfico</summary><div class="note-body"><b>Como ler (mesma lógica da planilha do Diego):</b> a linha laranja é quanto <b>entrou</b> por mês (<b>cards criados</b>); a verde é quanto <b>saiu</b> no mês (<b>cards concluídos</b> — em produção ou concluído); a tracejada azul é o <b>saldo</b> que passou para o mês seguinte. As três se conectam: <b>saldo do mês = início + criados − concluídos</b>, e esse saldo vira o início do mês seguinte (começando em zero em jan/2025). Por isso, quando o laranja fica acima do verde, o azul <b>sobe</b> (entrou mais do que saiu); quando o verde supera o laranja, o azul <b>cai</b>. Hoje o saldo está em <b>${(DATA.diego_series&&DATA.diego_series.length?DATA.diego_series[DATA.diego_series.length-1].saldo:'—')}</b>. Regras do Diego: "criados" exclui os status <b>Impedimento Produto</b> e <b>Cancelado QA</b>; "concluídos" considera <b>Em produção</b> ou <b>Concluído</b> (fora Cancelado QA). <i>Fonte: aba "Resumo" da planilha do Diego — atualiza quando a planilha é atualizada.</i></div></details></div>
-   <h2>${si('layer-group')}Evolução por módulo <span class="info" data-tip="Clone da Evolução histórica, por módulo. Marque um ou vários módulos (chips) e o gráfico SOMA os selecionados no mesmo modelo do gráfico de cima — barras de criados/concluídos + linha de quanto passou pro mês seguinte. 'Todos' reproduz exatamente a Evolução histórica. Para ver um recorte (ex.: BIM), marque os módulos daquele grupo. Contagem líquida, por mês de criação. O selo avisa quando a amostra fica pequena.">i</span></h2>
+     <details class="note-c"><summary>Como ler este gráfico</summary><div class="note-body"><b>Como ler (método Diego, sempre ao vivo do Jira):</b> a linha laranja é quanto <b>entrou</b> por mês (<b>cards criados</b>, exclui Impedimento Produto e Cancelado QA); a verde é quanto <b>saiu</b> no mês (<b>cards concluídos</b> — resolvidos naquele mês, exclui Cancelado QA); a tracejada azul é o <b>saldo</b> que passou para o mês seguinte. As três se conectam: <b>saldo do mês = início + criados − concluídos</b>, e esse saldo vira o início do mês seguinte (começando em zero em jan/2025). Por isso, quando o laranja fica acima do verde, o azul <b>sobe</b> (entrou mais do que saiu); quando o verde supera o laranja, o azul <b>cai</b>. Hoje o saldo está em <b>${DATA.tot_series[DATA.tot_series.length-1].acumulado}</b>. <i>Mesmo cálculo (criaD/concD) usado em "Evolução por módulo" — somando "Todos" os módulos lá dá exatamente estes números.</i></div></details></div>
+   <h2>${si('layer-group')}Evolução por módulo <span class="info" data-tip="Mesmo cálculo da Evolução histórica (criaD/concD), por módulo. Marque um ou vários módulos (chips) e o gráfico SOMA os selecionados no mesmo modelo do gráfico de cima — barras de criados/concluídos + linha de quanto passou pro mês seguinte. 'Todos' reproduz EXATAMENTE os números da Evolução histórica (mesmo método, ambos ao vivo do Jira). Para ver um recorte (ex.: BIM), marque os módulos daquele grupo. Contagem líquida, por mês de criação/resolução. O selo avisa quando a amostra fica pequena.">i</span></h2>
    <div class="panel">
      <div class="emchiprow" id="emchiprow">${emChips()}</div>
      <div class="selcount" id="emselcount">${emSelcount()}</div>
@@ -831,7 +832,7 @@ function render(){
    </div>
    <h2>${si('bell')}Alerta operacional</h2>${alertCard()}`:''}`;
   collapsibleNotes();
-  document.querySelectorAll('.pt').forEach(c=>{c.addEventListener('mousemove',e=>{const SS=(DATA.diego_series&&DATA.diego_series.length)?DATA.diego_series:DATA.tot_series;const d=SS[e.target.dataset.i];const conc=(d.concluidos!==undefined)?d.concluidos:d.entregues;const sal=(d.saldo!==undefined)?d.saldo:d.acumulado;showTT(e,`<b>${d.mes}</b><br>entraram ${d.criados} · concluídos ${conc}<br>saldo p/ o próximo mês: ${sal}`);});c.addEventListener('mouseleave',hideTT);});
+  document.querySelectorAll('.pt').forEach(c=>{c.addEventListener('mousemove',e=>{const d=DATA.tot_series[e.target.dataset.i];showTT(e,`<b>${d.mes}</b><br>entraram ${d.backlog_criados} · concluídos ${d.backlog_concluidos}<br>saldo p/ o próximo mês: ${d.acumulado}`);});c.addEventListener('mouseleave',hideTT);});
 }
 document.getElementById('ft').innerHTML='Gerado a partir de "Resumo bugs" (export Jira). Métricas marcadas N/D não têm dado de origem — ver notas. Custo sempre rotulado como estimativa distribuída. Substitua o objeto DATA no topo do arquivo para atualizar.';
 render();
