@@ -19,7 +19,8 @@ FIELDS = ['status', 'priority', 'resolution', 'created', 'updated', 'resolutiond
 def fetch_all():
     """Puxa todos os issues do projeto BUG, com changelog (histórico de status — usado pela
     régua oficial de Evolução por módulo: concluído = 1ª entrada em "Em produção"), paginando
-    com nextPageToken."""
+    com nextPageToken. Com expand=changelog o Jira limita maxResults a 50 por página (100 dá
+    400 Bad Request) — por isso o tamanho de página menor aqui só quando pedimos changelog."""
     email = os.environ['JIRA_EMAIL']
     token_ = os.environ['JIRA_API_TOKEN']
     auth = 'Basic ' + base64.b64encode(f'{email}:{token_}'.encode()).decode()
@@ -28,10 +29,12 @@ def fetch_all():
     out, token = [], None
     while True:
         body = {'jql': 'project = BUG ORDER BY created ASC', 'fields': FIELDS,
-                 'expand': ['changelog'], 'maxResults': 100}
+                 'expand': ['changelog'], 'maxResults': 50}
         if token:
             body['nextPageToken'] = token
         r = requests.post(url, headers=HEAD, data=json.dumps(body), timeout=60)
+        if not r.ok:
+            print(f'Jira respondeu {r.status_code}: {r.text[:2000]}')
         r.raise_for_status()
         data = r.json()
         out.extend(data.get('issues', []))
