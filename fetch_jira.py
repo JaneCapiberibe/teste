@@ -17,7 +17,9 @@ FIELDS = ['status', 'priority', 'resolution', 'created', 'updated', 'resolutiond
           'timespent', 'aggregatetimespent', 'issuetype', 'assignee', 'customfield_10073']
 
 def fetch_all():
-    """Puxa todos os issues do projeto BUG, paginando com nextPageToken."""
+    """Puxa todos os issues do projeto BUG, com changelog (histórico de status — usado pela
+    régua oficial de Evolução por módulo: concluído = 1ª entrada em "Em produção"), paginando
+    com nextPageToken."""
     email = os.environ['JIRA_EMAIL']
     token_ = os.environ['JIRA_API_TOKEN']
     auth = 'Basic ' + base64.b64encode(f'{email}:{token_}'.encode()).decode()
@@ -25,7 +27,8 @@ def fetch_all():
     url = f'{BASE}/rest/api/3/search/jql'
     out, token = [], None
     while True:
-        body = {'jql': 'project = BUG ORDER BY created ASC', 'fields': FIELDS, 'maxResults': 100}
+        body = {'jql': 'project = BUG ORDER BY created ASC', 'fields': FIELDS,
+                 'expand': ['changelog'], 'maxResults': 100}
         if token:
             body['nextPageToken'] = token
         r = requests.post(url, headers=HEAD, data=json.dumps(body), timeout=60)
@@ -52,14 +55,48 @@ def fetch_all_com_retentativa(tentativas=3, espera_s=15):
             time.sleep(espera_s)
     return issues
 
+# ---- RÉGUA OFICIAL de Evolução por módulo (definida com o setor de desenvolvimento) ----
+# Concluído = mês da 1ª transição do card para "Em produção" (fallback: 1ª transição p/
+# "Done", para quem nunca passou por produção). NÃO é a resolutiondate — o Jira deixa esse
+# campo vazio boa parte da base. Precisa do changelog (histórico de status) de cada issue.
+ST_PRODUCAO = 'Em produção'
+ST_DONE = 'Done'
+ST_IMP_PRODUTO = 'IMPEDIMENTO PRODUTO'
+
+def _status_histories(issue):
+    """Todas as mudanças de status do card, como (datetime_iso, status_destino), em ordem."""
+    changes = []
+    for h in issue.get('changelog', {}).get('histories', []):
+        created = h.get('created')
+        for item in h.get('items', []):
+            if item.get('field') == 'status':
+                changes.append((created, item.get('toString')))
+    changes.sort(key=lambda x: x[0] or '')
+    return changes
+
+def _first_to(changes, status):
+    """Mês (YYYY-MM) da 1ª transição PARA `status`, ou None."""
+    for dt, to in changes:
+        if to == status and dt:
+            return dt[:7]
+    return None
+
+def _ever_was(changes, status, current_status):
+    """True se o card em algum momento esteve em `status` (ou está agora)."""
+    if current_status == status:
+        return True
+    return any(to == status for _, to in changes)
+
 def norm(issue):
     f = issue.get('fields', {})
     def name(x): return (x or {}).get('value') if isinstance(x, dict) and 'value' in (x or {}) else ((x or {}).get('name') if isinstance(x, dict) else None)
     mod = f.get('customfield_10073')
     assignee = (f.get('assignee') or {}).get('displayName') or 'Sem responsável'
+    status = name(f.get('status'))
+    changes = _status_histories(issue)
     return {
         'key': issue.get('key'),
-        'status': name(f.get('status')),
+        'status': status,
         'prio': name(f.get('priority')),
         'itype': name(f.get('issuetype')),
         'res': name(f.get('resolution')),
@@ -69,6 +106,9 @@ def norm(issue):
         'timespent': f.get('timespent') if f.get('timespent') is not None else f.get('aggregatetimespent'),
         'modulo': (mod or {}).get('value') if isinstance(mod, dict) else mod,
         'assignee': assignee,
+        'first_producao': _first_to(changes, ST_PRODUCAO),
+        'first_done': _first_to(changes, ST_DONE),
+        'ever_impedimento_produto': _ever_was(changes, ST_IMP_PRODUTO, status),
     }
 
 def mm(iso):
@@ -81,7 +121,8 @@ def modclean(m):
 
 def build_outputs(recs):
     # 1) sweep.json (formato do gen_data)
-    sweep = [{k: r[k] for k in ('key', 'status', 'prio', 'itype', 'res', 'created', 'resolved', 'timespent', 'modulo')} for r in recs]
+    sweep = [{k: r[k] for k in ('key', 'status', 'prio', 'itype', 'res', 'created', 'resolved', 'timespent',
+              'modulo', 'first_producao', 'first_done', 'ever_impedimento_produto')} for r in recs]
     json.dump(sweep, open('sweep.json', 'w'), ensure_ascii=False)
 
     def ischat(r): return modclean(r['modulo']) == CHAT

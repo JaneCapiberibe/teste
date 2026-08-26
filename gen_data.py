@@ -57,31 +57,43 @@ cria=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep if x['c'])
 entr=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep if x['c'] and x['status'] in ENTREGUE)
 # SOBRA = cards que terminaram o mês SEM serem iniciados (status atual "Não Iniciado").
 naoini=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep if x['c'] and x['status']=='Não Iniciado')
-# ACUMULADO = "Cards no Início" (saldo rolante), MÉTODO DIEGO / planilha Resumo:
+# ACUMULADO = "Cards no Início" (saldo rolante) — RÉGUA OFICIAL definida com o setor de dev
+# (ver evolucao_bugs.py / régua anexada 26/08/2026), SEMPRE ao vivo a partir do sweep:
+#   ESCOPO ...... só os 4 tipos de bug de verdade: issuetype in BUG_TYPES.
+#   FORA DE TUDO  (nem criado, nem concluído): resolução Cancelado QA ou Cancelado Dev, OU
+#                 card que EM ALGUM MOMENTO passou pelo status "IMPEDIMENTO PRODUTO" (não só
+#                 o status atual — usa o changelog inteiro, via ever_impedimento_produto).
+#   CRIADO ...... mês do campo "created".
+#   CONCLUÍDO ... mês da 1ª transição para "Em produção" (fallback: 1ª transição p/ "Done", pra
+#                 quem nunca passou por produção). NÃO é resolutiondate — vazio em boa parte da
+#                 base. Precisa do changelog do Jira (first_producao/first_done, calculados em
+#                 fetch_jira.py a partir do histórico de status de cada issue).
 #   início(mês) = início(anterior) + criados(anterior) − concluídos(anterior), começando em 0.
-#   criados  = criados no mês, excluindo Cancelado QA e Impedimento Produto (coluna T da planilha).
-#   concluídos = por mês de conclusão (data de resolução), sem cancelados (coluna S).
-# sweep_full = chat-free e inclui cancelados (necessário para separar as duas contagens).
-RES_EXCLUI_ACUM={'Cancelado QA'}
-criaD=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep_full if x['c'] and x['res'] not in RES_EXCLUI_ACUM and x['status']!='IMPEDIMENTO PRODUTO')
-concD=collections.Counter(x['r'].strftime('%Y-%m') for x in sweep_full if x['r'] and x['res'] not in RES_EXCLUI_ACUM)
+# sweep_full = chat-free e inclui os Cancelado QA/Dev (necessário pra separar as contagens).
+BUG_TYPES={'Bug Cliente','Bug QA','Bug Dev','Bug Backoffice'}
+RES_EXCLUI_ACUM={'Cancelado QA','Cancelado Dev'}
+def _elegivel_evol(x):
+    return x['itype'] in BUG_TYPES and x['res'] not in RES_EXCLUI_ACUM and not x.get('ever_impedimento_produto')
+def _mes_concluido(x):
+    return x.get('first_producao') or x.get('first_done')
+criaD=collections.Counter(); concD=collections.Counter()
 # keys por mês (mesmo critério de criaD/concD) — usadas p/ o clique na barra abrir a lista exata
 # desses cards no Jira (key in (...)), sem depender de refazer o JQL/filtro na mão.
 criaD_keys=collections.defaultdict(list); concD_keys=collections.defaultdict(list)
 for x in sweep_full:
-    if x['c'] and x['res'] not in RES_EXCLUI_ACUM and x['status']!='IMPEDIMENTO PRODUTO':
-        criaD_keys[x['c'].strftime('%Y-%m')].append(x['key'])
-    if x['r'] and x['res'] not in RES_EXCLUI_ACUM:
-        concD_keys[x['r'].strftime('%Y-%m')].append(x['key'])
+    if not _elegivel_evol(x): continue
+    if x['c']:
+        m=x['c'].strftime('%Y-%m'); criaD[m]+=1; criaD_keys[m].append(x['key'])
+    mc=_mes_concluido(x)
+    if mc:
+        concD[mc]+=1; concD_keys[mc].append(x['key'])
 meses=sorted(cria)
 import os
-# Backlog acumulado, MÉTODO DIEGO, SEMPRE ao vivo a partir do sweep (criaD/concD acima) — não
+# Backlog acumulado, RÉGUA OFICIAL, SEMPRE ao vivo a partir do sweep (criaD/concD acima) — não
 # depende mais de jira_backlog.json nem da planilha do Diego. É o mesmo método usado em
 # d['evol_modulo'] (por módulo), de propósito: "Todos" na Evolução por módulo tem que somar
 # EXATAMENTE os números daqui (backlog_criados/backlog_concluidos/acumulado), senão os dois
 # gráficos divergem mesmo mostrando "o mesmo modelo".
-#   criados (D)  = criados no mês, status != IMPEDIMENTO PRODUTO, resolução != Cancelado QA, fora Chat de Suporte
-#   concluídos (E) = resolvidos no mês (data de resolução), fora Cancelado QA e Chat
 #   acumulado (F) = início + D - E, rolando mês a mês (o F de um mês é o início do próximo)
 ts=[]; inicio=0
 for m in meses:
@@ -98,7 +110,7 @@ for m in meses:
                'pct_entrega':round(100*ee/cc) if cc else 0,
                'taxa_sobra':round(100*ni/cc) if cc else 0})
     inicio = acum
-d['acum_fonte']="Jira ao vivo · método Diego (criaD/concD — mesmo cálculo usado em Evolução por módulo)"
+d['acum_fonte']="Jira ao vivo · régua oficial (concluído = 1ª entrada em Em produção — mesmo cálculo usado em Evolução por módulo)"
 d['tot_series']=ts
 d['jira_base']='https://orcafascio.atlassian.net'
 
@@ -206,10 +218,8 @@ d['recortes']={
 d['recorte_mes_corrente']=cur_ym
 
 # ---- EVOLUÇÃO POR MÓDULO ----
-# MESMO método usado em d['tot_series'] acima (criaD/concD, RES_EXCLUI_ACUM = Cancelado QA):
-# criados exclui Impedimento Produto e Cancelado QA (por mês de criação); concluídos = resolvidos
-# no mês (por data de resolução), exclui Cancelado QA — só que por módulo em vez de agregado.
-# Somando "Todos" os módulos aqui dá EXATAMENTE
+# MESMA régua oficial usada em d['tot_series'] acima (_elegivel_evol/_mes_concluido) — só que
+# por módulo em vez de agregado. Somando "Todos" os módulos aqui dá EXATAMENTE
 # d['tot_series'][...]['backlog_criados']/['backlog_concluidos'] — não há painel separado pra esse
 # agregado (foi removido); "Todos" aqui É o agregado geral.
 _emc=collections.defaultdict(lambda:collections.Counter())
@@ -217,12 +227,15 @@ _eme=collections.defaultdict(lambda:collections.Counter())
 _emck=collections.defaultdict(lambda:collections.defaultdict(list))
 _emek=collections.defaultdict(lambda:collections.defaultdict(list))
 for x in sweep_full:
-    if x['c'] and x['res'] not in RES_EXCLUI_ACUM and x['status']!='IMPEDIMENTO PRODUTO':
-        _emc[x['m']][x['c'].strftime('%Y-%m')]+=1
-        _emck[x['m']][x['c'].strftime('%Y-%m')].append(x['key'])
-    if x['r'] and x['res'] not in RES_EXCLUI_ACUM:
-        _eme[x['m']][x['r'].strftime('%Y-%m')]+=1
-        _emek[x['m']][x['r'].strftime('%Y-%m')].append(x['key'])
+    if not _elegivel_evol(x): continue
+    if x['c']:
+        m=x['c'].strftime('%Y-%m')
+        _emc[x['m']][m]+=1
+        _emck[x['m']][m].append(x['key'])
+    mc=_mes_concluido(x)
+    if mc:
+        _eme[x['m']][mc]+=1
+        _emek[x['m']][mc].append(x['key'])
 _emtot={md:sum(_emc[md].values()) for md in _emc}
 _emordem=sorted(_emtot, key=lambda md:-_emtot[md])
 d['evol_modulo']={'meses':meses,'ordem':_emordem,
