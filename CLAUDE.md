@@ -36,14 +36,25 @@ Publicado via GitHub Actions (roda diário). Ver `README.md` para rodar localmen
   módulo de novo, veja `d['mod_evol']` abaixo.
 
   **Evolução por módulo** (`d['evol_modulo']`, painel homônimo em `build_dash.py`) é o que
-  substituiu aquele painel: para cada módulo, a mesma série `criados`/`concluidos`/`saldo`, método
-  `criaD`/`concD` — criados exclui Impedimento Produto e Cancelado QA (por mês de criação);
-  concluídos = resolvidos no mês, exclui Cancelado QA; saldo = acumulado criados−concluídos,
-  começando em zero —, só que por módulo em vez de agregado. A UI é comparativa (vários módulos ao
-  mesmo tempo, uma métrica por vez, com "Todos" reproduzindo o agregado geral), com chips
-  reaproveitados do padrão da
-  "Tendência dos módulos" (`window.__emSel`, `emToggle`/`emSelectAll`/`emClearAll`, cor fixa por
-  módulo via `trendColor`) — não duplique esse padrão de chip, estenda-o.
+  substituiu aquele painel: para cada módulo, a mesma série `criados`/`concluidos`/`saldo`, pela
+  **régua oficial** definida com o setor de dev (anexada 26/08/2026, `evolucao_bugs.py` de
+  referência):
+  - **Escopo**: só issuetype in (Bug Cliente, Bug QA, Bug Dev, Bug Backoffice).
+  - **Fora de tudo** (nem criado nem concluído): resolução Cancelado QA ou Cancelado Dev, OU
+    card que em algum momento passou pelo status IMPEDIMENTO PRODUTO (changelog inteiro, não só
+    o status atual — campo `ever_impedimento_produto`, calculado em `fetch_jira.py`).
+  - **Criado** = mês do campo `created`.
+  - **Concluído** = mês da 1ª transição para "Em produção" (campo `first_producao`); fallback
+    `first_done` (1ª transição p/ "Done") pra quem nunca passou por produção. **Não** é
+    `resolutiondate` — vazio em boa parte da base. `first_producao`/`first_done` vêm do
+    changelog de cada issue (`fetch_jira.py` puxa com `expand: ["changelog"]`).
+  - Saldo = acumulado criados−concluídos, começando em zero, só que por módulo em vez de
+    agregado.
+  A UI é comparativa (vários módulos ao mesmo tempo, uma métrica por vez, com "Todos"
+  reproduzindo o agregado geral), com chips reaproveitados do padrão da "Tendência dos módulos"
+  (`window.__emSel`, `emToggle`/`emSelectAll`/`emClearAll`, cor fixa por módulo via
+  `trendColor`) — não duplique esse padrão de chip, estenda-o. Não volte pro método antigo
+  (`resolutiondate`/só status atual) "porque já existiu" — essa é a régua combinada com o setor.
 
   **Não existe mais painel "Evolução histórica" separado.** Ele mostrava o mesmo agregado
   (`d['tot_series']`) que "Evolução por módulo" já reproduz exatamente selecionando "Todos" — foi
@@ -61,8 +72,8 @@ Publicado via GitHub Actions (roda diário). Ver `README.md` para rodar localmen
 
 1. Confirme que a mudança usa `sweep` (base líquida), não `sweep_full`, a menos que o objetivo seja
    explicitamente mostrar os descartados.
-2. Se a métrica precisa de um corte por módulo, veja se dá pra reaproveitar `d['evol_modulo']` (o
-   mesmo método criaD/concD, por módulo) em vez de criar um cálculo novo do zero.
+2. Se a métrica precisa de um corte por módulo, veja se dá pra reaproveitar `d['evol_modulo']` (a
+   régua oficial criaD/concD acima, por módulo) em vez de criar um cálculo novo do zero.
 3. Se a métrica depende do CSV de Time-in-Status, lembre que ele é uma amostra **menor** que o
    total de bugs (nem todo card tem export de tempo em status) — trate a cobertura (`tis_n`) como
    um número à parte de `n` (total de bugs) e avise quando for pequena.
