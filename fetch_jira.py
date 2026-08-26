@@ -73,11 +73,11 @@ def fetch_changelogs(issue_ids):
                     hist = ic.get('changeHistories') or ic.get('histories') or []
                     changes = []
                     for h in hist:
-                        created = h.get('created')
+                        ep = _to_epoch(h.get('created'))
                         for item in h.get('items', []):
                             if item.get('field') == 'status':
-                                changes.append((created, item.get('toString')))
-                    changes.sort(key=lambda x: x[0] or '')
+                                changes.append((ep, item.get('toString')))
+                    changes.sort(key=lambda x: x[0] if x[0] is not None else 0)
                     out[iid] = changes
                 token = data.get('nextPageToken')
                 if not token:
@@ -111,12 +111,34 @@ def fetch_all_com_retentativa(tentativas=3, espera_s=15):
 ST_PRODUCAO = 'Em produção'
 ST_DONE = 'Done'
 ST_IMP_PRODUTO = 'IMPEDIMENTO PRODUTO'
+TZ_BR = datetime.timezone(datetime.timedelta(hours=-3))
+
+def _to_epoch(dt):
+    """Normaliza o 'created' de um item do changelog pra epoch (segundos, float) — o
+    /changelog/bulkfetch devolve epoch millis (int), diferente do changelog clássico
+    embutido no /search (string ISO). Aceita os dois formatos."""
+    if dt is None:
+        return None
+    if isinstance(dt, (int, float)):
+        return dt / 1000
+    if isinstance(dt, str):
+        try:
+            return datetime.datetime.fromisoformat(dt).timestamp()
+        except ValueError:
+            return None
+    return None
+
+def _epoch_month(ep):
+    if ep is None:
+        return None
+    return datetime.datetime.fromtimestamp(ep, tz=TZ_BR).strftime('%Y-%m')
 
 def _first_to(changes, status):
-    """Mês (YYYY-MM) da 1ª transição PARA `status`, ou None."""
-    for dt, to in changes:
-        if to == status and dt:
-            return dt[:7]
+    """Mês (YYYY-MM) da 1ª transição PARA `status`, ou None. `changes` é uma lista de
+    (epoch_segundos, status_destino) já ordenada por _to_epoch."""
+    for ep, to in changes:
+        if to == status and ep:
+            return _epoch_month(ep)
     return None
 
 def _ever_was(changes, status, current_status):
