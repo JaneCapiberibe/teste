@@ -1,0 +1,176 @@
+"""
+evolucao_bugs.py — gera a série de EVOLUÇÃO HISTÓRICA DE BUGS da OrçaFascio
+seguindo a REGRA MÁXIMA definida com o setor de desenvolvimento.
+
+Saída: evolucao_bugs.json  (lista de {mes, criados, concluidos, passou_proximo_mes})
+
+--------------------------------------------------------------------------------
+RÉGUA OFICIAL (única para criados, concluídos e fila)
+--------------------------------------------------------------------------------
+ESCOPO ...... "tudo que for bug": issuetype in
+              ("Bug Cliente", "Bug QA", "Bug Dev", "Bug Backoffice").
+FORA DE TUDO  (nem criado, nem concluído):
+              - resolution == "Cancelado QA"
+              - resolution == "Cancelado Dev"
+              - cards que EM ALGUM MOMENTO passaram por status "IMPEDIMENTO PRODUTO".
+              (IMPEDIMENTO DEV continua contando — é responsabilidade do time.)
+CRIADO ...... mês do campo "created".
+CONCLUÍDO ... mês em que o card ENTROU em "Em produção" (1ª transição p/ esse status).
+              Fallback p/ quem nunca passou por "Em produção": mês da 1ª entrada
+              em "Done". (resolutiondate NÃO é usado — está vazio na base.)
+FILA ........ "quantos passaram para o mês seguinte" = resíduo do fluxo:
+              fila(mes) = fila(mes-1) + criados(mes) - concluidos(mes), início 0.
+
+--------------------------------------------------------------------------------
+Credenciais (variáveis de ambiente — mesmos segredos do fetch_jira.py):
+  JIRA_BASE_URL   ex.: https://orcafascio.atlassian.net
+  JIRA_EMAIL      e-mail do Atlassian
+  JIRA_API_TOKEN  token de API
+--------------------------------------------------------------------------------
+Referência de validação (puxado via JQL em 26/08/2026 — para conferência):
+  2025 criados:    104 59 72 62 83 72 57 65 67 61 56 28   (Σ 786)
+  2025 concluidos:  69 61 74 39 90 69 71 72 78 60 51 34
+  2026 criados:     35 46 58 87 73 60 91 55
+  2026 concluidos:  29 33 51 97 67 59 88 62
+  fila oscila entre 18 e 54; termina em 37.
+NB: a soma mensal pode divergir ~1% do total anual por transições exatamente na
+    virada de mês — esperado e sem impacto na forma da curva.
+"""
+import os
+import json
+import base64
+import datetime
+import collections
+import requests
+
+BASE = os.environ.get("JIRA_BASE_URL", "https://orcafascio.atlassian.net").rstrip("/")
+
+# --- Régua (constantes) ------------------------------------------------------
+BUG_TYPES = ("Bug Cliente", "Bug QA", "Bug Dev", "Bug Backoffice")
+RES_FORA = ("Cancelado QA", "Cancelado Dev")
+ST_PRODUCAO = "Em produção"
+ST_DONE = "Done"
+ST_IMP_PRODUTO = "IMPEDIMENTO PRODUTO"
+
+# JQL do universo: todos os bugs (qualquer projeto). Puxamos amplo e aplicamos a
+# régua em Python lendo o changelog. O filtro de tipo já reduz o volume.
+_types = ",".join(f'"{t}"' for t in BUG_TYPES)
+JQL = f"issuetype in ({_types}) ORDER BY created ASC"
+
+
+def _headers():
+    email = os.environ["JIRA_EMAIL"]
+    token = os.environ["JIRA_API_TOKEN"]
+    auth = "Basic " + base64.b64encode(f"{email}:{token}".encode()).decode()
+    return {"Authorization": auth, "Accept": "application/json",
+            "Content-Type": "application/json"}
+
+
+def fetch_all():
+    """Puxa os bugs COM changelog, paginando via nextPageToken."""
+    head = _headers()
+    url = f"{BASE}/rest/api/3/search/jql"
+    fields = ["status", "resolution", "created", "issuetype"]
+    out, token = [], None
+    while True:
+        body = {"jql": JQL, "fields": fields, "expand": ["changelog"],
+                "maxResults": 100}
+        if token:
+            body["nextPageToken"] = token
+        r = requests.post(url, headers=head, data=json.dumps(body), timeout=90)
+        r.raise_for_status()
+        data = r.json()
+        out.extend(data.get("issues", []))
+        token = data.get("nextPageToken")
+        if not token:
+            break
+    return out
+
+
+def _histories(issue):
+    """Todas as mudanças de status do card, como (datetime, status_destino)."""
+    changes = []
+    for h in issue.get("changelog", {}).get("histories", []):
+        created = h.get("created")
+        for item in h.get("items", []):
+            if item.get("field") == "status":
+                changes.append((created, item.get("toString")))
+    changes.sort(key=lambda x: x[0] or "")
+    return changes
+
+
+def _first_to(changes, status):
+    """Data (YYYY-MM) da 1ª transição PARA `status`, ou None."""
+    for dt, to in changes:
+        if to == status and dt:
+            return dt[:7]
+    return None
+
+
+def _ever_was(changes, status, current_status):
+    """True se o card em algum momento esteve em `status`."""
+    if current_status == status:
+        return True
+    return any(to == status for _, to in changes)
+
+
+def build_series(issues):
+    criados = collections.Counter()
+    concluidos = collections.Counter()
+
+    for iss in issues:
+        f = iss.get("fields", {})
+        itype = (f.get("issuetype") or {}).get("name")
+        if itype not in BUG_TYPES:
+            continue
+        res = (f.get("resolution") or {}).get("name")
+        if res in RES_FORA:
+            continue
+        status = (f.get("status") or {}).get("name")
+        changes = _histories(iss)
+
+        # Fora de tudo: passou por IMPEDIMENTO PRODUTO em qualquer momento.
+        if _ever_was(changes, ST_IMP_PRODUTO, status):
+            continue
+
+        # CRIADO
+        created = f.get("created")
+        if created:
+            criados[created[:7]] += 1
+
+        # CONCLUÍDO: entrada em produção; fallback = entrada em Done.
+        mes = _first_to(changes, ST_PRODUCAO)
+        if not mes:
+            mes = _first_to(changes, ST_DONE)
+            # só conta como concluído se de fato chegou a um estado terminal
+            if not mes and status in (ST_DONE, ST_PRODUCAO):
+                mes = (created or "")[:7] or None
+        if mes:
+            concluidos[mes] += 1
+
+    meses = sorted(set(list(criados) + list(concluidos)))
+    serie, fila = [], 0
+    for m in meses:
+        c = criados.get(m, 0)
+        k = concluidos.get(m, 0)
+        fila = fila + c - k
+        serie.append({"mes": m, "criados": c, "concluidos": k,
+                      "passou_proximo_mes": fila})
+    return serie
+
+
+def main():
+    print("Puxando bugs do Jira (com changelog)...")
+    issues = fetch_all()
+    serie = build_series(issues)
+    with open("evolucao_bugs.json", "w", encoding="utf-8") as fh:
+        json.dump(serie, fh, ensure_ascii=False, indent=1)
+    tot_c = sum(x["criados"] for x in serie)
+    tot_k = sum(x["concluidos"] for x in serie)
+    fim = serie[-1]["passou_proximo_mes"] if serie else 0
+    print(f"OK — evolucao_bugs.json | meses: {len(serie)} | "
+          f"criados: {tot_c} | concluidos: {tot_k} | fila fim: {fim}")
+
+
+if __name__ == "__main__":
+    main()
