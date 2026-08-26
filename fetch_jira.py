@@ -16,20 +16,21 @@ BASE = os.environ.get('JIRA_BASE_URL', 'https://orcafascio.atlassian.net').rstri
 FIELDS = ['status', 'priority', 'resolution', 'created', 'updated', 'resolutiondate',
           'timespent', 'aggregatetimespent', 'issuetype', 'assignee', 'customfield_10073']
 
-def fetch_all():
-    """Puxa todos os issues do projeto BUG, com changelog (histórico de status — usado pela
-    régua oficial de Evolução por módulo: concluído = 1ª entrada em "Em produção"), paginando
-    com nextPageToken. Com expand=changelog o Jira limita maxResults a 50 por página (100 dá
-    400 Bad Request) — por isso o tamanho de página menor aqui só quando pedimos changelog."""
+def _auth_headers():
     email = os.environ['JIRA_EMAIL']
     token_ = os.environ['JIRA_API_TOKEN']
     auth = 'Basic ' + base64.b64encode(f'{email}:{token_}'.encode()).decode()
-    HEAD = {'Authorization': auth, 'Accept': 'application/json', 'Content-Type': 'application/json'}
+    return {'Authorization': auth, 'Accept': 'application/json', 'Content-Type': 'application/json'}
+
+def fetch_all():
+    """Puxa todos os issues do projeto BUG, paginando com nextPageToken. O endpoint
+    /search/jql NÃO aceita expand=changelog (dá 400 "Invalid request payload" mesmo com
+    maxResults baixo) — o changelog é buscado à parte, em lote, por fetch_changelogs()."""
+    HEAD = _auth_headers()
     url = f'{BASE}/rest/api/3/search/jql'
     out, token = [], None
     while True:
-        body = {'jql': 'project = BUG ORDER BY created ASC', 'fields': FIELDS,
-                 'expand': ['changelog'], 'maxResults': 50}
+        body = {'jql': 'project = BUG ORDER BY created ASC', 'fields': FIELDS, 'maxResults': 100}
         if token:
             body['nextPageToken'] = token
         r = requests.post(url, headers=HEAD, data=json.dumps(body), timeout=60)
@@ -41,6 +42,51 @@ def fetch_all():
         token = data.get('nextPageToken')
         if not token:
             break
+    return out
+
+def fetch_changelogs(issue_ids):
+    """Busca o histórico de status de todos os issues via o endpoint dedicado de changelog em
+    lote (/changelog/bulkfetch) — usado pela régua oficial de Evolução por módulo (concluído =
+    1ª entrada em "Em produção"). Se o endpoint falhar por qualquer motivo (ex.: mudança de
+    contrato da API), avisa e devolve {} — o pipeline segue rodando sem essa régua (fica
+    None/False pra todo mundo) em vez de derrubar o update inteiro."""
+    HEAD = _auth_headers()
+    url = f'{BASE}/rest/api/3/changelog/bulkfetch'
+    ids = [i for i in issue_ids if i]
+    out = {}
+    try:
+        BATCH = 200
+        for i in range(0, len(ids), BATCH):
+            batch = ids[i:i + BATCH]
+            token = None
+            while True:
+                body = {'issueIdsOrKeys': batch}
+                if token:
+                    body['nextPageToken'] = token
+                r = requests.post(url, headers=HEAD, data=json.dumps(body), timeout=60)
+                if not r.ok:
+                    print(f'changelog/bulkfetch respondeu {r.status_code}: {r.text[:2000]}')
+                r.raise_for_status()
+                data = r.json()
+                for ic in data.get('issueChangeLogs', []):
+                    iid = ic.get('issueId')
+                    hist = ic.get('changeHistories') or ic.get('histories') or []
+                    changes = []
+                    for h in hist:
+                        created = h.get('created')
+                        for item in h.get('items', []):
+                            if item.get('field') == 'status':
+                                changes.append((created, item.get('toString')))
+                    changes.sort(key=lambda x: x[0] or '')
+                    out[iid] = changes
+                token = data.get('nextPageToken')
+                if not token:
+                    break
+    except Exception as e:
+        print(f'aviso: falha ao buscar changelog em lote ({e}) — seguindo sem first_producao/'
+              f'first_done/ever_impedimento_produto (a Evolução por módulo fica sem dado de '
+              f'concluídos até o próximo run).')
+        return {}
     return out
 
 def fetch_all_com_retentativa(tentativas=3, espera_s=15):
@@ -66,17 +112,6 @@ ST_PRODUCAO = 'Em produção'
 ST_DONE = 'Done'
 ST_IMP_PRODUTO = 'IMPEDIMENTO PRODUTO'
 
-def _status_histories(issue):
-    """Todas as mudanças de status do card, como (datetime_iso, status_destino), em ordem."""
-    changes = []
-    for h in issue.get('changelog', {}).get('histories', []):
-        created = h.get('created')
-        for item in h.get('items', []):
-            if item.get('field') == 'status':
-                changes.append((created, item.get('toString')))
-    changes.sort(key=lambda x: x[0] or '')
-    return changes
-
 def _first_to(changes, status):
     """Mês (YYYY-MM) da 1ª transição PARA `status`, ou None."""
     for dt, to in changes:
@@ -90,13 +125,13 @@ def _ever_was(changes, status, current_status):
         return True
     return any(to == status for _, to in changes)
 
-def norm(issue):
+def norm(issue, changes=None):
     f = issue.get('fields', {})
     def name(x): return (x or {}).get('value') if isinstance(x, dict) and 'value' in (x or {}) else ((x or {}).get('name') if isinstance(x, dict) else None)
     mod = f.get('customfield_10073')
     assignee = (f.get('assignee') or {}).get('displayName') or 'Sem responsável'
     status = name(f.get('status'))
-    changes = _status_histories(issue)
+    changes = changes or []
     return {
         'key': issue.get('key'),
         'status': status,
@@ -199,6 +234,8 @@ if __name__ == '__main__':
             'JIRA_API_TOKEN inválidos/expirados, ou perda de permissão de acesso ao projeto '
             'BUG. Confira os segredos em Settings > Secrets and variables > Actions.'
         )
-    recs = [norm(i) for i in issues]
+    print('Puxando changelog (histórico de status) em lote...')
+    changelogs = fetch_changelogs([i.get('id') for i in issues])
+    recs = [norm(i, changelogs.get(i.get('id'))) for i in issues]
     build_outputs(recs)
     print('OK — arquivos gerados.')
