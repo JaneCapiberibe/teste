@@ -12,8 +12,10 @@ ESCOPO ...... "tudo que for bug": issuetype in
 FORA DE TUDO  (nem criado, nem concluído):
               - resolution == "Cancelado QA"
               - resolution == "Cancelado Dev"
-              - cards que EM ALGUM MOMENTO passaram por status "IMPEDIMENTO PRODUTO".
-              (IMPEDIMENTO DEV continua contando — é responsabilidade do time.)
+              - cards ATUALMENTE parados no status "IMPEDIMENTO PRODUTO" (estagnados).
+                Quem apenas PASSOU por impedimento produto (dev ou produto) mas foi
+                concluído CONTA normalmente — tem data de criação e de conclusão.
+                (IMPEDIMENTO DEV também continua contando — é responsabilidade do time.)
 CRIADO ...... mês do campo "created".
 CONCLUÍDO ... mês em que o card ENTROU em "Em produção" (1ª transição p/ esse status).
               Fallback p/ quem nunca passou por "Em produção": mês da 1ª entrada
@@ -28,11 +30,11 @@ Credenciais (variáveis de ambiente — mesmos segredos do fetch_jira.py):
   JIRA_API_TOKEN  token de API
 --------------------------------------------------------------------------------
 Referência de validação (puxado via JQL em 26/08/2026 — para conferência):
-  2025 criados:    104 59 72 62 83 72 57 65 67 61 56 28   (Σ 786)
-  2025 concluidos:  69 61 74 39 90 69 71 72 78 60 51 34
-  2026 criados:     35 46 58 87 73 60 91 55
-  2026 concluidos:  29 33 51 97 67 59 88 62
-  fila oscila entre 18 e 54; termina em 37.
+  2025 criados:    104 59 73 64 84 72 57 68 69 62 59 30   (Σ 800)
+  2025 concluidos:  69 61 74 39 90 69 71 72 78 61 51 36
+  2026 criados:     38 47 63 91 76 60 92 55   (Σ 522)
+  2026 concluidos:  30 33 52 110 70 60 90 67
+  fila oscila entre 27 e 63; termina em 40.  (Σ 1323 criados, 1283 concluídos)
 NB: a soma mensal pode divergir ~1% do total anual por transições exatamente na
     virada de mês — esperado e sem impacto na forma da curva.
 """
@@ -48,8 +50,10 @@ BASE = os.environ.get("JIRA_BASE_URL", "https://orcafascio.atlassian.net").rstri
 # --- Régua (constantes) ------------------------------------------------------
 BUG_TYPES = ("Bug Cliente", "Bug QA", "Bug Dev", "Bug Backoffice")
 RES_FORA = ("Cancelado QA", "Cancelado Dev")
-ST_PRODUCAO = "Em produção"
-ST_DONE = "Done"
+# Nomes de status conforme aparecem no changelog (o Jira usa nomes de exibição;
+# "Concluído" e "Done" convivem — tratamos ambos).
+ST_PRODUCAO = ("Em produção", "Em Produção")
+ST_DONE = ("Done", "Concluído", "Concluido")
 ST_IMP_PRODUTO = "IMPEDIMENTO PRODUTO"
 
 # JQL do universo: todos os bugs (qualquer projeto). Puxamos amplo e aplicamos a
@@ -99,19 +103,13 @@ def _histories(issue):
     return changes
 
 
-def _first_to(changes, status):
-    """Data (YYYY-MM) da 1ª transição PARA `status`, ou None."""
+def _first_to(changes, status_names):
+    """Data (YYYY-MM) da 1ª transição PARA qualquer nome em `status_names`."""
+    names = (status_names,) if isinstance(status_names, str) else tuple(status_names)
     for dt, to in changes:
-        if to == status and dt:
+        if to in names and dt:
             return dt[:7]
     return None
-
-
-def _ever_was(changes, status, current_status):
-    """True se o card em algum momento esteve em `status`."""
-    if current_status == status:
-        return True
-    return any(to == status for _, to in changes)
 
 
 def build_series(issues):
@@ -129,8 +127,9 @@ def build_series(issues):
         status = (f.get("status") or {}).get("name")
         changes = _histories(iss)
 
-        # Fora de tudo: passou por IMPEDIMENTO PRODUTO em qualquer momento.
-        if _ever_was(changes, ST_IMP_PRODUTO, status):
+        # Fora de tudo: apenas quem está ESTAGNADO em IMPEDIMENTO PRODUTO agora.
+        # Quem passou por lá mas saiu (foi concluído) continua contando.
+        if status == ST_IMP_PRODUTO:
             continue
 
         # CRIADO
@@ -138,12 +137,12 @@ def build_series(issues):
         if created:
             criados[created[:7]] += 1
 
-        # CONCLUÍDO: entrada em produção; fallback = entrada em Done.
+        # CONCLUÍDO: entrada em produção; fallback = entrada em Done/Concluído.
         mes = _first_to(changes, ST_PRODUCAO)
         if not mes:
             mes = _first_to(changes, ST_DONE)
-            # só conta como concluído se de fato chegou a um estado terminal
-            if not mes and status in (ST_DONE, ST_PRODUCAO):
+            # fallback final: já está terminal mas sem transição registrada
+            if not mes and status in (ST_PRODUCAO + ST_DONE):
                 mes = (created or "")[:7] or None
         if mes:
             concluidos[mes] += 1
