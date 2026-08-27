@@ -83,9 +83,8 @@ def fetch_changelogs(issue_ids):
                 if not token:
                     break
     except Exception as e:
-        print(f'aviso: falha ao buscar changelog em lote ({e}) — seguindo sem first_producao/'
-              f'first_done/ever_impedimento_produto (a Evolução por módulo fica sem dado de '
-              f'concluídos até o próximo run).')
+        print(f'aviso: falha ao buscar changelog em lote ({e}) — seguindo sem concluido_mes '
+              f'(a Evolução por módulo fica sem dado de concluídos até o próximo run).')
         return {}
     return out
 
@@ -104,12 +103,15 @@ def fetch_all_com_retentativa(tentativas=3, espera_s=15):
             time.sleep(espera_s)
     return issues
 
-# ---- RÉGUA OFICIAL de Evolução por módulo (definida com o setor de desenvolvimento) ----
+# ---- RÉGUA OFICIAL de Evolução por módulo (definida com o setor de desenvolvimento,
+# evolucao_bugs.py de referência — atualizada 27/08/2026) ----
 # Concluído = mês da 1ª transição do card para "Em produção" (fallback: 1ª transição p/
-# "Done", para quem nunca passou por produção). NÃO é a resolutiondate — o Jira deixa esse
+# "Done"/"Concluído"; fallback final: mês de criação, se o card já está terminal mas o
+# changelog não tem a transição registrada). NÃO é a resolutiondate — o Jira deixa esse
 # campo vazio boa parte da base. Precisa do changelog (histórico de status) de cada issue.
-ST_PRODUCAO = 'Em produção'
-ST_DONE = 'Done'
+# "Em produção"/"Done"/"Concluído" convivem com variações de grafia no changelog.
+ST_PRODUCAO = ('Em produção', 'Em Produção')
+ST_DONE = ('Done', 'Concluído', 'Concluido')
 ST_IMP_PRODUTO = 'IMPEDIMENTO PRODUTO'
 TZ_BR = datetime.timezone(datetime.timedelta(hours=-3))
 
@@ -133,19 +135,25 @@ def _epoch_month(ep):
         return None
     return datetime.datetime.fromtimestamp(ep, tz=TZ_BR).strftime('%Y-%m')
 
-def _first_to(changes, status):
-    """Mês (YYYY-MM) da 1ª transição PARA `status`, ou None. `changes` é uma lista de
-    (epoch_segundos, status_destino) já ordenada por _to_epoch."""
+def _first_to(changes, status_names):
+    """Mês (YYYY-MM) da 1ª transição PARA qualquer nome em `status_names` (string ou tupla).
+    `changes` é uma lista de (epoch_segundos, status_destino) já ordenada por _to_epoch."""
+    names = (status_names,) if isinstance(status_names, str) else tuple(status_names)
     for ep, to in changes:
-        if to == status and ep:
+        if to in names and ep:
             return _epoch_month(ep)
     return None
 
-def _ever_was(changes, status, current_status):
-    """True se o card em algum momento esteve em `status` (ou está agora)."""
-    if current_status == status:
-        return True
-    return any(to == status for _, to in changes)
+def _concluido_mes(status, created, changes):
+    """Mês de conclusão pela régua oficial: 1ª entrada em produção; fallback 1ª entrada em
+    Done/Concluído; fallback final: mês de criação, pra card já terminal cujo changelog não
+    tem a transição registrada."""
+    mes = _first_to(changes, ST_PRODUCAO)
+    if not mes:
+        mes = _first_to(changes, ST_DONE)
+        if not mes and status in (ST_PRODUCAO + ST_DONE):
+            mes = mm(created)
+    return mes
 
 def norm(issue, changes=None):
     f = issue.get('fields', {})
@@ -153,6 +161,7 @@ def norm(issue, changes=None):
     mod = f.get('customfield_10073')
     assignee = (f.get('assignee') or {}).get('displayName') or 'Sem responsável'
     status = name(f.get('status'))
+    created = f.get('created')
     changes = changes or []
     return {
         'key': issue.get('key'),
@@ -160,15 +169,13 @@ def norm(issue, changes=None):
         'prio': name(f.get('priority')),
         'itype': name(f.get('issuetype')),
         'res': name(f.get('resolution')),
-        'created': f.get('created'),
+        'created': created,
         'resolved': f.get('resolutiondate'),
         'updated': f.get('updated'),
         'timespent': f.get('timespent') if f.get('timespent') is not None else f.get('aggregatetimespent'),
         'modulo': (mod or {}).get('value') if isinstance(mod, dict) else mod,
         'assignee': assignee,
-        'first_producao': _first_to(changes, ST_PRODUCAO),
-        'first_done': _first_to(changes, ST_DONE),
-        'ever_impedimento_produto': _ever_was(changes, ST_IMP_PRODUTO, status),
+        'concluido_mes': _concluido_mes(status, created, changes),
     }
 
 def mm(iso):
@@ -182,7 +189,7 @@ def modclean(m):
 def build_outputs(recs):
     # 1) sweep.json (formato do gen_data)
     sweep = [{k: r[k] for k in ('key', 'status', 'prio', 'itype', 'res', 'created', 'resolved', 'timespent',
-              'modulo', 'first_producao', 'first_done', 'ever_impedimento_produto')} for r in recs]
+              'modulo', 'concluido_mes')} for r in recs]
     json.dump(sweep, open('sweep.json', 'w'), ensure_ascii=False)
 
     def ischat(r): return modclean(r['modulo']) == CHAT

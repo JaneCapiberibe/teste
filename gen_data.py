@@ -58,24 +58,25 @@ entr=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep if x['c'] and x
 # SOBRA = cards que terminaram o mês SEM serem iniciados (status atual "Não Iniciado").
 naoini=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep if x['c'] and x['status']=='Não Iniciado')
 # ACUMULADO = "Cards no Início" (saldo rolante) — RÉGUA OFICIAL definida com o setor de dev
-# (ver evolucao_bugs.py / régua anexada 26/08/2026), SEMPRE ao vivo a partir do sweep:
+# (ver evolucao_bugs.py / régua atualizada 27/08/2026), SEMPRE ao vivo a partir do sweep:
 #   ESCOPO ...... só os 4 tipos de bug de verdade: issuetype in BUG_TYPES.
 #   FORA DE TUDO  (nem criado, nem concluído): resolução Cancelado QA ou Cancelado Dev, OU
-#                 card que EM ALGUM MOMENTO passou pelo status "IMPEDIMENTO PRODUTO" (não só
-#                 o status atual — usa o changelog inteiro, via ever_impedimento_produto).
+#                 card ATUALMENTE parado no status "IMPEDIMENTO PRODUTO" (estagnado). Quem
+#                 só PASSOU por lá mas foi concluído conta normalmente.
 #   CRIADO ...... mês do campo "created".
-#   CONCLUÍDO ... mês da 1ª transição para "Em produção" (fallback: 1ª transição p/ "Done", pra
-#                 quem nunca passou por produção). NÃO é resolutiondate — vazio em boa parte da
-#                 base. Precisa do changelog do Jira (first_producao/first_done, calculados em
-#                 fetch_jira.py a partir do histórico de status de cada issue).
+#   CONCLUÍDO ... mês da 1ª transição para "Em produção"/"Em Produção" (fallback: 1ª transição
+#                 p/ "Done"/"Concluído"/"Concluido"; fallback final: mês de criação, pra card
+#                 já terminal cujo changelog não tem a transição registrada). NÃO é
+#                 resolutiondate — vazio em boa parte da base. Precisa do changelog do Jira
+#                 (campo concluido_mes, calculado em fetch_jira.py).
 #   início(mês) = início(anterior) + criados(anterior) − concluídos(anterior), começando em 0.
 # sweep_full = chat-free e inclui os Cancelado QA/Dev (necessário pra separar as contagens).
 BUG_TYPES={'Bug Cliente','Bug QA','Bug Dev','Bug Backoffice'}
 RES_EXCLUI_ACUM={'Cancelado QA','Cancelado Dev'}
 def _elegivel_evol(x):
-    return x['itype'] in BUG_TYPES and x['res'] not in RES_EXCLUI_ACUM and not x.get('ever_impedimento_produto')
+    return x['itype'] in BUG_TYPES and x['res'] not in RES_EXCLUI_ACUM and x['status']!='IMPEDIMENTO PRODUTO'
 def _mes_concluido(x):
-    return x.get('first_producao') or x.get('first_done')
+    return x.get('concluido_mes')
 criaD=collections.Counter(); concD=collections.Counter()
 # keys por mês (mesmo critério de criaD/concD) — usadas p/ o clique na barra abrir a lista exata
 # desses cards no Jira (key in (...)), sem depender de refazer o JQL/filtro na mão.
