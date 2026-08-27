@@ -37,17 +37,18 @@ Publicado via GitHub Actions (roda diário). Ver `README.md` para rodar localmen
 
   **Evolução por módulo** (`d['evol_modulo']`, painel homônimo em `build_dash.py`) é o que
   substituiu aquele painel: para cada módulo, a mesma série `criados`/`concluidos`/`saldo`, pela
-  **régua oficial** definida com o setor de dev (anexada 26/08/2026, `evolucao_bugs.py` de
-  referência):
+  **régua oficial** definida com o setor de dev (`evolucao_bugs.py` de referência, atualizada
+  27/08/2026):
   - **Escopo**: só issuetype in (Bug Cliente, Bug QA, Bug Dev, Bug Backoffice).
   - **Fora de tudo** (nem criado nem concluído): resolução Cancelado QA ou Cancelado Dev, OU
-    card que em algum momento passou pelo status IMPEDIMENTO PRODUTO (changelog inteiro, não só
-    o status atual — campo `ever_impedimento_produto`, calculado em `fetch_jira.py`).
+    card ATUALMENTE parado no status IMPEDIMENTO PRODUTO (status atual, não o histórico —
+    quem só passou por lá mas foi concluído conta normalmente).
   - **Criado** = mês do campo `created`.
-  - **Concluído** = mês da 1ª transição para "Em produção" (campo `first_producao`); fallback
-    `first_done` (1ª transição p/ "Done") pra quem nunca passou por produção. **Não** é
-    `resolutiondate` — vazio em boa parte da base. `first_producao`/`first_done` vêm do
-    changelog de cada issue (`fetch_jira.py` puxa com `expand: ["changelog"]`).
+  - **Concluído** = mês da 1ª transição para "Em produção"/"Em Produção"; fallback: 1ª
+    transição p/ "Done"/"Concluído"/"Concluido"; fallback final: mês de criação, pra card já
+    terminal cujo changelog não tem a transição registrada. **Não** é `resolutiondate` —
+    vazio em boa parte da base. Vem do campo `concluido_mes` (calculado em `fetch_jira.py` a
+    partir do changelog de cada issue, puxado via `/changelog/bulkfetch`).
   - Saldo = acumulado criados−concluídos, começando em zero, só que por módulo em vez de
     agregado.
   A UI é comparativa (vários módulos ao mesmo tempo, uma métrica por vez, com "Todos"
