@@ -111,19 +111,6 @@ main{max-width:1180px;margin:0 auto;padding:22px 18px 60px}
 .prodbtn{border:1px solid var(--line);background:var(--surface-1);color:var(--text-2);border-radius:20px;padding:6px 14px;font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;transition:all .15s}
 .prodbtn:hover{border-color:var(--brand-blue);color:var(--brand-blue)}
 .prodbtn.on{background:var(--brand-blue);border-color:var(--brand-blue);color:#fff;box-shadow:0 2px 8px rgba(0,95,232,.25)}
-.emchiprow{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px}
-.emchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface-1);color:var(--text-2);border-radius:20px;padding:5px 12px;font-size:11.5px;font-weight:600;font-family:inherit;cursor:pointer;opacity:.72;transition:opacity .12s}
-.emchip i{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none;background:var(--text-3)}
-.emchip:hover{opacity:1}
-.emchip.on{opacity:1;background:var(--brand-blue);border-color:var(--brand-blue);color:#fff}
-.emchip.on i{background:#fff}
-.emchip.all{border-style:dashed}
-.selcount{font-size:11.5px;color:var(--text-3);margin-bottom:8px}
-.emkpistrip{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 14px}
-.emkp{flex:1 1 120px;border:1px solid var(--line);border-radius:9px;padding:8px 11px;background:var(--surface-2)}
-.emkp span{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--text-3);margin-bottom:3px}
-.emkp b{font-size:17px;color:var(--text-1);font-weight:800}
-.empty-msg{font-size:12.5px;color:var(--text-3);padding:30px 0;text-align:center}
 .prod-banner{display:flex;align-items:flex-start;gap:10px;background:rgba(0,95,232,.06);border:1px solid var(--line);border-left:4px solid var(--brand-blue);border-radius:10px;padding:11px 14px;margin-bottom:16px;font-size:12.5px;color:var(--text-2)}
 .prod-banner b{color:var(--brand-navy)}
 .tag-per{display:inline-block;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);padding:1px 6px;border-radius:20px;vertical-align:middle;margin-left:4px}
@@ -358,7 +345,7 @@ function kpiCards(){
    <div class="card"><div class="kpi-label">${svg('bullseye','kpi-ico')}Previsibilidade do DEV — % dentro do SLA (Não Iniciado→Produção, p95) <span class="tag-per" title="considera todos os meses até a safra atual">acumulado</span><span class="info" data-tip="% de bugs cujo tempo de DESENVOLVIMENTO (do momento em que entram em 'Não Iniciado' até entrarem em 'Produção') coube no prazo do SLA da sua prioridade, medido em horas úteis. p95: os 5% mais lentos de cada prioridade são excluídos para tirar o efeito de outliers extremos. NÃO inclui o tempo de suporte (Produção → Concluído), que é o período em que o suporte fecha com o cliente — esse é medido à parte no bloco Prioridade & SLA.">i</span></div>
      <div class="kpi-val" style="color:${prevColor(pv.agregado)}">${pv.agregado}%</div>
      <div class="kpi-sub">${pv.ok} de ${pv.n} bugs dentro do prazo (p95 — excluídos os 5% mais lentos de cada prioridade, ${pv.excluidos} cards). Horas úteis, tempo em status validado. Não inclui o tempo de suporte pós-produção.</div></div>
-   <div class="card"><div class="kpi-label">${svg('truck-fast','kpi-ico')}Taxa de entrega — safra ${mesLbl(s.mes)}${atual?' (em andamento)':''}<span class="info" data-tip="Dos bugs reais que ENTRARAM no mês selecionado, quantos % já foram entregues — status atual 'Em produção'. 'Concluído' não conta aqui (é o fechamento do suporte, medido à parte). É a régua de entrega do dev pela definição da empresa (mandar pra produção = concluído). Muda conforme o mês escolhido no seletor de safra.">i</span></div>
+   <div class="card"><div class="kpi-label">${svg('truck-fast','kpi-ico')}Taxa de entrega — safra ${mesLbl(s.mes)}${atual?' (em andamento)':''}<span class="info" data-tip="Dos bugs reais que ENTRARAM no mês selecionado, quantos % já foram entregues (estão em produção ou concluídos). É a régua de entrega do dev pela definição da empresa (mandar pra produção = concluído). Muda conforme o mês escolhido no seletor de safra.">i</span></div>
      <div class="kpi-val" style="color:${prevColor(s.pct_entrega)}">${s.pct_entrega}%</div>
      <div class="kpi-sub">${s.mes}: entregou ${s.entregues} de ${s.criados} bugs que entraram · ${s.abertos} ainda abertos dessa safra.${atual?' Mês corrente ainda em andamento — o número tende a subir.':''}</div></div>
   </div>`;
@@ -383,14 +370,40 @@ function slaSection(){
   </div>`;
 }
 
-// Clique numa barra de criados/concluídos abre no Jira a lista EXATA dos cards daquele grupo
-// (key in (...)), os mesmos que entraram na contagem — nada de refazer o JQL/filtro na mão.
-function abrirCardsBar(el){
-  const keys=(el.dataset.keys||'').split(',').filter(Boolean);
-  if(!keys.length) return;
-  const base=DATA.jira_base||'https://orcafascio.atlassian.net';
-  window.open(base+'/issues/?jql='+encodeURIComponent('key in ('+keys.join(',')+')'),'_blank');
+function lineChart(){
+  // Combo IDÊNTICO à planilha do Diego: barras agrupadas (criados × concluídos) + linha do saldo.
+  const S=(DATA.diego_series&&DATA.diego_series.length)?DATA.diego_series:DATA.tot_series;
+  const kD=(DATA.diego_series&&DATA.diego_series.length)?'concluidos':'entregues';
+  const kS=(DATA.diego_series&&DATA.diego_series.length)?'saldo':'acumulado';
+  const W=1080,H=280,P=42, n=S.length;
+  const gw=(W-2*P)/n;                 // largura do grupo (mês)
+  const bw=Math.min(16, gw*0.34);     // largura de cada barra
+  const cx=(i)=>P+(i+0.5)*gw;         // centro do grupo
+  const maxY=Math.max(...S.map(d=>Math.max(d.criados,d[kD],d[kS])))*1.12;
+  const ys=(v)=>H-P-(v/maxY)*(H-2*P);
+  let grid='';
+  for(let g=0;g<=4;g++){const yy=P+g*(H-2*P)/4;const val=Math.round(maxY*(1-g/4));grid+=`<line x1="${P}" y1="${yy}" x2="${W-P}" y2="${yy}" stroke="${col('--line')}" stroke-width="1"/><text x="${P-6}" y="${yy+4}" text-anchor="end" fill="${col('--text-3')}" font-size="10">${val}</text>`;}
+  let xl='';S.forEach((d,i)=>{if(i%2===0||i===n-1)xl+=`<text x="${cx(i)}" y="${H-P+16}" text-anchor="middle" fill="${col('--text-3')}" font-size="9">${d.mes.slice(2)}</text>`;});
+  // faixa do mês em foco
+  const si=S.findIndex(d=>d.mes===curSafra());
+  let band='';
+  if(si>=0){const w=gw*0.9;band=`<rect x="${(cx(si)-w/2).toFixed(1)}" y="${P}" width="${w.toFixed(1)}" height="${H-2*P}" fill="${col('--s1')}" opacity="0.10"/>`;}
+  // barras agrupadas
+  let bars='';
+  S.forEach((d,i)=>{
+    const x1=cx(i)-bw-1.5, x2=cx(i)+1.5, yC=ys(d.criados), yD=ys(d[kD]);
+    bars+=`<rect x="${x1.toFixed(1)}" y="${yC.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-yC).toFixed(1)}" fill="${col('--s2')}" rx="1.5"><title>${d.mes} · criados ${d.criados}</title></rect>`;
+    bars+=`<rect x="${x2.toFixed(1)}" y="${yD.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-yD).toFixed(1)}" fill="${col('--s3')}" rx="1.5"><title>${d.mes} · concluídos ${d[kD]}</title></rect>`;
+  });
+  // linha do saldo (vermelha) + pontos com tooltip
+  const lp=S.map((d,i)=>(i?'L':'M')+cx(i).toFixed(1)+' '+ys(d[kS]).toFixed(1)).join(' ');
+  let dots='';S.forEach((d,i)=>{dots+=`<circle cx="${cx(i).toFixed(1)}" cy="${ys(d[kS]).toFixed(1)}" r="3.5" fill="${col('--bad')}" stroke="${col('--surface-1')}" stroke-width="1.5" data-i="${i}" class="pt"/>`;});
+  return `<div class="legend"><span><i class="dot" style="background:var(--s2)"></i>Cards criados</span><span><i class="dot" style="background:var(--s3)"></i>Cards concluídos</span><span><i class="dot" style="background:var(--bad);border-radius:2px;width:14px;height:3px"></i>Quantos passaram p/ próximo mês</span></div>
+  <svg viewBox="0 0 ${W} ${H}" width="100%">${band}${grid}${xl}${bars}
+   <path d="${lp}" fill="none" stroke="${col('--bad')}" stroke-width="2.5"/>
+   ${dots}</svg>`;
 }
+
 function escapeChart(){
   const S=DATA.det_series, meta=DATA.det_series_meta;
   const W=1080,H=260,P=42,n=S.length, gw=(W-2*P)/n, cx=(i)=>P+(i+0.5)*gw;
@@ -409,59 +422,6 @@ function escapeChart(){
    <path d="${lp}" fill="none" stroke="${col('--bad')}" stroke-width="2.5"/>
    ${dots}</svg>`;
 }
-function emSel(){ if(!window.__emSel) window.__emSel=new Set(DATA.evol_modulo.ordem); return window.__emSel; }
-function emChips(){
-  const EM=DATA.evol_modulo, sel=emSel(), allOn=sel.size===EM.ordem.length, last=EM.meses.length-1;
-  const util=`<button class="emchip all${allOn?' on':''}" onclick="emSelectAll()"><i></i>Todos</button><button class="emchip all" onclick="emClearAll()"><i></i>Limpar</button>`;
-  const mods=EM.ordem.map(m=>{const on=sel.has(m),c=trendColor(m),lv=(EM.por_modulo[m]?EM.por_modulo[m].criados[last]:0)||0;
-    return `<button class="trend-chip${on?' on':''}" ${on?`style="background:${c};border-color:${c}"`:''} onclick="emToggle('${m.replace(/'/g,"\\'")}')"><i style="background:${c}"></i>${m}${on?` <b>${lv}</b>`:''}</button>`;}).join('');
-  return util+mods;
-}
-function emSelcount(){
-  const EM=DATA.evol_modulo, sel=emSel(), n=sel.size;
-  const vol=[...sel].reduce((s,m)=>s+(EM.por_modulo[m]?EM.por_modulo[m].criados.reduce((a,b)=>a+b,0):0),0);
-  const small=n>0&&vol<120;
-  const base=n===EM.ordem.length?`Todos os ${n} módulos somados (agregado geral).`:n===0?'Nenhum módulo selecionado.':`${n} módulo(s) somado(s) · ${vol} bugs no período.`;
-  return base+(small?` <b style="color:${col('--bad')}">Amostra pequena — variação mês a mês pode ser ruído, não tendência.</b>`:'');
-}
-function emComputeSeries(){
-  const EM=DATA.evol_modulo, sel=[...emSel()];
-  const base=EM.meses.map((mes,i)=>({mes,
-    criados:sel.reduce((s,m)=>s+((EM.por_modulo[m]&&EM.por_modulo[m].criados[i])||0),0),
-    concluidos:sel.reduce((s,m)=>s+((EM.por_modulo[m]&&EM.por_modulo[m].concluidos[i])||0),0),
-    criados_keys:sel.flatMap(m=>(EM.por_modulo[m]&&EM.por_modulo[m].criados_keys&&EM.por_modulo[m].criados_keys[i])||[]),
-    concluidos_keys:sel.flatMap(m=>(EM.por_modulo[m]&&EM.por_modulo[m].concluidos_keys&&EM.por_modulo[m].concluidos_keys[i])||[])}));
-  let saldo=0;
-  return base.map((d,i)=>{ saldo+=d.criados-d.concluidos;
-    const lo=Math.max(0,i-1),hi=Math.min(base.length,i+2),jan=base.slice(lo,hi).map(x=>x.criados);
-    return {...d,saldo,tend:jan.reduce((s,v)=>s+v,0)/jan.length}; });
-}
-function emKpi(){
-  if(emSel().size===0) return '';
-  const S=emComputeSeries(),last=S[S.length-1],first=S[0];
-  const dir=last.tend>first.tend*1.1?'subindo':(last.tend<first.tend*0.9?'caindo':'estável');
-  return `<div class="emkp"><span>Criados no período</span><b>${S.reduce((s,d)=>s+d.criados,0)}</b></div><div class="emkp"><span>Entregues</span><b>${S.reduce((s,d)=>s+d.concluidos,0)}</b></div><div class="emkp"><span>Saldo final</span><b>${last.saldo}</b></div><div class="emkp"><span>Tendência</span><b>${last.tend.toFixed(1)} <em style="font-weight:600;color:${col('--text-3')};font-style:normal">${dir}</em></b></div>`;
-}
-function emChart(){
-  if(emSel().size===0) return '<div class="empty-msg">Selecione ao menos um módulo para desenhar o gráfico.</div>';
-  const S=emComputeSeries(),W=1080,H=280,P=42,n=S.length,gw=(W-2*P)/n,bw=Math.min(16,gw*0.34),cx=(i)=>P+(i+0.5)*gw;
-  const maxY=Math.max(1,...S.map(d=>Math.max(d.criados,d.concluidos,d.saldo)))*1.12, ys=(v)=>H-P-(v/maxY)*(H-2*P);
-  let grid='';for(let g=0;g<=4;g++){const yy=P+g*(H-2*P)/4,val=Math.round(maxY*(1-g/4));grid+=`<line x1="${P}" y1="${yy}" x2="${W-P}" y2="${yy}" stroke="${col('--line')}" stroke-width="1"/><text x="${P-6}" y="${yy+4}" text-anchor="end" fill="${col('--text-3')}" font-size="10">${val}</text>`;}
-  let xl='';S.forEach((d,i)=>{if(i%2===0||i===n-1)xl+=`<text x="${cx(i)}" y="${H-P+16}" text-anchor="middle" fill="${col('--text-3')}" font-size="9">${d.mes.slice(2)}</text>`;});
-  const si=S.findIndex(d=>d.mes===curSafra());let band='';if(si>=0){const w=gw*0.9;band=`<rect x="${(cx(si)-w/2).toFixed(1)}" y="${P}" width="${w.toFixed(1)}" height="${H-2*P}" fill="${col('--s1')}" opacity="0.10"/>`;}
-  let bars='';S.forEach((d,i)=>{const x1=cx(i)-bw-1.5,x2=cx(i)+1.5,yC=ys(d.criados),yD=ys(d.concluidos);
-    const kCkeys=(d.criados_keys||[]).join(','), kDkeys=(d.concluidos_keys||[]).join(',');
-    bars+=`<rect x="${x1.toFixed(1)}" y="${yC.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-yC).toFixed(1)}" fill="${col('--s2')}" rx="1.5" style="cursor:pointer" data-keys="${kCkeys}" onclick="abrirCardsBar(this)"><title>${d.mes} · criados ${d.criados} · clique p/ ver os cards no Jira</title></rect>`;
-    bars+=`<rect x="${x2.toFixed(1)}" y="${yD.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-yD).toFixed(1)}" fill="${col('--s3')}" rx="1.5" style="cursor:pointer" data-keys="${kDkeys}" onclick="abrirCardsBar(this)"><title>${d.mes} · concluídos ${d.concluidos} · clique p/ ver os cards no Jira</title></rect>`;});
-  const lp=S.map((d,i)=>(i?'L':'M')+cx(i).toFixed(1)+' '+ys(d.saldo).toFixed(1)).join(' ');
-  let dots='';S.forEach((d,i)=>{dots+=`<circle cx="${cx(i).toFixed(1)}" cy="${ys(d.saldo).toFixed(1)}" r="3.5" fill="${col('--bad')}" stroke="${col('--surface-1')}" stroke-width="1.5"><title>${d.mes} · passou adiante ${d.saldo}</title></circle>`;});
-  return `<div class="legend"><span><i class="dot" style="background:var(--s2)"></i>Cards criados</span><span><i class="dot" style="background:var(--s3)"></i>Cards concluídos</span><span><i class="dot" style="background:var(--bad);border-radius:2px;width:14px;height:3px"></i>Quantos passaram p/ próximo mês</span><span style="color:${col('--text-3')}">Clique numa barra p/ ver os cards no Jira</span></div>
-  <svg viewBox="0 0 ${W} ${H}" width="100%">${band}${grid}${xl}${bars}<path d="${lp}" fill="none" stroke="${col('--bad')}" stroke-width="2.5"/>${dots}</svg>`;
-}
-function emRerender(){document.getElementById('emchiprow').innerHTML=emChips();document.getElementById('emselcount').innerHTML=emSelcount();document.getElementById('emwrap').innerHTML=emChart();}
-function emToggle(m){const s=emSel();if(s.has(m))s.delete(m);else s.add(m);emRerender();}
-function emSelectAll(){window.__emSel=new Set(DATA.evol_modulo.ordem);emRerender();}
-function emClearAll(){window.__emSel=new Set();emRerender();}
 window.__recorte='todos';
 function setRecorte(k){window.__recorte=k;document.getElementById('recwrap').innerHTML=recorteBody();
   document.querySelectorAll('.recbtn').forEach(b=>b.classList.toggle('on',b.dataset.k===k));}
@@ -695,14 +655,6 @@ function impedimentoSpotlight(){
     </div>
   </div>`;
 }
-function funilDetc(f){
-  if(!f.detc||!f.detc.length) return '';
-  const cm=detColors(), max=Math.max(1,...f.detc.map(i=>i.n));
-  const rows=f.detc.map(i=>`<div class="bar-row"><div class="lbl">${i.tipo}</div>
-     <div class="bar-track"><div class="bar-fill" style="width:${(i.n/max*100).toFixed(1)}%;background:${cm[i.tipo]||col('--text-3')}"></div></div>
-     <div class="bar-val">${i.n} <span style="color:${col('--text-3')};font-weight:400">(${i.pct}%)</span></div></div>`).join('');
-  return `<div class="kpi-label" style="margin:16px 0 6px">Detecção do mês — todos os ${f.total} cards da safra, por onde foram pegos <span class="info" data-tip="Classificação por tipo de item do Jira, sobre TODOS os cards que entraram no mês (inclusive os descartados pelo QA — diferente do funil acima, que já filtra pra 'chegaram ao dev'). Cliente = escapou e chegou à produção; QA/Dev = barrado internamente; Backoffice = ferramenta interna.">i</span></div>${rows}`;
-}
 function funilPanel(){
   const f=(DATA.funil_por_mes&&DATA.funil_por_mes[curSafra()])||DATA.funil; if(!f) return '';
   const isCorrente=f.mes===DATA.mes_corrente;
@@ -714,23 +666,21 @@ function funilPanel(){
   const sevTxt=f.sev.map(s=>`${s.nivel} ${s.n}`).join(' · ');
   const modTxt=f.mod_top.map(m=>`${m[0]} ${m[1]}`).join(' · ');
   const filaTxt=f.fila_det.length?f.fila_det.map(x=>`${x[1]} ${x[0].toLowerCase()}`).join(', '):'—';
-  const detTxt=(f.detc||[]).map(i=>`${i.tipo} ${i.n} (${i.pct}%)`).join(' · ');
   return `<div class="panel" style="border-left:5px solid var(--s1)">
     <div class="kpi-label" style="margin-bottom:14px;font-size:13px">Carga real que chegou ao desenvolvimento — safra de <b>${mesLbl(f.mes)}</b>${isCorrente?' (mês corrente, em andamento)':' (mês fechado)'}
-      <span class="info" data-tip="O funil mostra a carga REAL do desenvolvimento no mês. Parte do total de bugs criados, remove os que o QA descartou (Cancelado QA — não eram defeito de produto), e o que sobra é o volume que efetivamente chegou ao dev. 'Entregues' = cards que o dev colocou em produção (status atual 'Em produção'; 'Concluído' não conta — é o fechamento do suporte); 'na fila' = o que ainda está no pipeline. É a leitura honesta de capacidade: mede o dev pelo que ele recebeu de verdade, não pelo volume bruto inflado por triagem.">i</span></div>
+      <span class="info" data-tip="O funil mostra a carga REAL do desenvolvimento no mês. Parte do total de bugs criados, remove os que o QA descartou (Cancelado QA — não eram defeito de produto), e o que sobra é o volume que efetivamente chegou ao dev. 'Entregues' = cards que o dev colocou em produção/concluiu; 'na fila' = o que ainda está no pipeline. É a leitura honesta de capacidade: mede o dev pelo que ele recebeu de verdade, não pelo volume bruto inflado por triagem.">i</span></div>
     <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:stretch">
       ${step(f.total,'bugs criados','entraram como bug',col('--text-2'))}
       ${arrow('−'+f.descartados_qa+' ('+f.pct_descarte+'%)')}
       ${step(f.dev,'chegaram ao dev','descartados os do QA',col('--s1'))}
       ${arrow('dev entregou')}
-      ${step(f.entregues,'entregues','status Em produção',col('--good'))}
+      ${step(f.entregues,'entregues','em produção/concluído',col('--good'))}
       ${arrow('restou')}
       ${step(f.fila,'na fila','ainda no pipeline',col('--warn'))}
     </div>
     ${filaBreakdown(f)}
-    ${funilDetc(f)}
     ${impedimentoSpotlight()}
-    <div class="note" style="margin-top:16px"><b>Leitura de capacidade:</b> o dev recebeu de verdade <b>${f.dev}</b> bugs (não ${f.total} — ${f.descartados_qa} eram ruído de triagem que o QA barrou, ${f.pct_descarte}% do total). Desses ${f.dev}, entregou <b>${f.entregues} (${f.pct_entrega}%)</b> dentro do mês; a fila restante são ${f.fila} cards (${filaTxt}), a maior parte já adiantada. Velocidade: MTTR mediano de <b>${f.mttr_mediana} dias úteis</b> (média ${f.mttr_media}). Severidade do que chegou ao dev: ${sevTxt}. Concentração: ${modTxt}. Detecção da safra (todos os cards): ${detTxt}. Apontamento de horas em ${f.apont_cov[0]} de ${f.apont_cov[1]} cards. <b>O gargalo do mês não foi o desenvolvimento</b> — foi a triagem deixando ${f.pct_descarte}% de ruído entrar.</div></div>`;
+    <div class="note" style="margin-top:16px"><b>Leitura de capacidade:</b> o dev recebeu de verdade <b>${f.dev}</b> bugs (não ${f.total} — ${f.descartados_qa} eram ruído de triagem que o QA barrou, ${f.pct_descarte}% do total). Desses ${f.dev}, entregou <b>${f.entregues} (${f.pct_entrega}%)</b> dentro do mês; a fila restante são ${f.fila} cards (${filaTxt}), a maior parte já adiantada. Velocidade: MTTR mediano de <b>${f.mttr_mediana} dias úteis</b> (média ${f.mttr_media}). Severidade do que chegou ao dev: ${sevTxt}. Concentração: ${modTxt}. Apontamento de horas em ${f.apont_cov[0]} de ${f.apont_cov[1]} cards. <b>O gargalo do mês não foi o desenvolvimento</b> — foi a triagem deixando ${f.pct_descarte}% de ruído entrar.</div></div>`;
 }
 function prodBanner(){
   const lbl=PRODLBL[curProduto()];
@@ -765,12 +715,17 @@ function render(){
   document.getElementById('app').innerHTML=`
    ${safraSelector()}
    ${isAll?'':prodBanner()}
-   <h2>${si('layer-group')}Evolução por módulo <span class="info" data-tip="Régua oficial (definida com o setor de dev), sempre ao vivo do Jira. Escopo: só bugs de verdade (Bug Cliente/QA/Dev/Backoffice). Fora de tudo — nem criado nem concluído: Cancelado QA, Cancelado Dev, e card ATUALMENTE parado em IMPEDIMENTO PRODUTO ou Backlog (quem só passou por lá mas foi concluído ou avançou conta normalmente). Criados = mês do campo 'criado'. Concluídos = mês da 1ª entrada em 'Em produção' (fallback: 1ª entrada em 'Done'/'Concluído'; fallback final: mês de criação), não é a data de resolução. Marque um ou vários módulos (chips) e o gráfico SOMA os selecionados: barras de criados (laranja) × concluídos (verde) + linha de quanto passou pro mês seguinte (saldo). Regra fixa: saldo que passa para o próximo mês = cards no início do mês + cards criados − cards concluídos. Marque 'Todos' para ver o agregado geral. Para ver um recorte (ex.: BIM), marque os módulos daquele grupo. O selo avisa quando a amostra fica pequena.">i</span></h2>
+   <h2>${si('chart-line')}Evolução histórica — entradas × concluídos × saldo por mês <span class="info" data-tip="Idêntico à planilha do Diego (aba Resumo). Laranja = cards que ENTRARAM no mês (criados); verde = cards que SAÍRAM no mês (concluídos = Em produção ou Concluído); azul tracejado = SALDO que passou para o mês seguinte (início + criados − concluídos). Quando entra mais do que sai, o saldo sobe; quando sai mais, o saldo cai.">i</span></h2>
+   <div class="panel">${lineChart()}
+     <details class="note-c"><summary>Como ler este gráfico</summary><div class="note-body"><b>Como ler (mesma lógica da planilha do Diego):</b> a linha laranja é quanto <b>entrou</b> por mês (<b>cards criados</b>); a verde é quanto <b>saiu</b> no mês (<b>cards concluídos</b> — em produção ou concluído); a tracejada azul é o <b>saldo</b> que passou para o mês seguinte. As três se conectam: <b>saldo do mês = início + criados − concluídos</b>, e esse saldo vira o início do mês seguinte (começando em zero em jan/2025). Por isso, quando o laranja fica acima do verde, o azul <b>sobe</b> (entrou mais do que saiu); quando o verde supera o laranja, o azul <b>cai</b>. Hoje o saldo está em <b>${(DATA.diego_series&&DATA.diego_series.length?DATA.diego_series[DATA.diego_series.length-1].saldo:'—')}</b>. Regras do Diego: "criados" exclui os status <b>Impedimento Produto</b> e <b>Cancelado QA</b>; "concluídos" considera <b>Em produção</b> ou <b>Concluído</b> (fora Cancelado QA). <i>Fonte: aba "Resumo" da planilha do Diego — atualiza quando a planilha é atualizada.</i></div></details></div>
+   <h2>${si('layer-group')}Evolução por recorte — Todos · BIM · Sem BIM <span class="info" data-tip="Separa a base em BIM (produtos de time externo/PJ: OF Elétrico, OrçaBim, OF Hidráulico, OF Estrutural, OF BI) e Sem BIM (todo o resto). 'Sem BIM' é sempre o complemento — módulo novo entra aqui até ser classificado. Civil 3D é externo mas está gravado como Orçamento no Jira, então NÃO é separável por módulo (precisaria de label/component próprio). Ao lado do recorte vai a cobertura (nº de bugs e apontamento) para não tirar conclusão de amostra pequena.">i</span></h2>
    <div class="panel">
-     <div class="emchiprow" id="emchiprow">${emChips()}</div>
-     <div class="selcount" id="emselcount">${emSelcount()}</div>
-     <div id="emwrap">${emChart()}</div>
-     <div class="note"><b>Como ler:</b> marque os módulos nos chips e o gráfico soma os selecionados. Barra laranja = criados, verde = concluídos (1ª entrada em "Em produção"), linha vermelha = quantos passaram pro mês seguinte (saldo acumulado da seleção). Regra fixa: <b>saldo que passa para o próximo mês = cards no início do mês + cards criados − cards concluídos</b>. "Todos" dá o agregado geral; marcar só um grupo (ex.: os módulos BIM) dá o recorte daquele grupo. Cancelado QA, Cancelado Dev e cards ATUALMENTE parados em Impedimento Produto ou Backlog não contam — quem só passou por lá mas foi concluído ou avançou conta normalmente.</div>
+     <div class="safra-prod" style="margin-bottom:6px">
+       <button class="prodbtn recbtn on" data-k="todos" onclick="setRecorte('todos')">Todos</button>
+       <button class="prodbtn recbtn" data-k="bim" onclick="setRecorte('bim')">BIM (externo)</button>
+       <button class="prodbtn recbtn" data-k="interno" onclick="setRecorte('interno')">Sem BIM</button>
+     </div>
+     <div id="recwrap">${recorteBody()}</div>
    </div>
    <h2>${si('filter')}Diagnóstico do mês — funil de entrega do dev</h2>${funilPanel()}
    <h2>${si('hourglass-half')}Sobra por status — número de cards por mês <span class="info" data-tip="Explorador de status: escolha um status no seletor e o gráfico mostra, mês a mês (por mês de criação do card), quantos cards estão nesse status HOJE. Ex.: 'Não Iniciado' mostra o que sobrou sem começar; 'Impedimento Dev' mostra os travados; 'Done' mostra os entregues. Barra clara = mês corrente. Base líquida — exclui descartados pelo QA e Chat de Suporte.">i</span></h2>
@@ -792,6 +747,9 @@ function render(){
    <h2>${si('chart-line')}Tendência dos módulos — comparativo mensal (estilo bolsa) <span class="info" data-tip="Cada linha é um módulo: bugs criados por mês (líquido). Compara vários módulos ao mesmo tempo para ver quem está subindo (gerando mais bugs) ou descendo. Mostra os 6 módulos de maior volume + 'Outros' agrupado. Diferente da bolsa: aqui LINHA SUBINDO = mais bugs = PIOR.">i</span></h2>
    <div class="panel"><div id="trendwrap">${moduleTrendChart()}</div>
      <details class="note-c"><summary>Como ler</summary><div class="note-body"><b>Como ler:</b> clique nos <b>chips</b> acima para ligar/desligar cada módulo no gráfico. Cada linha é um <b>módulo</b> e mostra os bugs criados por mês (contagem líquida). É a visão "bolsa de valores" para comparar os módulos lado a lado e ver tendências — quem está <b>subindo</b> (gerando mais bugs) e quem está <b>descendo</b>. Aparecem os <b>6 módulos de maior volume</b> mais "Outros" (o resto somado, linha tracejada). Na legenda, o número é o valor do último mês e a setinha compara com o mês anterior. <b>Atenção à inversão da metáfora:</b> ao contrário da bolsa, aqui <b>linha subindo = mais bugs = pior</b> (por isso a seta de alta é vermelha). O mês corrente ainda está em andamento, então a última ponta tende a subir até fechar. Faixa azul-clara = safra em foco.</div></details></div>
+   <h2>${si('layer-group')}Histórico evolutivo — bugs criados por módulo <span class="info" data-tip="Escolha um módulo no seletor e veja quantos bugs ele gerou em cada mês (por mês de criação). Isola o módulo para enxergar a tendência dele com clareza, sem o ruído dos outros. Contagem líquida (exclui Cancelado QA e Chat de Suporte).">i</span></h2>
+   <div class="panel"><div id="mhwrap">${moduleHistoryChart()}</div>
+     <div class="note"><b>Como ler:</b> selecione um <b>módulo</b> no menu para ver a evolução mensal de bugs criados só dele. Cada barra é um mês, com o número exato. Serve para acompanhar se um produto está gerando mais ou menos bugs ao longo do tempo. Contagem líquida — exclui os descartados pelo QA e o módulo Chat de Suporte, igual à Evolução histórica.</div></div>
    <h2>${si('triangle-exclamation')}Prioridade &amp; SLA</h2>${slaSection()}
    <h2>${si('users')}Carga por squad — folha × contrato</h2>${squadSection()}
    <h2>${si('coins')}Esforço e alocação — bugs</h2>
@@ -805,6 +763,7 @@ function render(){
    </div>
    <h2>${si('bell')}Alerta operacional</h2>${alertCard()}`:''}`;
   collapsibleNotes();
+  document.querySelectorAll('.pt').forEach(c=>{c.addEventListener('mousemove',e=>{const SS=(DATA.diego_series&&DATA.diego_series.length)?DATA.diego_series:DATA.tot_series;const d=SS[e.target.dataset.i];const conc=(d.concluidos!==undefined)?d.concluidos:d.entregues;const sal=(d.saldo!==undefined)?d.saldo:d.acumulado;showTT(e,`<b>${d.mes}</b><br>entraram ${d.criados} · concluídos ${conc}<br>saldo p/ o próximo mês: ${sal}`);});c.addEventListener('mouseleave',hideTT);});
 }
 document.getElementById('ft').innerHTML='Gerado a partir de "Resumo bugs" (export Jira). Métricas marcadas N/D não têm dado de origem — ver notas. Custo sempre rotulado como estimativa distribuída. Substitua o objeto DATA no topo do arquivo para atualizar.';
 render();
