@@ -1,122 +1,122 @@
 [
  {
   "mes": "2025-01",
-  "criados": 104,
+  "criados": 105,
   "concluidos": 69,
-  "passou_proximo_mes": 35
+  "passou_proximo_mes": 36
  },
  {
   "mes": "2025-02",
-  "criados": 59,
+  "criados": 60,
   "concluidos": 61,
-  "passou_proximo_mes": 33
+  "passou_proximo_mes": 35
  },
  {
   "mes": "2025-03",
-  "criados": 72,
+  "criados": 73,
   "concluidos": 74,
-  "passou_proximo_mes": 31
+  "passou_proximo_mes": 34
  },
  {
   "mes": "2025-04",
-  "criados": 62,
+  "criados": 64,
   "concluidos": 39,
-  "passou_proximo_mes": 54
+  "passou_proximo_mes": 59
  },
  {
   "mes": "2025-05",
-  "criados": 83,
+  "criados": 85,
   "concluidos": 90,
-  "passou_proximo_mes": 47
+  "passou_proximo_mes": 54
  },
  {
   "mes": "2025-06",
-  "criados": 72,
+  "criados": 73,
   "concluidos": 69,
-  "passou_proximo_mes": 50
+  "passou_proximo_mes": 58
  },
  {
   "mes": "2025-07",
   "criados": 57,
   "concluidos": 71,
-  "passou_proximo_mes": 36
+  "passou_proximo_mes": 44
  },
  {
   "mes": "2025-08",
-  "criados": 65,
+  "criados": 68,
   "concluidos": 72,
-  "passou_proximo_mes": 29
- },
- {
-  "mes": "2025-09",
-  "criados": 67,
-  "concluidos": 78,
-  "passou_proximo_mes": 18
- },
- {
-  "mes": "2025-10",
-  "criados": 61,
-  "concluidos": 60,
-  "passou_proximo_mes": 19
- },
- {
-  "mes": "2025-11",
-  "criados": 56,
-  "concluidos": 51,
-  "passou_proximo_mes": 24
- },
- {
-  "mes": "2025-12",
-  "criados": 28,
-  "concluidos": 34,
-  "passou_proximo_mes": 18
- },
- {
-  "mes": "2026-01",
-  "criados": 35,
-  "concluidos": 29,
-  "passou_proximo_mes": 24
- },
- {
-  "mes": "2026-02",
-  "criados": 46,
-  "concluidos": 33,
-  "passou_proximo_mes": 37
- },
- {
-  "mes": "2026-03",
-  "criados": 58,
-  "concluidos": 51,
-  "passou_proximo_mes": 44
- },
- {
-  "mes": "2026-04",
-  "criados": 87,
-  "concluidos": 97,
-  "passou_proximo_mes": 34
- },
- {
-  "mes": "2026-05",
-  "criados": 73,
-  "concluidos": 67,
   "passou_proximo_mes": 40
  },
  {
+  "mes": "2025-09",
+  "criados": 69,
+  "concluidos": 78,
+  "passou_proximo_mes": 31
+ },
+ {
+  "mes": "2025-10",
+  "criados": 62,
+  "concluidos": 64,
+  "passou_proximo_mes": 29
+ },
+ {
+  "mes": "2025-11",
+  "criados": 59,
+  "concluidos": 51,
+  "passou_proximo_mes": 37
+ },
+ {
+  "mes": "2025-12",
+  "criados": 30,
+  "concluidos": 36,
+  "passou_proximo_mes": 31
+ },
+ {
+  "mes": "2026-01",
+  "criados": 38,
+  "concluidos": 30,
+  "passou_proximo_mes": 39
+ },
+ {
+  "mes": "2026-02",
+  "criados": 47,
+  "concluidos": 33,
+  "passou_proximo_mes": 53
+ },
+ {
+  "mes": "2026-03",
+  "criados": 63,
+  "concluidos": 52,
+  "passou_proximo_mes": 64
+ },
+ {
+  "mes": "2026-04",
+  "criados": 92,
+  "concluidos": 110,
+  "passou_proximo_mes": 46
+ },
+ {
+  "mes": "2026-05",
+  "criados": 78,
+  "concluidos": 70,
+  "passou_proximo_mes": 54
+ },
+ {
   "mes": "2026-06",
-  "criados": 60,
-  "concluidos": 59,
-  "passou_proximo_mes": 41
+  "criados": 63,
+  "concluidos": 64,
+  "passou_proximo_mes": 53
  },
  {
   "mes": "2026-07",
-  "criados": 91,
-  "concluidos": 88,
-  "passou_proximo_mes": 44
+  "criados": 96,
+  "concluidos": 92,
+  "passou_proximo_mes": 57
  },
  {
   "mes": "2026-08",
-  "criados": 55,
-  "concluidos": 62,
-  "passou_proximo_mes": 37
+  "criados": 58,
+  "concluidos": 75,
+  "passou_proximo_mes": 40
  }
 ]
