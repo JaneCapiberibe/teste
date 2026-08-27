@@ -61,8 +61,9 @@ naoini=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep if x['c'] and
 # (ver evolucao_bugs.py / régua atualizada 27/08/2026), SEMPRE ao vivo a partir do sweep:
 #   ESCOPO ...... só os 4 tipos de bug de verdade: issuetype in BUG_TYPES.
 #   FORA DE TUDO  (nem criado, nem concluído): resolução Cancelado QA ou Cancelado Dev, OU
-#                 card ATUALMENTE parado no status "IMPEDIMENTO PRODUTO" (estagnado). Quem
-#                 só PASSOU por lá mas foi concluído conta normalmente.
+#                 card ATUALMENTE parado no status "IMPEDIMENTO PRODUTO" ou "Backlog" (ainda
+#                 não entrou no fluxo de dev). Quem só PASSOU por um desses status mas já
+#                 avançou (ou foi concluído) conta normalmente — o corte é pelo status atual.
 #   CRIADO ...... mês do campo "created".
 #   CONCLUÍDO ... mês da 1ª transição para "Em produção"/"Em Produção" (fallback: 1ª transição
 #                 p/ "Done"/"Concluído"/"Concluido"; fallback final: mês de criação, pra card
@@ -73,8 +74,9 @@ naoini=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep if x['c'] and
 # sweep_full = chat-free e inclui os Cancelado QA/Dev (necessário pra separar as contagens).
 BUG_TYPES={'Bug Cliente','Bug QA','Bug Dev','Bug Backoffice'}
 RES_EXCLUI_ACUM={'Cancelado QA','Cancelado Dev'}
+STATUS_EXCLUI_ACUM={'IMPEDIMENTO PRODUTO','Backlog'}
 def _elegivel_evol(x):
-    return x['itype'] in BUG_TYPES and x['res'] not in RES_EXCLUI_ACUM and x['status']!='IMPEDIMENTO PRODUTO'
+    return x['itype'] in BUG_TYPES and x['res'] not in RES_EXCLUI_ACUM and x['status'] not in STATUS_EXCLUI_ACUM
 def _mes_concluido(x):
     return x.get('concluido_mes')
 criaD=collections.Counter(); concD=collections.Counter()
