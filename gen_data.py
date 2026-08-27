@@ -60,7 +60,9 @@ naoini=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep if x['c'] and
 # ACUMULADO = "Cards no Início" (saldo rolante) — RÉGUA OFICIAL definida com o setor de dev
 # (ver evolucao_bugs.py / régua atualizada 27/08/2026), SEMPRE ao vivo a partir do sweep:
 #   ESCOPO ...... só os 4 tipos de bug de verdade: issuetype in BUG_TYPES.
-#   FORA DE TUDO  (nem criado, nem concluído): resolução Cancelado QA ou Cancelado Dev, OU
+#   FORA DE TUDO  (nem criado, nem concluído): resolução Cancelado QA (ÚNICA resolução
+#                 excluída — "Cancelado Dev" CONTA como criado e concluído normalmente,
+#                 é fechamento real, inclui duplicatas resolvidas via card-mãe), OU
 #                 card ATUALMENTE parado no status "IMPEDIMENTO PRODUTO" ou "Backlog" (ainda
 #                 não entrou no fluxo de dev). Quem só PASSOU por um desses status mas já
 #                 avançou (ou foi concluído) conta normalmente — o corte é pelo status atual.
@@ -73,7 +75,7 @@ naoini=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep if x['c'] and
 #   início(mês) = início(anterior) + criados(anterior) − concluídos(anterior), começando em 0.
 # sweep_full = chat-free e inclui os Cancelado QA/Dev (necessário pra separar as contagens).
 BUG_TYPES={'Bug Cliente','Bug QA','Bug Dev','Bug Backoffice'}
-RES_EXCLUI_ACUM={'Cancelado QA','Cancelado Dev'}
+RES_EXCLUI_ACUM={'Cancelado QA'}
 STATUS_EXCLUI_ACUM={'IMPEDIMENTO PRODUTO','Backlog'}
 def _elegivel_evol(x):
     return x['itype'] in BUG_TYPES and x['res'] not in RES_EXCLUI_ACUM and x['status'] not in STATUS_EXCLUI_ACUM

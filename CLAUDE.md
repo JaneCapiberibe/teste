@@ -40,11 +40,12 @@ Publicado via GitHub Actions (roda diário). Ver `README.md` para rodar localmen
   **régua oficial** definida com o setor de dev (`evolucao_bugs.py` de referência, atualizada
   27/08/2026):
   - **Escopo**: só issuetype in (Bug Cliente, Bug QA, Bug Dev, Bug Backoffice).
-  - **Fora de tudo** (nem criado nem concluído): resolução Cancelado QA ou Cancelado Dev, OU
-    card ATUALMENTE parado no status IMPEDIMENTO PRODUTO ou Backlog (status atual, não o
-    histórico — quem só passou por lá mas foi concluído/avançou conta normalmente). Backlog foi
-    adicionado a pedido do setor: card ainda em Backlog não deve contar como "criado" na
-    Evolução por módulo.
+  - **Fora de tudo** (nem criado nem concluído): resolução **Cancelado QA** (única resolução
+    excluída — **Cancelado Dev conta normalmente** como criado e concluído: é fechamento real,
+    inclui duplicatas resolvidas via card-mãe), OU card ATUALMENTE parado no status IMPEDIMENTO
+    PRODUTO ou Backlog (status atual, não o histórico — quem só passou por lá mas foi
+    concluído/avançou conta normalmente). Backlog foi adicionado a pedido do setor: card ainda
+    em Backlog não deve contar como "criado" na Evolução por módulo.
   - **Criado** = mês do campo `created`.
   - **Concluído** = mês da 1ª transição para "Em produção"/"Em Produção"; fallback: 1ª
     transição p/ "Done"/"Concluído"/"Concluido"; fallback final: mês de criação, pra card já
