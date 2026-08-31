@@ -221,25 +221,6 @@ def build_outputs(recs):
         inicio = fim
     json.dump(jb, open('jira_backlog.json', 'w'), ensure_ascii=False, indent=1)
 
-    # DIAGNÓSTICO TEMPORÁRIO — compara concluídos/mês pelo método antigo (bug: `updated`) vs
-    # o corrigido (concluido_mes via changelog), pra auditoria da correção contra dado real
-    # de produção. Remover depois de validado.
-    _old_concl = collections.Counter()
-    _DONE_OLD = {'Done', 'Concluído', 'Concluido', 'Em produção', 'Em Produção'}
-    for r in live:
-        if cancel(r):
-            continue
-        if r['status'] in _DONE_OLD:
-            _um = mm(r['updated'])
-            if _um:
-                _old_concl[_um] += 1
-    _diff_meses = sorted(set(list(_old_concl) + list(concl)))
-    print('  [diagnóstico concluídos/mês] mês: antigo(updated) -> novo(changelog)')
-    for _m in _diff_meses:
-        _a, _n = _old_concl.get(_m, 0), concl.get(_m, 0)
-        _marca = '  <-- DIVERGE' if _a != _n else ''
-        print(f'    {_m}: {_a} -> {_n}{_marca}')
-
     # 3) impedimentos_live.json
     imp = [r for r in live if r['status'] in ('IMPEDIMENTO DEV', 'IMPEDIMENTO PRODUTO')]
     produto = sum(1 for r in imp if r['status'] == 'IMPEDIMENTO PRODUTO')
