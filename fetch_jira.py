@@ -197,7 +197,12 @@ def build_outputs(recs):
     live = [r for r in recs if not ischat(r)]  # tira Chat de Suporte de tudo
 
     # 2) jira_backlog.json — método do Diego
-    DONE = {'Done', 'Concluído', 'Concluido', 'Em produção', 'Em Produção'}
+    # "Concluído" usa concluido_mes (1ª entrada em "Em produção" via changelog — a mesma
+    # régua oficial de evolucao_bugs.py/_concluido_mes acima), NUNCA `updated`. `updated`
+    # muda a cada edição tardia do card (comentário, link, anexo, campo) mesmo muito depois
+    # da conclusão real, o que vazava bugs pro mês da edição em vez do mês real de conclusão
+    # (bug confirmado, ex.: card concluído em novembro reaparecendo como concluído em abril
+    # só por causa de uma edição naquele mês).
     criados = collections.Counter()
     concl = collections.Counter()
     for r in live:
@@ -206,10 +211,8 @@ def build_outputs(recs):
         cm = mm(r['created'])
         if cm and r['status'] != 'IMPEDIMENTO PRODUTO':
             criados[cm] += 1
-        if r['status'] in DONE:
-            um = mm(r['updated'])
-            if um:
-                concl[um] += 1
+        if r['concluido_mes']:
+            concl[r['concluido_mes']] += 1
     meses = sorted(set(list(criados) + list(concl)))
     jb, inicio = {}, 0
     for m in meses:
@@ -217,6 +220,25 @@ def build_outputs(recs):
         jb[m] = {'inicio': inicio, 'criados': criados.get(m, 0), 'concluidos': concl.get(m, 0), 'acumulado': fim}
         inicio = fim
     json.dump(jb, open('jira_backlog.json', 'w'), ensure_ascii=False, indent=1)
+
+    # DIAGNÓSTICO TEMPORÁRIO — compara concluídos/mês pelo método antigo (bug: `updated`) vs
+    # o corrigido (concluido_mes via changelog), pra auditoria da correção contra dado real
+    # de produção. Remover depois de validado.
+    _old_concl = collections.Counter()
+    _DONE_OLD = {'Done', 'Concluído', 'Concluido', 'Em produção', 'Em Produção'}
+    for r in live:
+        if cancel(r):
+            continue
+        if r['status'] in _DONE_OLD:
+            _um = mm(r['updated'])
+            if _um:
+                _old_concl[_um] += 1
+    _diff_meses = sorted(set(list(_old_concl) + list(concl)))
+    print('  [diagnóstico concluídos/mês] mês: antigo(updated) -> novo(changelog)')
+    for _m in _diff_meses:
+        _a, _n = _old_concl.get(_m, 0), concl.get(_m, 0)
+        _marca = '  <-- DIVERGE' if _a != _n else ''
+        print(f'    {_m}: {_a} -> {_n}{_marca}')
 
     # 3) impedimentos_live.json
     imp = [r for r in live if r['status'] in ('IMPEDIMENTO DEV', 'IMPEDIMENTO PRODUTO')]
