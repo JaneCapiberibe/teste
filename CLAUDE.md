@@ -11,6 +11,12 @@ build_dash.py  → dashboard_setor.html (HTML estático, dados embutidos)
 inject_login.py → adiciona a trava de login → public/index.html
 ```
 
+`jira_backlog.json` ("método do Diego", em `fetch_jira.py`) **não é lido por `gen_data.py`** —
+`d['tot_series']`/`d['evol_modulo']` calculam criados/concluídos direto do `sweep.json`
+(`concluido_mes`), não desse arquivo. Ele existe só pra quem audita/consome fora deste
+pipeline; ainda assim, "concluído" nele usa `concluido_mes` (changelog), nunca `updated`
+(muda a cada edição tardia do card, vazando bugs pro mês errado — bug real já corrigido).
+
 Publicado via GitHub Actions (roda diário). Ver `README.md` para rodar localmente.
 
 ## Regras da casa (obrigatórias)
