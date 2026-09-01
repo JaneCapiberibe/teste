@@ -410,27 +410,6 @@ mkeys=sorted({x['c'].strftime('%Y-%m') for x in sweep_full if x['c']})
 ref=cur_m if cur_m in mkeys else max(mkeys)   # safra do mês corrente
 d['funil']=build_funil(ref)
 d['funil_por_mes']={m:build_funil(m) for m in mkeys}
-
-# DIAGNÓSTICO TEMPORÁRIO — compara o funil antigo vs o novo pra safra mais recente
-# disponível, pra validação. Remover depois de validado.
-def _build_funil_old(ref):
-    _ENTREGUE_OLD={'Em produção'}
-    crj=[x for x in sweep_full if x['c'] and x['c'].strftime('%Y-%m')==ref]
-    disc=[x for x in crj if x['res']=='Cancelado QA']
-    dev=[x for x in crj if x['res']!='Cancelado QA']
-    entregues=[x for x in dev if x['status'] in _ENTREGUE_OLD]
-    fila=[x for x in dev if x['status'] not in _ENTREGUE_OLD]
-    return {'total':len(crj),'descartados_qa':len(disc),'dev':len(dev),
-            'entregues':len(entregues),'fila':len(fila)}
-_ultimo_mes=max(mkeys)
-_old=_build_funil_old(_ultimo_mes)
-_new=build_funil(_ultimo_mes)
-print(f'  [diagnóstico funil] safra mais recente: {_ultimo_mes}')
-print(f'    ANTES: total={_old["total"]} descartados_qa={_old["descartados_qa"]} '
-      f'dev={_old["dev"]} entregues={_old["entregues"]} fila={_old["fila"]}')
-print(f'    DEPOIS: total={_new["total"]} descartados_qa={_new["descartados_qa"]} '
-      f'dev={_new["dev"]} cancelados_dev={_new["cancelados_dev"]} '
-      f'entregues={_new["entregues"]} fila={_new["fila"]}')
 # override AO VIVO do funil do mês corrente (contagens JQL do Jira de hoje) — ver funil_live.json / fetch_funil.py
 if os.path.exists('funil_live.json'):
     fl=json.load(open('funil_live.json'))
