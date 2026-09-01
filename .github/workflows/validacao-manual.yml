@@ -28,5 +28,17 @@ jobs:
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
         run: python fetch_jira.py
 
+      - name: "Diagnóstico: issuetypes distintos no painel BUG (project = BUG)"
+        run: |
+          python -c "
+          import json, collections
+          sweep = json.load(open('sweep.json'))
+          c = collections.Counter(x['itype'] for x in sweep)
+          print('issuetypes distintos em project = BUG (sweep.json cru, sem filtro de tipo):')
+          for k, v in c.most_common():
+              print(f'  {k!r}: {v}')
+          print('TOTAL:', sum(c.values()))
+          "
+
       - name: Recalcular dados (validação, sem publicar)
         run: python gen_data.py
