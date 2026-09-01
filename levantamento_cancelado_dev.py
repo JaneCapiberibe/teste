@@ -7,56 +7,58 @@ oficial (mesmo escopo/regra de evolucao_bugs.py), para decisão de gestão. NÃO
 altera o comportamento de evolucao_bugs.py nem de nenhum outro script do pipeline
 — só lê o Jira e imprime uma tabela comparativa.
 
-Mesma régua de evolucao_bugs.py (BUG_TYPES, fora de tudo = Cancelado QA + card
-ATUALMENTE em IMPEDIMENTO PRODUTO, concluído = 1ª entrada em "Em produção" com
-fallback "Done"/"Concluído"), mas SEM excluir Cancelado Dev — ele fica incluído
-no baseline (como hoje) e é contado à parte para dar a comparação "com vs sem".
+NOTA IMPORTANTE: evolucao_bugs.fetch_all() está quebrado (400 Bad Request —
+expand=changelog não é aceito em /rest/api/3/search/jql, confirmado rodando de
+verdade; o mesmo bug que já tinha sido corrigido em fetch_jira.py trocando pro
+endpoint dedicado /changelog/bulkfetch). Como o pedido é explícito pra NÃO alterar
+evolucao_bugs.py, este script busca os dados via fetch_jira.py (fetch_all_com_
+retentativa/fetch_changelogs/norm — já testados, já produzem concluido_mes pela
+MESMA régua: 1ª entrada em "Em produção", fallback "Done"/"Concluído", fallback
+final mês de criação pra card terminal sem transição registrada). Único ajuste de
+escopo: usa project=BUG (fetch_jira.py) em vez do JQL sem filtro de projeto de
+evolucao_bugs.py — na prática os 4 tipos de bug só existem nesse projeto.
+
+Mesma régua de "fora de tudo" de evolucao_bugs.py (Cancelado QA + card ATUALMENTE
+em IMPEDIMENTO PRODUTO), mas SEM excluir Cancelado Dev — ele fica incluído no
+baseline (como hoje) e é contado à parte para dar a comparação "com vs sem".
 
 Uso: python levantamento_cancelado_dev.py (precisa de JIRA_BASE_URL, JIRA_EMAIL,
 JIRA_API_TOKEN nas variáveis de ambiente — mesmos segredos do resto do pipeline).
 """
 import collections
-from evolucao_bugs import fetch_all, BUG_TYPES, ST_PRODUCAO, ST_DONE, ST_IMP_PRODUTO, _histories, _first_to
+from evolucao_bugs import BUG_TYPES
+from fetch_jira import fetch_all_com_retentativa, fetch_changelogs, norm
 
 RES_FORA = ("Cancelado QA",)  # única exclusão de resolução no baseline (igual evolucao_bugs.py)
 RES_DEV = "Cancelado Dev"
+ST_IMP_PRODUTO = "IMPEDIMENTO PRODUTO"
 
 
-def build_report(issues):
+def build_report(recs):
     criados = collections.Counter()
     concluidos = collections.Counter()
     criados_dev = collections.Counter()
     concluidos_dev = collections.Counter()
     dev_keys = []
 
-    for iss in issues:
-        f = iss.get("fields", {})
-        itype = (f.get("issuetype") or {}).get("name")
-        if itype not in BUG_TYPES:
+    for r in recs:
+        if r["itype"] not in BUG_TYPES:
             continue
-        res = (f.get("resolution") or {}).get("name")
-        if res in RES_FORA:
+        if r["res"] in RES_FORA:
             continue
-        status = (f.get("status") or {}).get("name")
-        if status == ST_IMP_PRODUTO:
+        if r["status"] == ST_IMP_PRODUTO:
             continue
 
-        created = f.get("created")
-        changes = _histories(iss)
-        is_dev = (res == RES_DEV)
-
+        is_dev = (r["res"] == RES_DEV)
+        created = r["created"]
         if created:
             cm = created[:7]
             criados[cm] += 1
             if is_dev:
                 criados_dev[cm] += 1
-                dev_keys.append(iss.get("key"))
+                dev_keys.append(r["key"])
 
-        mes = _first_to(changes, ST_PRODUCAO)
-        if not mes:
-            mes = _first_to(changes, ST_DONE)
-            if not mes and status in (ST_PRODUCAO + ST_DONE):
-                mes = (created or "")[:7] or None
+        mes = r.get("concluido_mes")
         if mes:
             concluidos[mes] += 1
             if is_dev:
@@ -67,9 +69,15 @@ def build_report(issues):
 
 
 def main():
-    print("Puxando bugs do Jira (com changelog) — mesmo JQL/escopo de evolucao_bugs.py...")
-    issues = fetch_all()
-    meses, criados, concluidos, criados_dev, concluidos_dev, dev_keys = build_report(issues)
+    print("evolucao_bugs.fetch_all() está quebrado (400 Bad Request em expand=changelog) — "
+          "usando fetch_jira.py (project=BUG, changelog via bulkfetch) pra este levantamento.")
+    print("Puxando do Jira...")
+    issues = fetch_all_com_retentativa()
+    print("Puxando changelog em lote...")
+    changelogs = fetch_changelogs([i.get("id") for i in issues])
+    recs = [norm(i, changelogs.get(i.get("id"))) for i in issues]
+
+    meses, criados, concluidos, criados_dev, concluidos_dev, dev_keys = build_report(recs)
 
     print()
     print(f"Total de cards 'Cancelado Dev' no escopo (BUG_TYPES, fora Cancelado QA/Impedimento Produto): {len(dev_keys)}")
