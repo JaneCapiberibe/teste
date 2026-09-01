@@ -269,22 +269,5 @@ if __name__ == '__main__':
     print('Puxando changelog (histórico de status) em lote...')
     changelogs = fetch_changelogs([i.get('id') for i in issues])
     recs = [norm(i, changelogs.get(i.get('id'))) for i in issues]
-
-    # DIAGNÓSTICO TEMPORÁRIO — investigação pontual do BUG-1072 (relatado como ausente do
-    # resultado do JQL/dashboard de jan/2026). Remover depois de investigado.
-    _dbg_issue = next((i for i in issues if i.get('key') == 'BUG-1072'), None)
-    print(f'  [diag BUG-1072] presente em issues(): {_dbg_issue is not None}')
-    if _dbg_issue:
-        _dbg_id = _dbg_issue.get('id')
-        _dbg_chg = changelogs.get(_dbg_id)
-        print(f'  [diag BUG-1072] id={_dbg_id} presente em changelogs(): {_dbg_id in changelogs} '
-              f'| nº transições capturadas: {len(_dbg_chg) if _dbg_chg else 0}')
-        if _dbg_chg:
-            print(f'  [diag BUG-1072] transições: {_dbg_chg}')
-        _dbg_rec = next((r for r in recs if r['key'] == 'BUG-1072'), None)
-        print(f'  [diag BUG-1072] rec: status={_dbg_rec["status"]!r} itype={_dbg_rec["itype"]!r} '
-              f'res={_dbg_rec["res"]!r} modulo={_dbg_rec["modulo"]!r} '
-              f'concluido_mes={_dbg_rec["concluido_mes"]!r}')
-
     build_outputs(recs)
     print('OK — arquivos gerados.')
