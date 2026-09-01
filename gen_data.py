@@ -1,5 +1,5 @@
 import json, re, datetime, statistics, collections, csv, openpyxl
-TODAY=datetime.date.fromisoformat("2026-08-12")
+TODAY=datetime.date.today()
 sweep=json.load(open('sweep.json'))
 def pdt(s):
     if not s: return None
@@ -9,6 +9,24 @@ def busdays(a,b):
     import numpy as np
     return int(np.busday_count(a,b))
 import numpy as np
+def snapshot_arquivo(path):
+    """Data em que `path` foi realmente atualizado pela última vez. Usa `git log` (a data do
+    último commit que tocou o arquivo) em vez de os.path.getmtime — `actions/checkout` reseta o
+    mtime de todo arquivo pro momento do checkout, então getmtime mostraria "hoje" em todo run
+    do workflow, mesmo se o CSV não muda há meses. Cai pra getmtime só se não for um repo git."""
+    import subprocess
+    try:
+        out=subprocess.run(['git','log','-1','--format=%ad','--date=short','--',path],
+                            capture_output=True,text=True,timeout=5)
+        if out.returncode==0 and out.stdout.strip():
+            return out.stdout.strip()
+    except Exception:
+        pass
+    try:
+        import os as _os
+        return datetime.date.fromtimestamp(_os.path.getmtime(path)).isoformat()
+    except Exception:
+        return None
 NIVEL={'Highest':'Muito alta','High':'Alta','Medium':'Média','Low':'Baixa','Lowest':'Muito baixa'}
 ORDER=['Highest','High','Medium','Low','Lowest']
 SLA={'Highest':8,'High':12,'Medium':16,'Low':24,'Lowest':40}
@@ -47,14 +65,19 @@ d['deteccao']={'itens':det_itens,'total':det_tot,
                'escape_pct':round(100*cliente_n/det_tot),
                'interno_pct':round(100*(det_tot-cliente_n)/det_tot)}
 
-# tot_series mensal: criados (intake) vs entregues (da safra do mês, já em produção)
-# "entregues" usa o status ATUAL do card — SÓ "Em produção" conta como entregue (régua da
-# empresa: "mandar pra produção é o nosso concluído"). "Concluído" NÃO conta aqui — é o
-# fechamento do suporte com o cliente, que escorrega pro mês seguinte e fazia parecer que o
-# time não entregava.
+# tot_series mensal: criados (intake) vs entregues (da safra do mês).
+# ENTREGUE (usado só por d['recortes'] abaixo — recorte BIM/Sem BIM, não renderizado no
+# dashboard, ver CLAUDE.md) mantido como estava: só "Em produção" conta.
 ENTREGUE={'Em produção'}
+# ENTREGUE_TAXA — só para "Taxa de entrega — safra" (kpiCards). DECISÃO DE 01/09/2026: passa a
+# contar status atual em {Em produção, Done, Concluído, Concluido} (antes só "Em produção");
+# e exclui cards com resolution "Cancelado Dev" — sem isso, um card cancelado no próprio dev
+# mas com status Done/Concluído inflava a taxa como se fosse entrega real. Cancelado QA já não
+# precisa de checagem aqui: `sweep` já exclui essa resolução da base inteira (linha ~27).
+ENTREGUE_TAXA={'Em produção','Done','Concluído','Concluido'}
 cria=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep if x['c'])
-entr=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep if x['c'] and x['status'] in ENTREGUE)
+entr=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep
+     if x['c'] and x['status'] in ENTREGUE_TAXA and x['res']!='Cancelado Dev')
 # SOBRA = cards que terminaram o mês SEM serem iniciados (status atual "Não Iniciado").
 naoini=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep if x['c'] and x['status']=='Não Iniciado')
 # ACUMULADO = "Cards no Início" (saldo rolante) — RÉGUA OFICIAL definida com o setor de dev
@@ -178,6 +201,20 @@ d['det_series']=det_series
 _defech=[s for s in det_series if s['mes']<cur_ym and s['total']>0][-6:]
 d['det_series_meta']={'media_fechadas':round(statistics.mean([s['escape'] for s in _defech])) if _defech else 0,
                       'mes_corrente':cur_ym}
+
+# Detecção POR SAFRA — mesmo formato de d['deteccao'] acima (itens/total/escape_pct/
+# interno_pct), mas um por mês, reaproveitando det_mes (já calculado por mês de criação pra
+# d['det_series'] acima — não refaz a contagem). Card "Detecção" em kpiCards passa a usar isso
+# pra mudar junto com o seletor de safra, em vez de mostrar sempre o agregado histórico fixo.
+def _deteccao_de(cc):
+    itens=[{'tipo':lbl,'n':cc.get(key,0)} for key,lbl in DET_ORDER]
+    outros=sum(v for k,v in cc.items() if k not in dict(DET_ORDER))
+    if outros: itens.append({'tipo':'Outros','n':outros})
+    tot=sum(i['n'] for i in itens) or 1
+    for i in itens: i['pct']=round(100*i['n']/tot)
+    cli=cc.get('Bug Cliente',0)
+    return {'itens':itens,'total':tot,'escape_pct':round(100*cli/tot),'interno_pct':round(100*(tot-cli)/tot)}
+d['deteccao_por_mes']={m:_deteccao_de(det_mes[m]) for m in meses}
 
 # ---- RECORTES: BIM (externo) x Sem BIM (internos) ----
 # Mapa ÚNICO módulo->grupo. "Internos" nunca é lista à parte: é o complemento de BIM.
@@ -353,7 +390,8 @@ for p in ORDER:
     tn+=n; tk+=ok
     pr.append({'nivel':NIVEL[p],'sla':SLA[p],'n':n,'ok':ok,'pct':round(100*ok/n),
                'mttr':round(statistics.median(kept)/8,1)})
-d['previsibilidade']={'agregado':round(100*tk/tn),'ok':tk,'n':tn,'metodo':'dev-p95','excluidos':total_bruto-tn,'por_prio':pr}
+d['previsibilidade']={'agregado':round(100*tk/tn),'ok':tk,'n':tn,'metodo':'dev-p95','excluidos':total_bruto-tn,'por_prio':pr,
+    'snapshot':snapshot_arquivo('inputs/suporte_list.csv')}
 d['suporte_lag']={'n':len(lag),'mediana_h':round(statistics.median(lag),1),'media_h':round(statistics.mean(lag),1)}
 
 # ---- FUNIL DE ENTREGA DO DEV — para CADA mês (safra) ----
@@ -597,3 +635,20 @@ print('Run vs Build:',d['rvb']['run_pct'],'/',d['rvb']['build_pct'])
 print('previsibilidade dev:',d['previsibilidade']['agregado'],'%')
 print('top modulos:',[(t['mod'],t['bugs']) for t in d['tabela_modulo'][:5]])
 print('meses tot_series:',d['tot_series'][0]['mes'],'->',d['tot_series'][-1]['mes'],'n=',len(d['tot_series']))
+
+# DIAGNÓSTICO TEMPORÁRIO — 4 pontos do Panorama do período, antes vs depois, pro mês mais
+# recente disponível. Remover depois de validado.
+_ultimo=d['tot_series'][-1]
+_OLD_ENTR={'Em produção'}
+_old_entr_n=sum(1 for x in sweep if x['c'] and x['c'].strftime('%Y-%m')==_ultimo['mes'] and x['status'] in _OLD_ENTR)
+_old_cria_n=_ultimo['criados']
+print(f'  [diagnóstico panorama] mês mais recente: {_ultimo["mes"]}')
+print(f'    (1) TODAY: antes=2026-08-12 (fixo) | depois={TODAY} (real)')
+print(f'    (2) snapshot suporte_list.csv: antes=(não existia) | depois={d["previsibilidade"].get("snapshot")}')
+print(f'    (3) Taxa de entrega: antes=entregues={_old_entr_n} pct={round(100*_old_entr_n/_old_cria_n) if _old_cria_n else 0}% '
+      f'| depois=entregues={_ultimo["entregues"]} pct={_ultimo["pct_entrega"]}% (criados={_old_cria_n})')
+_det_old=d['deteccao']
+_det_new=d['deteccao_por_mes'].get(_ultimo['mes'])
+print(f'    (4) Detecção: antes(agregado histórico)={ {i["tipo"]:i["n"] for i in _det_old["itens"]} } total={_det_old["total"]} escape={_det_old["escape_pct"]}% '
+      f'| depois(safra {_ultimo["mes"]})={ {i["tipo"]:i["n"] for i in _det_new["itens"]} if _det_new else None } '
+      f'total={_det_new["total"] if _det_new else None} escape={_det_new["escape_pct"] if _det_new else None}%')

@@ -340,8 +340,8 @@ function donutN(segs){
   return `<svg viewBox="0 0 90 90" width="84" height="84" style="flex:none">${arcs}<text x="45" y="43" text-anchor="middle" fill="${col('--text-1')}" font-size="15" font-weight="800">${tot}</text><text x="45" y="55" text-anchor="middle" fill="${col('--text-3')}" font-size="8.5">bugs</text></svg>`;
 }
 function detColors(){return {Cliente:col('--s4'),QA:col('--good'),Dev:col('--brand-blue'),Backoffice:col('--text-3'),Outros:col('--text-3')};}
-function detSegs(){const cm=detColors();return DATA.deteccao.itens.map(i=>({val:i.n,color:cm[i.tipo]||col('--text-3')}));}
-function detLegend(){const cm=detColors();return DATA.deteccao.itens.map(i=>`<div><span class="dot" style="background:${cm[i.tipo]||col('--text-3')}"></span> ${i.tipo} <b>${i.pct}%</b> · ${i.n}</div>`).join('');}
+function detSegs(det){const cm=detColors();return (det||DATA.deteccao).itens.map(i=>({val:i.n,color:cm[i.tipo]||col('--text-3')}));}
+function detLegend(det){const cm=detColors();return (det||DATA.deteccao).itens.map(i=>`<div><span class="dot" style="background:${cm[i.tipo]||col('--text-3')}"></span> ${i.tipo} <b>${i.pct}%</b> · ${i.n}</div>`).join('');}
 function prevColor(p){return p>=70?'var(--good)':(p>=40?'var(--warn)':'var(--bad)');}
 function kpiCards(){
   const rvb=DATA.rvb;
@@ -349,16 +349,18 @@ function kpiCards(){
   const s=DATA.tot_series.find(t=>t.mes===curSafra())||last; // safra selecionada
   const atual=s.mes===DATA.mes_corrente;
   const pv=DATA.previsibilidade;
-  const det=DATA.deteccao;
+  // Detecção por safra — cai pro agregado histórico se a safra não tiver entrada (ex.: dado
+  // gerado antes de d['deteccao_por_mes'] existir).
+  const det=(DATA.deteccao_por_mes&&DATA.deteccao_por_mes[s.mes])||DATA.deteccao;
   return `<div class="cards">
-   <div class="card"><div class="kpi-label">${svg('filter','kpi-ico')}Detecção — onde o bug foi pego <span class="info" data-tip="Classificação por tipo de item do Jira: Cliente = bug que escapou e chegou à produção (o cliente sentiu); QA/Dev = bug barrado internamente antes do cliente; Backoffice = ferramenta interna. Quanto maior a fatia interna (QA+Dev), melhor — significa que a gente segura antes de virar problema do cliente. Base líquida, ao vivo do Jira.">i</span></div>
-     <div style="display:flex;align-items:center;gap:14px;margin-top:2px">${donutN(detSegs())}
-       <div style="font-size:12.5px;line-height:1.55">${detLegend()}</div></div>
+   <div class="card"><div class="kpi-label">${svg('filter','kpi-ico')}Detecção — onde o bug foi pego <span class="tag-per" title="muda conforme a safra selecionada">safra ${mesLbl(s.mes)}</span><span class="info" data-tip="Classificação por tipo de item do Jira, dos bugs CRIADOS na safra selecionada: Cliente = bug que escapou e chegou à produção (o cliente sentiu); QA/Dev = bug barrado internamente antes do cliente; Backoffice = ferramenta interna. Quanto maior a fatia interna (QA+Dev), melhor — significa que a gente segura antes de virar problema do cliente. Base líquida. Muda conforme o mês escolhido no seletor de safra.">i</span></div>
+     <div style="display:flex;align-items:center;gap:14px;margin-top:2px">${donutN(detSegs(det))}
+       <div style="font-size:12.5px;line-height:1.55">${detLegend(det)}</div></div>
      <div class="kpi-sub" style="margin-top:8px">${det.escape_pct}% escapou para o cliente · ${det.interno_pct}% barrado internamente.</div></div>
-   <div class="card"><div class="kpi-label">${svg('bullseye','kpi-ico')}Previsibilidade do DEV — % dentro do SLA (Não Iniciado→Produção, p95) <span class="tag-per" title="considera todos os meses até a safra atual">acumulado</span><span class="info" data-tip="% de bugs cujo tempo de DESENVOLVIMENTO (do momento em que entram em 'Não Iniciado' até entrarem em 'Produção') coube no prazo do SLA da sua prioridade, medido em horas úteis. p95: os 5% mais lentos de cada prioridade são excluídos para tirar o efeito de outliers extremos. NÃO inclui o tempo de suporte (Produção → Concluído), que é o período em que o suporte fecha com o cliente — esse é medido à parte no bloco Prioridade & SLA.">i</span></div>
+   <div class="card"><div class="kpi-label">${svg('bullseye','kpi-ico')}Previsibilidade do DEV — % dentro do SLA (Não Iniciado→Produção, p95) <span class="tag-per" title="considera todos os meses até a safra atual">acumulado</span><span class="info" data-tip="% de bugs cujo tempo de DESENVOLVIMENTO (do momento em que entram em 'Não Iniciado' até entrarem em 'Produção') coube no prazo do SLA da sua prioridade, medido em horas úteis. p95: os 5% mais lentos de cada prioridade são excluídos para tirar o efeito de outliers extremos. NÃO inclui o tempo de suporte (Produção → Concluído), que é o período em que o suporte fecha com o cliente — esse é medido à parte no bloco Prioridade & SLA. Calculado a partir de inputs/suporte_list.csv, um export ESTÁTICO — só atualiza quando alguém reexporta e substitui o arquivo (ver dado abaixo).">i</span></div>
      <div class="kpi-val" style="color:${prevColor(pv.agregado)}">${pv.agregado}%</div>
-     <div class="kpi-sub">${pv.ok} de ${pv.n} bugs dentro do prazo (p95 — excluídos os 5% mais lentos de cada prioridade, ${pv.excluidos} cards). Horas úteis, tempo em status validado. Não inclui o tempo de suporte pós-produção.</div></div>
-   <div class="card"><div class="kpi-label">${svg('truck-fast','kpi-ico')}Taxa de entrega — safra ${mesLbl(s.mes)}${atual?' (em andamento)':''}<span class="info" data-tip="Dos bugs reais que ENTRARAM no mês selecionado, quantos % já foram entregues — status atual 'Em produção'. 'Concluído' não conta aqui (é o fechamento do suporte, medido à parte). É a régua de entrega do dev pela definição da empresa (mandar pra produção = concluído). Muda conforme o mês escolhido no seletor de safra.">i</span></div>
+     <div class="kpi-sub">${pv.ok} de ${pv.n} bugs dentro do prazo (p95 — excluídos os 5% mais lentos de cada prioridade, ${pv.excluidos} cards). Horas úteis, tempo em status validado. Não inclui o tempo de suporte pós-produção.${pv.snapshot?` <b>Dados de ${pv.snapshot}</b> (export estático, não ao vivo).`:''}</div></div>
+   <div class="card"><div class="kpi-label">${svg('truck-fast','kpi-ico')}Taxa de entrega — safra ${mesLbl(s.mes)}${atual?' (em andamento)':''}<span class="info" data-tip="Dos bugs reais que ENTRARAM no mês selecionado, quantos % já foram entregues — status atual em Em produção/Done/Concluído/Concluido, EXCLUINDO cards cancelados no próprio dev (resolution Cancelado Dev), que não contam como entrega real mesmo se o status ficou Done/Concluído. Muda conforme o mês escolhido no seletor de safra.">i</span></div>
      <div class="kpi-val" style="color:${prevColor(s.pct_entrega)}">${s.pct_entrega}%</div>
      <div class="kpi-sub">${s.mes}: entregou ${s.entregues} de ${s.criados} bugs que entraram · ${s.abertos} ainda abertos dessa safra.${atual?' Mês corrente ainda em andamento — o número tende a subir.':''}</div></div>
   </div>`;
