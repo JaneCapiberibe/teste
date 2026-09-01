@@ -357,13 +357,30 @@ d['previsibilidade']={'agregado':round(100*tk/tn),'ok':tk,'n':tn,'metodo':'dev-p
 d['suporte_lag']={'n':len(lag),'mediana_h':round(statistics.median(lag),1),'media_h':round(statistics.mean(lag),1)}
 
 # ---- FUNIL DE ENTREGA DO DEV — para CADA mês (safra) ----
-ENTREGUE={'Em produção'}   # só "Em produção" conta como entregue; "Concluído" não conta
+# RÉGUA DO FUNIL — só deste painel (build_funil/funilPanel), NÃO usada em mais nenhum
+# lugar do dashboard (não mexe em ENTREGUE/d['tot_series'] acima, nem em evolucao_bugs.py):
+#   1. Criados ....... TODOS os bugs criados no mês (sem excluir por resolução/status/tipo
+#                       de issue nesta etapa — mas sweep_full já não tem Chat de Suporte,
+#                       igual em toda a análise, então esse módulo continua fora).
+#   2. Chegaram ao dev  criados − Cancelado QA.
+#   3. Cancelados dev  segmento próprio: dos que chegaram ao dev, quantos têm resolution ==
+#                       "Cancelado Dev" — antes ficavam misturados dentro de entregues/fila
+#                       conforme o status no momento do cancelamento (contagem errada).
+#   4. Entregues ..... status ATUAL em ST_ENTREGUE_FUNIL (Em produção/Em Produção/Done/
+#                       Concluído/Concluido) — mais amplo que o ENTREGUE usado acima em
+#                       d['tot_series'] (só "Em produção"); intencional, só pra este painel.
+#   5. Na fila/pipeline  o resto: chegaram ao dev, não cancelados no dev, não entregues —
+#                       inclui Backlog e todas as colunas de status ativas. Por safra: cada
+#                       mês roda isolado (crj = só cards criados naquele mês).
+ST_ENTREGUE_FUNIL={'Em produção','Em Produção','Done','Concluído','Concluido'}
 def build_funil(ref):
     crj=[x for x in sweep_full if x['c'] and x['c'].strftime('%Y-%m')==ref]
     disc=[x for x in crj if x['res']=='Cancelado QA']
     dev=[x for x in crj if x['res']!='Cancelado QA']
-    entregues=[x for x in dev if x['status'] in ENTREGUE]
-    fila=[x for x in dev if x['status'] not in ENTREGUE]
+    canc_dev=[x for x in dev if x['res']=='Cancelado Dev']
+    dev_ativo=[x for x in dev if x['res']!='Cancelado Dev']
+    entregues=[x for x in dev_ativo if x['status'] in ST_ENTREGUE_FUNIL]
+    fila=[x for x in dev_ativo if x['status'] not in ST_ENTREGUE_FUNIL]
     fila_det=sorted(collections.Counter(x['status'] for x in fila).items(),key=lambda t:-t[1])
     sevd=collections.Counter(x['prio'] for x in dev)
     sev_ord=[{'nivel':NIVEL[p],'n':sevd.get(p,0)} for p in ORDER if sevd.get(p,0)]
@@ -380,6 +397,7 @@ def build_funil(ref):
     mt=[busdays(x['c'].date(),x['r'].date()) for x in dev if x['c'] and x['r']]
     napont=sum(1 for x in dev if isinstance(x['timespent'],(int,float)) and x['timespent'])
     return {'mes':ref,'total':len(crj),'descartados_qa':len(disc),'dev':len(dev),
+        'cancelados_dev':len(canc_dev),
         'entregues':len(entregues),'fila':len(fila),'fila_det':fila_det,
         'pct_descarte':round(100*len(disc)/len(crj)) if crj else 0,
         'pct_entrega':round(100*len(entregues)/len(dev)) if dev else 0,
@@ -392,6 +410,27 @@ mkeys=sorted({x['c'].strftime('%Y-%m') for x in sweep_full if x['c']})
 ref=cur_m if cur_m in mkeys else max(mkeys)   # safra do mês corrente
 d['funil']=build_funil(ref)
 d['funil_por_mes']={m:build_funil(m) for m in mkeys}
+
+# DIAGNÓSTICO TEMPORÁRIO — compara o funil antigo vs o novo pra safra mais recente
+# disponível, pra validação. Remover depois de validado.
+def _build_funil_old(ref):
+    _ENTREGUE_OLD={'Em produção'}
+    crj=[x for x in sweep_full if x['c'] and x['c'].strftime('%Y-%m')==ref]
+    disc=[x for x in crj if x['res']=='Cancelado QA']
+    dev=[x for x in crj if x['res']!='Cancelado QA']
+    entregues=[x for x in dev if x['status'] in _ENTREGUE_OLD]
+    fila=[x for x in dev if x['status'] not in _ENTREGUE_OLD]
+    return {'total':len(crj),'descartados_qa':len(disc),'dev':len(dev),
+            'entregues':len(entregues),'fila':len(fila)}
+_ultimo_mes=max(mkeys)
+_old=_build_funil_old(_ultimo_mes)
+_new=build_funil(_ultimo_mes)
+print(f'  [diagnóstico funil] safra mais recente: {_ultimo_mes}')
+print(f'    ANTES: total={_old["total"]} descartados_qa={_old["descartados_qa"]} '
+      f'dev={_old["dev"]} entregues={_old["entregues"]} fila={_old["fila"]}')
+print(f'    DEPOIS: total={_new["total"]} descartados_qa={_new["descartados_qa"]} '
+      f'dev={_new["dev"]} cancelados_dev={_new["cancelados_dev"]} '
+      f'entregues={_new["entregues"]} fila={_new["fila"]}')
 # override AO VIVO do funil do mês corrente (contagens JQL do Jira de hoje) — ver funil_live.json / fetch_funil.py
 if os.path.exists('funil_live.json'):
     fl=json.load(open('funil_live.json'))
