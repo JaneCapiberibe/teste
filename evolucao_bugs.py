@@ -10,13 +10,15 @@ RÉGUA OFICIAL (única para criados, concluídos e fila)
 ESCOPO ...... "tudo que for bug": issuetype in
               ("Bug Cliente", "Bug QA", "Bug Dev", "Bug Backoffice").
 FORA DE TUDO  (nem criado, nem concluído):
-              - resolution == "Cancelado QA"  (ÚNICA resolução excluída)
+              - resolution == "Cancelado QA" ou "Cancelado Dev"
               - cards ATUALMENTE parados no status "IMPEDIMENTO PRODUTO" (estagnados).
                 Quem apenas PASSOU por impedimento produto (dev ou produto) mas foi
                 concluído CONTA normalmente — tem data de criação e de conclusão.
                 (IMPEDIMENTO DEV também continua contando — é responsabilidade do time.)
-              OBS: "Cancelado Dev" CONTA como criado e concluído (é fechamento real,
-              inclui duplicatas resolvidas via card-mãe). Só "Cancelado QA" fica fora.
+              OBS (decisão de 01/09/2026): "Cancelado Dev" passou a ficar fora de tudo,
+              junto com "Cancelado QA" — antes contava normalmente, mas o setor decidiu
+              excluir após levantamento de impacto (~1,3% do volume total, concentrado
+              nos últimos meses; ver levantamento_cancelado_dev.py).
 CRIADO ...... mês do campo "created".
 CONCLUÍDO ... mês em que o card ENTROU em "Em produção" (1ª transição p/ esse status).
               Fallback p/ quem nunca passou por "Em produção": mês da 1ª entrada
@@ -30,7 +32,9 @@ Credenciais (variáveis de ambiente — mesmos segredos do fetch_jira.py):
   JIRA_EMAIL      e-mail do Atlassian
   JIRA_API_TOKEN  token de API
 --------------------------------------------------------------------------------
-Referência de validação (puxado via JQL em 26/08/2026 — para conferência):
+Referência de validação (puxado via JQL em 26/08/2026 — para conferência; números abaixo
+AINDA incluem Cancelado Dev, da régua vigente naquela data — desatualizados em relação à
+exclusão de 01/09/2026 acima, mantidos como registro histórico):
   2025 criados:    105 60 73 64 85 73 57 68 69 62 59 30   (Σ 805)
   2025 concluidos:  69 61 74 39 90 69 71 72 78 64 51 36
   2026 criados:     38 47 63 92 78 63 96 58   (Σ 535)
@@ -50,7 +54,7 @@ BASE = os.environ.get("JIRA_BASE_URL", "https://orcafascio.atlassian.net").rstri
 
 # --- Régua (constantes) ------------------------------------------------------
 BUG_TYPES = ("Bug Cliente", "Bug QA", "Bug Dev", "Bug Backoffice")
-RES_FORA = ("Cancelado QA",)  # só Cancelado QA fica fora; Cancelado Dev conta
+RES_FORA = ("Cancelado QA", "Cancelado Dev")
 # Nomes de status conforme aparecem no changelog (o Jira usa nomes de exibição;
 # "Concluído" e "Done" convivem — tratamos ambos).
 ST_PRODUCAO = ("Em produção", "Em Produção")
