@@ -453,17 +453,6 @@ mkeys=sorted({x['c'].strftime('%Y-%m') for x in sweep_full if x['c']})
 ref=cur_m if cur_m in mkeys else max(mkeys)   # safra do mês corrente
 d['funil']=build_funil(ref)
 d['funil_por_mes']={m:build_funil(m) for m in mkeys}
-# DIAGNÓSTICO TEMPORÁRIO — funil "chegaram ao dev" antes (incluía Cancelado Dev) vs depois
-# (líquido). Relação fechada: old_dev = novo dev + cancelados_dev (o único bloco que mudou de
-# lugar); entregues/fila são os mesmos números de antes (já vinham de dev_ativo, líquido).
-# Remover depois de validado.
-for _m,_f in sorted(d['funil_por_mes'].items()):
-    if not _f.get('cancelados_dev'): continue   # só meses com cancelados dev de verdade mostram diferença
-    _old_dev=_f['dev']+_f['cancelados_dev']
-    _old_pct_entrega=round(100*_f['entregues']/_old_dev) if _old_dev else 0
-    print(f'  [diagnóstico funil] safra {_m}:')
-    print(f'    chegaram ao dev: antes={_old_dev} (incluía {_f["cancelados_dev"]} cancelados dev) | depois={_f["dev"]} (líquido)')
-    print(f'    pct_entrega: antes={_old_pct_entrega}% (denominador incluía cancelados dev) | depois={_f["pct_entrega"]}%')
 # override AO VIVO do funil do mês corrente (contagens JQL do Jira de hoje) — ver funil_live.json / fetch_funil.py
 if os.path.exists('funil_live.json'):
     fl=json.load(open('funil_live.json'))
@@ -651,20 +640,3 @@ print('Run vs Build:',d['rvb']['run_pct'],'/',d['rvb']['build_pct'])
 print('previsibilidade dev:',d['previsibilidade']['agregado'],'%')
 print('top modulos:',[(t['mod'],t['bugs']) for t in d['tabela_modulo'][:5]])
 print('meses tot_series:',d['tot_series'][0]['mes'],'->',d['tot_series'][-1]['mes'],'n=',len(d['tot_series']))
-
-# DIAGNÓSTICO TEMPORÁRIO — 4 pontos do Panorama do período, antes vs depois, pro mês mais
-# recente disponível. Remover depois de validado.
-_ultimo=d['tot_series'][-1]
-_OLD_ENTR={'Em produção'}
-_old_entr_n=sum(1 for x in sweep if x['c'] and x['c'].strftime('%Y-%m')==_ultimo['mes'] and x['status'] in _OLD_ENTR)
-_old_cria_n=_ultimo['criados']
-print(f'  [diagnóstico panorama] mês mais recente: {_ultimo["mes"]}')
-print(f'    (1) TODAY: antes=2026-08-12 (fixo) | depois={TODAY} (real)')
-print(f'    (2) snapshot suporte_list.csv: antes=(não existia) | depois={d["previsibilidade"].get("snapshot")}')
-print(f'    (3) Taxa de entrega: antes=entregues={_old_entr_n} pct={round(100*_old_entr_n/_old_cria_n) if _old_cria_n else 0}% '
-      f'| depois=entregues={_ultimo["entregues"]} pct={_ultimo["pct_entrega"]}% (criados={_old_cria_n})')
-_det_old=d['deteccao']
-_det_new=d['deteccao_por_mes'].get(_ultimo['mes'])
-print(f'    (4) Detecção: antes(agregado histórico)={ {i["tipo"]:i["n"] for i in _det_old["itens"]} } total={_det_old["total"]} escape={_det_old["escape_pct"]}% '
-      f'| depois(safra {_ultimo["mes"]})={ {i["tipo"]:i["n"] for i in _det_new["itens"]} if _det_new else None } '
-      f'total={_det_new["total"] if _det_new else None} escape={_det_new["escape_pct"] if _det_new else None}%')
