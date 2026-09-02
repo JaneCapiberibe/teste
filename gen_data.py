@@ -1,5 +1,7 @@
 import json, re, datetime, statistics, collections, csv, openpyxl
 TODAY=datetime.date.today()
+TZ_BR=datetime.timezone(datetime.timedelta(hours=-3))
+AGORA_BR=datetime.datetime.now(tz=TZ_BR)
 sweep=json.load(open('sweep.json'))
 def pdt(s):
     if not s: return None
@@ -45,6 +47,10 @@ cancelado_total=sum(1 for x in sweep_full if x['res']=='Cancelado QA')
 sweep=[x for x in sweep_full if x['res']!='Cancelado QA']
 d={}
 d['meta']={'total_bugs_base_atual':len(sweep),'total_com_descartados':len(sweep_full),'descartados_qa':cancelado_total,'chat_removidos':chat_removidos,'periodo':min(x['c'] for x in sweep).strftime('%Y-%m')+' a '+max(x['c'] for x in sweep).strftime('%Y-%m'),'snapshot':str(TODAY)}
+# Data/hora em que o pipeline rodou de verdade (fetch_jira.py + gen_data.py rodam no mesmo job,
+# em sequência — este timestamp é gerado logo depois do fetch, então reflete quando os dados do
+# Jira foram puxados). Horário de Brasília (UTC-3 fixo — Brasil não observa horário de verão).
+d['gerado_em']=AGORA_BR.strftime('%d/%m/%Y %H:%M')
 
 # severidade
 pc=collections.Counter(x['prio'] for x in sweep)
