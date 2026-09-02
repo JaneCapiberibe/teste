@@ -47,8 +47,10 @@ edite o `cron` em `.github/workflows/update.yml`.
 ---
 
 ## Quem pode acessar (login)
-A lista de usuários fica no topo do `login.html` (no `<script>`, `const USERS = [...]`).
-Edite, faça commit, e o próximo deploy publica. **Troque as senhas de exemplo.**
+A lista de usuários fica no topo do `login_template.html` (no `<script>`, `const USERS = [...]`)
+— esse é o arquivo-fonte editável; `login.html` publicado é gerado a partir dele a cada deploy
+(`inject_login.py`), não edite o publicado diretamente. Edite o template, faça commit, e o
+próximo deploy publica. **Troque as senhas de exemplo.**
 
 > Observação de segurança: o GitHub Pages deixa o link público — o login em HTML é uma trava leve
 > (bom para avaliação). Para trava forte (página privada de verdade), dá para somar **Cloudflare
