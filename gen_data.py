@@ -457,13 +457,13 @@ d['funil_por_mes']={m:build_funil(m) for m in mkeys}
 # (líquido). Relação fechada: old_dev = novo dev + cancelados_dev (o único bloco que mudou de
 # lugar); entregues/fila são os mesmos números de antes (já vinham de dev_ativo, líquido).
 # Remover depois de validado.
-_f=d['funil']
-_old_dev=_f['dev']+_f['cancelados_dev']
-_old_pct_entrega=round(100*_f['entregues']/_old_dev) if _old_dev else 0
-print(f'  [diagnóstico funil] safra {ref}:')
-print(f'    chegaram ao dev: antes={_old_dev} (incluía {_f["cancelados_dev"]} cancelados dev) | depois={_f["dev"]} (líquido)')
-print(f'    entregues/fila: antes=entregues={_f["entregues"]} fila={_f["fila"]} | depois=entregues={_f["entregues"]} fila={_f["fila"]} (inalterado — já vinha líquido)')
-print(f'    pct_entrega: antes={_old_pct_entrega}% (denominador incluía cancelados dev, bug pré-existente) | depois={_f["pct_entrega"]}%')
+for _m,_f in sorted(d['funil_por_mes'].items()):
+    if not _f.get('cancelados_dev'): continue   # só meses com cancelados dev de verdade mostram diferença
+    _old_dev=_f['dev']+_f['cancelados_dev']
+    _old_pct_entrega=round(100*_f['entregues']/_old_dev) if _old_dev else 0
+    print(f'  [diagnóstico funil] safra {_m}:')
+    print(f'    chegaram ao dev: antes={_old_dev} (incluía {_f["cancelados_dev"]} cancelados dev) | depois={_f["dev"]} (líquido)')
+    print(f'    pct_entrega: antes={_old_pct_entrega}% (denominador incluía cancelados dev) | depois={_f["pct_entrega"]}%')
 # override AO VIVO do funil do mês corrente (contagens JQL do Jira de hoje) — ver funil_live.json / fetch_funil.py
 if os.path.exists('funil_live.json'):
     fl=json.load(open('funil_live.json'))
