@@ -307,7 +307,6 @@ function safraSelector(){
             ${svg('chevron-down','safra-caret')}
           </span>
         </div>
-        <div class="safra-hint">clique no mês para trocar a safra · o funil mostra esta safra e ela fica destacada em azul-claro nos gráficos</div>
         <div class="safra-hint">${DATA.gerado_em?`Dados atualizados em ${DATA.gerado_em} (horário de Brasília) — última vez que o pipeline puxou o Jira`:''}</div>
       </div>
     </div>
