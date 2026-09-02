@@ -349,11 +349,11 @@ function kpiCards(){
   const s=DATA.tot_series.find(t=>t.mes===curSafra())||last; // safra selecionada
   const atual=s.mes===DATA.mes_corrente;
   const pv=DATA.previsibilidade;
-  // Detecção por safra — cai pro agregado histórico se a safra não tiver entrada (ex.: dado
-  // gerado antes de d['deteccao_por_mes'] existir).
+  // Detecção por safra — cai pro fallback (mês corrente) se a safra selecionada não tiver
+  // entrada (ex.: dado gerado antes de d['deteccao_por_mes'] existir).
   const det=(DATA.deteccao_por_mes&&DATA.deteccao_por_mes[s.mes])||DATA.deteccao;
   return `<div class="cards">
-   <div class="card"><div class="kpi-label">${svg('filter','kpi-ico')}Detecção — onde o bug foi pego <span class="tag-per" title="muda conforme a safra selecionada">safra ${mesLbl(s.mes)}</span><span class="info" data-tip="Classificação por tipo de item do Jira, dos bugs CRIADOS na safra selecionada: Cliente = bug que escapou e chegou à produção (o cliente sentiu); QA/Dev = bug barrado internamente antes do cliente; Backoffice = ferramenta interna. Quanto maior a fatia interna (QA+Dev), melhor — significa que a gente segura antes de virar problema do cliente. Base líquida. Muda conforme o mês escolhido no seletor de safra.">i</span></div>
+   <div class="card"><div class="kpi-label">${svg('filter','kpi-ico')}Detecção — onde o bug foi pego <span class="tag-per" title="muda conforme a safra selecionada">safra ${mesLbl(s.mes)}</span><span class="info" data-tip="Classificação por tipo de item do Jira, de TODOS os bugs CRIADOS na safra selecionada — volume bruto, sem nenhuma exclusão (inclui Cancelado QA, Cancelado Dev e qualquer status), mesmo universo do passo 1 'bugs criados' do funil Diagnóstico do mês, pra sempre baterem no mesmo total: Cliente = bug que escapou e chegou à produção (o cliente sentiu); QA/Dev = bug barrado internamente antes do cliente; Backoffice = ferramenta interna. Quanto maior a fatia interna (QA+Dev), melhor — significa que a gente segura antes de virar problema do cliente. Muda conforme o mês escolhido no seletor de safra.">i</span></div>
      <div style="display:flex;align-items:center;gap:14px;margin-top:2px">${donutN(detSegs(det))}
        <div style="font-size:12.5px;line-height:1.55">${detLegend(det)}</div></div>
      <div class="kpi-sub" style="margin-top:8px">${det.escape_pct}% escapou para o cliente · ${det.interno_pct}% barrado internamente.</div></div>
