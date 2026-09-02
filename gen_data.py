@@ -653,31 +653,3 @@ print('Run vs Build:',d['rvb']['run_pct'],'/',d['rvb']['build_pct'])
 print('previsibilidade dev:',d['previsibilidade']['agregado'],'%')
 print('top modulos:',[(t['mod'],t['bugs']) for t in d['tabela_modulo'][:5]])
 print('meses tot_series:',d['tot_series'][0]['mes'],'->',d['tot_series'][-1]['mes'],'n=',len(d['tot_series']))
-
-# DIAGNÓSTICO TEMPORÁRIO — exemplos reais de URL do clique novo (itens 2 e 3 do prompt).
-# Remover depois de validado.
-def _jql_url(keys):
-    import urllib.parse
-    return 'https://orcafascio.atlassian.net/issues/?jql='+urllib.parse.quote('key in ('+','.join(keys)+')')
-print('  [diagnóstico clique] Sobra por status — exemplo real:')
-_ss=d['status_series']
-_achou=False
-for _s in _ss['ordem']:
-    for _i,_m in enumerate(_ss['meses']):
-        _ks=_ss['por_status_keys'][_s][_i]
-        if _ks:
-            print(f'    status="{_s}" mes={_m} n={len(_ks)} keys={_ks[:5]}{"..." if len(_ks)>5 else ""}')
-            print(f'    URL: {_jql_url(_ks)}')
-            _achou=True
-            break
-    if _achou: break
-print('  [diagnóstico clique] Composição da fila — "Não Iniciado", safra 2026-08 (ou a mais próxima com dado):')
-_fm=d['funil_por_mes']
-_alvo='2026-08' if '2026-08' in _fm else sorted(_fm)[-1]
-_fdk=_fm[_alvo].get('fila_det_keys',{})
-_ks2=_fdk.get('Não Iniciado',[])
-print(f'    safra={_alvo} status="Não Iniciado" n={len(_ks2)} keys={_ks2[:5]}{"..." if len(_ks2)>5 else ""}')
-if _ks2:
-    print(f'    URL: {_jql_url(_ks2)}')
-else:
-    print(f'    (0 cards em Não Iniciado na fila dessa safra — sem exemplo de URL pra mostrar)')
