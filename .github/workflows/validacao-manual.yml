@@ -1,0 +1,50 @@
+name: Validação manual (temporário)
+
+# Workflow TEMPORÁRIO — roda fetch_jira.py + gen_data.py + build_dash.py + inject_login.py (com
+# os segredos do Jira) SEM publicar nada (sem configure-pages/deploy-pages — public/ fica só no
+# runner), só pra validar o versionamento automático (GITHUB_SHA real) antes de mergear em main.
+# Será removido depois de usado.
+on:
+  workflow_dispatch:
+
+jobs:
+  validacao:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # necessário pro snapshot_arquivo() em gen_data.py (git log --) — ver update.yml
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Puxar do Jira
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: python fetch_jira.py
+
+      - name: Recalcular dados (validação, sem publicar)
+        run: python gen_data.py
+
+      - name: "Gerar dashboard (só pra validar que build_dash.py não quebra, sem publicar)"
+        run: python build_dash.py
+
+      - name: "Injetar login (validação do versionamento automático, sem publicar)"
+        run: python inject_login.py
+
+      - name: "Diagnóstico: versão gerada + linha DASH + arquivos em public/"
+        run: |
+          echo "--- GITHUB_SHA visto pelo script ---"
+          echo "$GITHUB_SHA" | cut -c1-7
+          echo "--- const DASH em public/login.html ---"
+          grep "const DASH" public/login.html
+          echo "--- const DASH em public/index.html (deve ser idêntico) ---"
+          grep "const DASH" public/index.html
+          echo "--- arquivos em public/ ---"
+          ls -la public/
