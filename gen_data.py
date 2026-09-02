@@ -149,7 +149,7 @@ for m in meses:
                'pct_entrega':round(100*ee/cc) if cc else 0,
                'taxa_sobra':round(100*ni/cc) if cc else 0})
     inicio = acum
-d['acum_fonte']="Jira ao vivo · régua oficial (concluído = 1ª entrada em Em produção — mesmo cálculo usado em Evolução por módulo)"
+d['acum_fonte']="Jira ao vivo · régua oficial (concluído = 1ª entrada em Em produção — mesmo cálculo usado em Bug por módulo)"
 d['tot_series']=ts
 d['jira_base']='https://orcafascio.atlassian.net'
 
@@ -167,14 +167,25 @@ for m in meses:
 d['prod_por_mes']=prod
 d['produto_antigo_pronto']=bool(antigo_c)
 # ---- SÉRIE POR STATUS (para o filtro/seletor da Sobra) ----
-# Somente os status que compõem a sobra/aberto no dev (mesma régua do acumulado).
+# Somente os status que compõem a sobra/aberto no dev (mesma régua do acumulado). Os 5 nomes
+# conferidos byte a byte contra um export real do Jira (inputs/suporte_list.csv, cabeçalho):
+# "Não Iniciado", "Em Desenvolvimento", "IMPEDIMENTO DEV" e "Revert" aparecem lá exatamente
+# assim. "IMPEDIMENTO PRODUTO" não é uma coluna desse CSV (ele só rastreia status com tempo em
+# status medido no fluxo principal) — mas é o mesmo literal já usado e validado contra dado ao
+# vivo do Jira em vários outros pontos do pipeline (STATUS_EXCLUI_ACUM acima, impedimentos_live.json
+# em fetch_jira.py, régua oficial em evolucao_bugs.py), régua definida com o setor de dev.
 STATUS_ORDER=['Não Iniciado','Em Desenvolvimento','IMPEDIMENTO DEV','IMPEDIMENTO PRODUTO','Revert']
 presentes=[s for s in STATUS_ORDER if any(x['status']==s for x in sweep)]
 por_status={}
+por_status_keys={}
 for s in presentes:
     cnt=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep if x['c'] and x['status']==s)
     por_status[s]=[cnt.get(m,0) for m in meses]
-d['status_series']={'meses':meses,'ordem':presentes,'por_status':por_status}
+    keys_m=collections.defaultdict(list)
+    for x in sweep:
+        if x['c'] and x['status']==s: keys_m[x['c'].strftime('%Y-%m')].append(x['key'])
+    por_status_keys[s]=[keys_m.get(m,[]) for m in meses]
+d['status_series']={'meses':meses,'ordem':presentes,'por_status':por_status,'por_status_keys':por_status_keys}
 # override AO VIVO da sobra por status (contagens JQL de hoje) — ver sobra_live.json
 # 'full': substitui a série INTEIRA de cada status pelo mapa {mês:qtd} ao vivo (zera os demais meses).
 if os.path.exists('sobra_live.json'):
@@ -421,6 +432,11 @@ def build_funil(ref):
     entregues=[x for x in dev if x['status'] in ST_ENTREGUE_FUNIL]
     fila=[x for x in dev if x['status'] not in ST_ENTREGUE_FUNIL]
     fila_det=sorted(collections.Counter(x['status'] for x in fila).items(),key=lambda t:-t[1])
+    # keys por status da fila (mesmo critério de fila_det acima) — usadas pro clique em
+    # "Composição da fila" abrir a lista exata desses cards no Jira, mesmo padrão de
+    # criaD_keys/concD_keys (Bug por módulo) e por_status_keys (Sobra por status).
+    fila_det_keys=collections.defaultdict(list)
+    for x in fila: fila_det_keys[x['status']].append(x['key'])
     sevd=collections.Counter(x['prio'] for x in dev)
     sev_ord=[{'nivel':NIVEL[p],'n':sevd.get(p,0)} for p in ORDER if sevd.get(p,0)]
     modd=collections.Counter(x['m'] for x in dev).most_common(5)
@@ -438,7 +454,7 @@ def build_funil(ref):
     napont=sum(1 for x in dev if isinstance(x['timespent'],(int,float)) and x['timespent'])
     return {'mes':ref,'total':len(crj),'descartados_qa':len(disc),'dev':len(dev),
         'cancelados_dev':len(canc_dev),
-        'entregues':len(entregues),'fila':len(fila),'fila_det':fila_det,
+        'entregues':len(entregues),'fila':len(fila),'fila_det':fila_det,'fila_det_keys':dict(fila_det_keys),
         'pct_descarte':round(100*len(disc)/len(crj)) if crj else 0,
         'pct_entrega':round(100*len(entregues)/len(dev)) if dev else 0,
         'sev':sev_ord,'mod_top':modd,'detc':det_itens,
