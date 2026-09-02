@@ -400,25 +400,30 @@ d['suporte_lag']={'n':len(lag),'mediana_h':round(statistics.median(lag),1),'medi
 #   1. Criados ....... TODOS os bugs criados no mês (sem excluir por resolução/status/tipo
 #                       de issue nesta etapa — mas sweep_full já não tem Chat de Suporte,
 #                       igual em toda a análise, então esse módulo continua fora).
-#   2. Chegaram ao dev  criados − Cancelado QA.
-#   3. Cancelados dev  segmento próprio: dos que chegaram ao dev, quantos têm resolution ==
-#                       "Cancelado Dev" — antes ficavam misturados dentro de entregues/fila
-#                       conforme o status no momento do cancelamento (contagem errada).
+#   2. Cancelados dev  segmento próprio: dos que passaram pelo QA (não Cancelado QA), quantos
+#                       têm resolution == "Cancelado Dev" — DECISÃO DE 02/09/2026: agora sai
+#                       ANTES de "chegaram ao dev" (não depois), pra "chegaram ao dev" já vir
+#                       líquido de cancelamento — igual à régua oficial (Evolução por módulo/
+#                       evolucao_bugs.py), que sempre excluiu Cancelado Dev de "criados".
+#                       Antes esse card contava em "chegaram ao dev" e só saía no passo
+#                       seguinte — o que fazia esse painel divergir da régua oficial no mesmo
+#                       mês (achado ao comparar Diagnóstico do mês vs Evolução por módulo).
+#   3. Chegaram ao dev  criados − Cancelado QA − Cancelado Dev.
 #   4. Entregues ..... status ATUAL em ST_ENTREGUE_FUNIL (Em produção/Em Produção/Done/
 #                       Concluído/Concluido) — mais amplo que o ENTREGUE usado acima em
 #                       d['tot_series'] (só "Em produção"); intencional, só pra este painel.
-#   5. Na fila/pipeline  o resto: chegaram ao dev, não cancelados no dev, não entregues —
-#                       inclui Backlog e todas as colunas de status ativas. Por safra: cada
-#                       mês roda isolado (crj = só cards criados naquele mês).
+#   5. Na fila/pipeline  o resto: chegaram ao dev, não entregues — inclui Backlog e todas as
+#                       colunas de status ativas. Por safra: cada mês roda isolado (crj = só
+#                       cards criados naquele mês).
 ST_ENTREGUE_FUNIL={'Em produção','Em Produção','Done','Concluído','Concluido'}
 def build_funil(ref):
     crj=[x for x in sweep_full if x['c'] and x['c'].strftime('%Y-%m')==ref]
     disc=[x for x in crj if x['res']=='Cancelado QA']
-    dev=[x for x in crj if x['res']!='Cancelado QA']
-    canc_dev=[x for x in dev if x['res']=='Cancelado Dev']
-    dev_ativo=[x for x in dev if x['res']!='Cancelado Dev']
-    entregues=[x for x in dev_ativo if x['status'] in ST_ENTREGUE_FUNIL]
-    fila=[x for x in dev_ativo if x['status'] not in ST_ENTREGUE_FUNIL]
+    pos_qa=[x for x in crj if x['res']!='Cancelado QA']
+    canc_dev=[x for x in pos_qa if x['res']=='Cancelado Dev']
+    dev=[x for x in pos_qa if x['res']!='Cancelado Dev']
+    entregues=[x for x in dev if x['status'] in ST_ENTREGUE_FUNIL]
+    fila=[x for x in dev if x['status'] not in ST_ENTREGUE_FUNIL]
     fila_det=sorted(collections.Counter(x['status'] for x in fila).items(),key=lambda t:-t[1])
     sevd=collections.Counter(x['prio'] for x in dev)
     sev_ord=[{'nivel':NIVEL[p],'n':sevd.get(p,0)} for p in ORDER if sevd.get(p,0)]
@@ -448,6 +453,17 @@ mkeys=sorted({x['c'].strftime('%Y-%m') for x in sweep_full if x['c']})
 ref=cur_m if cur_m in mkeys else max(mkeys)   # safra do mês corrente
 d['funil']=build_funil(ref)
 d['funil_por_mes']={m:build_funil(m) for m in mkeys}
+# DIAGNÓSTICO TEMPORÁRIO — funil "chegaram ao dev" antes (incluía Cancelado Dev) vs depois
+# (líquido). Relação fechada: old_dev = novo dev + cancelados_dev (o único bloco que mudou de
+# lugar); entregues/fila são os mesmos números de antes (já vinham de dev_ativo, líquido).
+# Remover depois de validado.
+_f=d['funil']
+_old_dev=_f['dev']+_f['cancelados_dev']
+_old_pct_entrega=round(100*_f['entregues']/_old_dev) if _old_dev else 0
+print(f'  [diagnóstico funil] safra {ref}:')
+print(f'    chegaram ao dev: antes={_old_dev} (incluía {_f["cancelados_dev"]} cancelados dev) | depois={_f["dev"]} (líquido)')
+print(f'    entregues/fila: antes=entregues={_f["entregues"]} fila={_f["fila"]} | depois=entregues={_f["entregues"]} fila={_f["fila"]} (inalterado — já vinha líquido)')
+print(f'    pct_entrega: antes={_old_pct_entrega}% (denominador incluía cancelados dev, bug pré-existente) | depois={_f["pct_entrega"]}%')
 # override AO VIVO do funil do mês corrente (contagens JQL do Jira de hoje) — ver funil_live.json / fetch_funil.py
 if os.path.exists('funil_live.json'):
     fl=json.load(open('funil_live.json'))

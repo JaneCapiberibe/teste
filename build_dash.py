@@ -719,13 +719,13 @@ function funilPanel(){
   const detTxt=(f.detc||[]).map(i=>`${i.tipo} ${i.n} (${i.pct}%)`).join(' · ');
   return `<div class="panel" style="border-left:5px solid var(--s1)">
     <div class="kpi-label" style="margin-bottom:14px;font-size:13px">Carga real que chegou ao desenvolvimento — safra de <b>${mesLbl(f.mes)}</b>${isCorrente?' (mês corrente, em andamento)':' (mês fechado)'}
-      <span class="info" data-tip="O funil mostra a carga REAL do desenvolvimento no mês. Parte do total de bugs criados (sem exclusão nesta etapa), remove os que o QA descartou (Cancelado QA — não eram defeito de produto): o que sobra é o volume que chegou ao dev. Desse volume, 'cancelados dev' são os que o próprio dev cancelou depois (resolution Cancelado Dev) — segmento à parte, não conta nem como entregue nem como fila. 'Entregues' = status atual em Em produção/Em Produção/Done/Concluído/Concluido (regra só deste painel — diferente do resto do dashboard, que conta só 'Em produção' como entregue). 'na fila' = o que ainda está no pipeline (Backlog + status ativos). É a leitura honesta de capacidade: mede o dev pelo que ele recebeu de verdade, não pelo volume bruto inflado por triagem.">i</span></div>
+      <span class="info" data-tip="O funil mostra a carga REAL do desenvolvimento no mês. Parte do total de bugs criados (sem exclusão nesta etapa), remove os que o QA descartou (Cancelado QA — não eram defeito de produto) e os que o próprio dev cancelou depois (Cancelado Dev — resolution, segmento à parte, mostrado antes de 'chegaram ao dev' porque não é carga real): o que sobra é o volume líquido que chegou ao dev — mesmo critério de exclusão da régua oficial (Evolução por módulo/evolucao_bugs.py), pra bater com aquele painel no mesmo mês. 'Entregues' = status atual em Em produção/Em Produção/Done/Concluído/Concluido (regra só deste painel — diferente do resto do dashboard, que conta só 'Em produção' como entregue). 'na fila' = o que ainda está no pipeline (Backlog + status ativos). É a leitura honesta de capacidade: mede o dev pelo que ele recebeu de verdade, não pelo volume bruto inflado por triagem ou por cancelamentos.">i</span></div>
     <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:stretch">
       ${step(f.total,'bugs criados','entraram como bug',col('--text-2'))}
       ${arrow('−'+f.descartados_qa+' ('+f.pct_descarte+'%)')}
-      ${step(f.dev,'chegaram ao dev','descartados os do QA',col('--s1'))}
+      ${step(f.cancelados_dev,'cancelados dev','cancelamento real, fora do fluxo',col('--text-3'))}
       ${arrow('−'+f.cancelados_dev)}
-      ${step(f.cancelados_dev,'cancelados dev','cancelamento real, à parte',col('--text-3'))}
+      ${step(f.dev,'chegaram ao dev','líquido de QA e cancelados dev',col('--s1'))}
       ${arrow('dev entregou')}
       ${step(f.entregues,'entregues','em produção/done/concluído',col('--good'))}
       ${arrow('restou')}
@@ -734,7 +734,7 @@ function funilPanel(){
     ${filaBreakdown(f)}
     ${funilDetc(f)}
     ${impedimentoSpotlight()}
-    <div class="note" style="margin-top:16px"><b>Leitura de capacidade:</b> o dev recebeu de verdade <b>${f.dev}</b> bugs (não ${f.total} — ${f.descartados_qa} eram ruído de triagem que o QA barrou, ${f.pct_descarte}% do total). Desses ${f.dev}, <b>${f.cancelados_dev}</b> foram cancelados no próprio dev (Cancelado Dev, ficam à parte); entregou <b>${f.entregues} (${f.pct_entrega}%)</b> dentro do mês; a fila restante são ${f.fila} cards (${filaTxt}), a maior parte já adiantada. Velocidade: MTTR mediano de <b>${f.mttr_mediana} dias úteis</b> (média ${f.mttr_media}). Severidade do que chegou ao dev: ${sevTxt}. Concentração: ${modTxt}. Detecção da safra (todos os cards): ${detTxt}. Apontamento de horas em ${f.apont_cov[0]} de ${f.apont_cov[1]} cards. <b>O gargalo do mês não foi o desenvolvimento</b> — foi a triagem deixando ${f.pct_descarte}% de ruído entrar.</div></div>`;
+    <div class="note" style="margin-top:16px"><b>Leitura de capacidade:</b> o dev recebeu de verdade <b>${f.dev}</b> bugs (não ${f.total} — ${f.descartados_qa} eram ruído de triagem que o QA barrou, ${f.pct_descarte}% do total, e <b>${f.cancelados_dev}</b> foram cancelados no próprio dev antes de virar carga real). Entregou <b>${f.entregues} (${f.pct_entrega}%)</b> dentro do mês; a fila restante são ${f.fila} cards (${filaTxt}), a maior parte já adiantada. Velocidade: MTTR mediano de <b>${f.mttr_mediana} dias úteis</b> (média ${f.mttr_media}). Severidade do que chegou ao dev: ${sevTxt}. Concentração: ${modTxt}. Detecção da safra (todos os cards): ${detTxt}. Apontamento de horas em ${f.apont_cov[0]} de ${f.apont_cov[1]} cards. <b>O gargalo do mês não foi o desenvolvimento</b> — foi a triagem deixando ${f.pct_descarte}% de ruído entrar.</div></div>`;
 }
 function prodBanner(){
   const lbl=PRODLBL[curProduto()];
