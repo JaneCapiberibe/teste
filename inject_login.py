@@ -4,7 +4,7 @@ inject_login.py — pega o dashboard recém-gerado (dashboard_setor.html), injet
   public/index.html               (= login.html)
   public/login.html
   public/forgot.html
-  public/dashboard_setor_18.html  (protegido)
+  public/dashboard_setor_19.html  (protegido)
 
 NOTA SOBRE CACHE (achado em 02/09/2026): o dashboard publicado sempre foi servido com esse
 mesmo nome de arquivo, sem cache-busting nenhum (?v=, ETag, etc.) — o GitHub Pages/CDN ou o
@@ -35,11 +35,11 @@ def main():
     html = (html[:j] + LOGOUT + html[j:]) if j >= 0 else html + LOGOUT
 
     os.makedirs('public', exist_ok=True)
-    open('public/dashboard_setor_18.html', 'w', encoding='utf-8').write(html)
+    open('public/dashboard_setor_19.html', 'w', encoding='utf-8').write(html)
     shutil.copyfile('login.html', 'public/login.html')
     shutil.copyfile('login.html', 'public/index.html')   # entrada do site = login
     shutil.copyfile('forgot.html', 'public/forgot.html')
-    print('  public/ pronto: index.html (login) + dashboard_setor_18.html (protegido)')
+    print('  public/ pronto: index.html (login) + dashboard_setor_19.html (protegido)')
 
 if __name__ == '__main__':
     main()
