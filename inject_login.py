@@ -15,16 +15,20 @@ dado novo. Antes disso exigia alguém lembrar de incrementar um número à mão 
 redirecionamento ou deixando o navegador preso na versão velha.
 
 Agora o identificador de versão (`get_versao()` abaixo) é gerado sozinho a cada execução, sem
-digitar nada: usa o hash curto do commit do Git — primeiro via GITHUB_SHA (variável de ambiente
-que o GitHub Actions já injeta automaticamente em todo job, sem precisar rodar `git` nem
-depender de profundidade de checkout), com fallback pra `git rev-parse --short HEAD` (rodar
-local, fora do Actions) e fallback final pra timestamp (`AAAAMMDDHHMMSS`) se nem git estiver
-disponível. Hash de commit foi escolhido em vez de timestamp puro como método PRINCIPAL por dois
-motivos: (1) idempotência — re-rodar o pipeline no mesmo commit (ex.: workflow_dispatch manual
-sem nenhuma mudança de código) gera a MESMA URL, em vez de invalidar cache à toa a cada run;
-(2) rastreabilidade — o nome do arquivo publicado já diz de qual commit ele veio, útil pra
-depurar "qual versão está no ar". O timestamp só entra como último recurso, quando nem GITHUB_SHA
-nem `git` estão disponíveis.
+digitar nada: TIMESTAMP (horário de Brasília) como base, com o hash curto do commit (via
+GITHUB_SHA, ou `git rev-parse --short HEAD` como fallback pra rodar local) grudado no final só
+por rastreabilidade — ex.: 20260902090512-e1baceb.
+
+CORREÇÃO DE 02/09/2026 (mesmo dia da primeira versão): a primeira tentativa usava só o hash do
+commit como identificador principal, priorizando "idempotência" (não invalidar cache à toa se o
+pipeline rodar de novo sem mudança de código). Isso ignorava como este pipeline realmente roda:
+update.yml dispara TODO DIA via cron (schedule '0 9 * * *'), puxando dado NOVO do Jira sem
+nenhum commit novo — ou seja, o caso comum (refresh diário de dado) tem o MESMO GITHUB_SHA por
+dias seguidos, e um identificador só-de-commit geraria a MESMA URL nesses dias, reproduzindo
+exatamente o bug de cache que essa mudança existe pra resolver (só que agora por dias em vez de
+só até o próximo bump manual). O timestamp muda em toda execução — inclusive as diárias sem
+commit novo — por isso passou a ser a base do identificador; o hash do commit continua junto,
+só que como sufixo informativo (de qual código veio), não mais como o que garante unicidade.
 
 login.html deixou de ser um arquivo estático commitado — login_template.html (no repo, é onde
 se edita a lista de usuários) tem um placeholder `__DASH_FILENAME__` no lugar do nome do
@@ -33,6 +37,7 @@ execução, então os dois nascem sempre sincronizados — não tem mais "esquec
 dos dois".
 """
 import os, shutil, subprocess, datetime
+TZ_BR = datetime.timezone(datetime.timedelta(hours=-3))
 
 GUARD = ('<script>(function(){try{var k="of_dash_auth";'
          'if(!(sessionStorage.getItem(k)||localStorage.getItem(k))){location.replace("login.html");}}'
@@ -42,10 +47,10 @@ LOGOUT = ('<div style="position:fixed;bottom:16px;right:16px;z-index:99999">'
           'style="background:#04043A;color:#fff;border:0;border-radius:9px;padding:8px 14px;'
           'font:600 12.5px \'Segoe UI\',system-ui,sans-serif;cursor:pointer;box-shadow:0 6px 18px rgba(4,4,58,.28)">Sair</button></div>')
 
-def get_versao():
-    """Identificador de versão pro nome do dashboard publicado — ver nota de versionamento
-    automático no topo do arquivo. GITHUB_SHA (padrão, sempre presente em runs do Actions) >
-    `git rev-parse --short HEAD` (rodando local) > timestamp (fallback final)."""
+def get_commit_hash():
+    """Hash curto do commit, só pra rastreabilidade (não garante unicidade — ver nota de
+    versionamento automático no topo do arquivo). GITHUB_SHA (Actions) > `git rev-parse
+    --short HEAD` (rodando local) > None, se nem git estiver disponível."""
     sha = os.environ.get('GITHUB_SHA')
     if sha:
         return sha[:7]
@@ -56,7 +61,16 @@ def get_versao():
             return out.stdout.strip()
     except Exception:
         pass
-    return datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+    return None
+
+def get_versao():
+    """Identificador de versão pro nome do dashboard publicado — ver nota de versionamento
+    automático no topo do arquivo. Timestamp (horário de Brasília) garante que muda em toda
+    execução, inclusive as diárias do cron sem commit novo; hash do commit vai junto só como
+    rastreabilidade (de qual código essa versão veio)."""
+    agora = datetime.datetime.now(tz=TZ_BR).strftime('%Y%m%d%H%M%S')
+    commit = get_commit_hash()
+    return f'{agora}-{commit}' if commit else agora
 
 def main():
     versao = get_versao()
