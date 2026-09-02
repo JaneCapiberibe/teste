@@ -22,15 +22,17 @@ def _auth_headers():
     auth = 'Basic ' + base64.b64encode(f'{email}:{token_}'.encode()).decode()
     return {'Authorization': auth, 'Accept': 'application/json', 'Content-Type': 'application/json'}
 
-def fetch_all():
-    """Puxa todos os issues do projeto BUG, paginando com nextPageToken. O endpoint
-    /search/jql NÃO aceita expand=changelog (dá 400 "Invalid request payload" mesmo com
-    maxResults baixo) — o changelog é buscado à parte, em lote, por fetch_changelogs()."""
+def fetch_all(jql='project = BUG ORDER BY created ASC'):
+    """Puxa todos os issues do escopo `jql` (padrão: projeto BUG), paginando com
+    nextPageToken. O endpoint /search/jql NÃO aceita expand=changelog (dá 400 "Invalid
+    request payload" mesmo com maxResults baixo) — o changelog é buscado à parte, em lote,
+    por fetch_changelogs(). Parâmetro `jql` existe pra reaproveitar essa busca com outro
+    escopo (ex.: comparação antes/depois de mudança de escopo), sem duplicar a paginação."""
     HEAD = _auth_headers()
     url = f'{BASE}/rest/api/3/search/jql'
     out, token = [], None
     while True:
-        body = {'jql': 'project = BUG ORDER BY created ASC', 'fields': FIELDS, 'maxResults': 100}
+        body = {'jql': jql, 'fields': FIELDS, 'maxResults': 100}
         if token:
             body['nextPageToken'] = token
         r = requests.post(url, headers=HEAD, data=json.dumps(body), timeout=60)
@@ -113,6 +115,14 @@ def fetch_all_com_retentativa(tentativas=3, espera_s=15):
 ST_PRODUCAO = ('Em produção', 'Em Produção')
 ST_DONE = ('Done', 'Concluído', 'Concluido')
 ST_IMP_PRODUTO = 'IMPEDIMENTO PRODUTO'
+# DECISÃO DE 01/09/2026: unificação de escopo com evolucao_bugs.py — a partir de agora
+# o universo oficial é "project = BUG" (não mais busca por issuetype cruzando projetos, o
+# escopo antigo de evolucao_bugs.py). BUG_TYPES é o mesmo filtro Python que evolucao_bugs.py
+# sempre aplicou; levantamento real em 01/09/2026 confirmou que o painel BUG só contém esses
+# 4 issuetypes (1198 Bug Cliente + 339 Bug QA + 114 Bug Dev + 76 Bug Backoffice = 1727, sem
+# sobra) — filtro aqui é hoje um no-op numérico, mas fica explícito como rede de segurança
+# caso outro tipo de item (Melhoria, Tarefa, Sub-task...) apareça no painel BUG no futuro.
+BUG_TYPES = {'Bug Cliente', 'Bug QA', 'Bug Dev', 'Bug Backoffice'}
 TZ_BR = datetime.timezone(datetime.timedelta(hours=-3))
 
 def _to_epoch(dt):
@@ -269,5 +279,10 @@ if __name__ == '__main__':
     print('Puxando changelog (histórico de status) em lote...')
     changelogs = fetch_changelogs([i.get('id') for i in issues])
     recs = [norm(i, changelogs.get(i.get('id'))) for i in issues]
+    fora_do_tipo = sum(1 for r in recs if r['itype'] not in BUG_TYPES)
+    if fora_do_tipo:
+        print(f'  aviso: {fora_do_tipo} issue(s) do painel BUG fora de BUG_TYPES '
+              f'(nem Bug Cliente/QA/Dev/Backoffice) — excluído(s) de sweep.json.')
+    recs = [r for r in recs if r['itype'] in BUG_TYPES]
     build_outputs(recs)
     print('OK — arquivos gerados.')

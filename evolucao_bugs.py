@@ -61,10 +61,14 @@ ST_PRODUCAO = ("Em produção", "Em Produção")
 ST_DONE = ("Done", "Concluído", "Concluido")
 ST_IMP_PRODUTO = "IMPEDIMENTO PRODUTO"
 
-# JQL do universo: todos os bugs (qualquer projeto). Puxamos amplo e aplicamos a
-# régua em Python lendo o changelog. O filtro de tipo já reduz o volume.
-_types = ",".join(f'"{t}"' for t in BUG_TYPES)
-JQL = f"issuetype in ({_types}) ORDER BY created ASC"
+# JQL do universo: DECISÃO DE 01/09/2026 — unificado com o escopo de fetch_jira.py
+# (project = BUG), não mais por issuetype cruzando projetos. As duas consultas divergentes
+# faziam painéis da mesma página mostrarem números diferentes pro "mesmo" período (o
+# Diagnóstico do mês, que já usa o painel BUG via sweep, batendo com mais itens do que a
+# régua oficial baseada na busca por tipo). O filtro por BUG_TYPES abaixo (em Python, não na
+# JQL) continua igual por enquanto — sem mudar quais issuetypes contam como bug até ter a
+# contagem real de tudo que existe dentro do painel BUG (ver levantamento_itypes_bug.py).
+JQL = "project = BUG ORDER BY created ASC"
 
 
 def _headers():
