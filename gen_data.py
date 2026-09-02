@@ -450,19 +450,6 @@ mkeys=sorted({x['c'].strftime('%Y-%m') for x in sweep_full if x['c']})
 ref=cur_m if cur_m in mkeys else max(mkeys)   # safra do mês corrente
 d['funil']=build_funil(ref)
 d['funil_por_mes']={m:build_funil(m) for m in mkeys}
-# DIAGNÓSTICO TEMPORÁRIO — card "Detecção" (Panorama) antes (sweep, líquido, agregado
-# histórico único) vs depois (sweep_full por safra), comparado também com o total do passo 1
-# do funil ("bugs criados") pro mesmo mês — devem bater exatamente. Remover depois de validado.
-_amostra=sorted(set(mkeys[-3:]) | {ref})
-for _m in sorted(_amostra):
-    _antigo=det_mes.get(_m)
-    _antigo_tot=sum(_antigo.values()) if _antigo else 0
-    _novo=d['deteccao_por_mes'].get(_m)
-    _novo_tot=_novo['total'] if _novo else 0
-    _funil_tot=d['funil_por_mes'].get(_m,{}).get('total')
-    print(f'  [diagnóstico detecção] safra {_m}: antes(sweep líquido)={_antigo_tot} '
-          f'| depois(sweep_full bruto)={_novo_tot} | funil passo1 (bugs criados)={_funil_tot} '
-          f'| bate={_novo_tot==_funil_tot}')
 # override AO VIVO do funil do mês corrente (contagens JQL do Jira de hoje) — ver funil_live.json / fetch_funil.py
 if os.path.exists('funil_live.json'):
     fl=json.load(open('funil_live.json'))
