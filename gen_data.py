@@ -51,19 +51,29 @@ pc=collections.Counter(x['prio'] for x in sweep)
 d['severidade']=[{'nivel':NIVEL[p],'n':pc.get(p,0)} for p in ORDER]
 d['severidade'].append({'nivel':'Sem prioridade','n':pc.get('Preencher Prioridade',0)+pc.get(None,0)})
 
-# DETECÇÃO — onde o bug foi pego (issuetype). Cliente = escapou p/ produção; QA/Dev = barrado interno.
-# Visão geral de qualidade de entrega, ao vivo do Jira (sem campo novo).
+# DETECÇÃO — onde o bug foi pego (issuetype), POR SAFRA (mês de criação). DECISÃO DE
+# 02/09/2026: volume BRUTO, sem nenhuma exclusão — usa sweep_full (inclui Cancelado QA,
+# Cancelado Dev, e qualquer status, inclusive Impedimento Produto) — pra ser exatamente o
+# mesmo universo do passo 1 ("bugs criados") do funil "Diagnóstico do mês" (build_funil, mais
+# abaixo: crj=[x for x in sweep_full if x['c'] and x['c'].strftime('%Y-%m')==ref]), e os dois
+# cards baterem sempre no mesmo total pro mesmo mês. Antes somava o histórico inteiro (sweep,
+# já líquido) num total único fixo — agora um por safra, acompanhando o seletor de mês do
+# Panorama (kpiCards em build_dash.py). d['deteccao'] (chave antiga) fica como fallback,
+# apontando pro mês corrente, caso algo externo ainda dependa dela.
 DET_ORDER=[('Bug Cliente','Cliente'),('Bug QA','QA'),('Bug Dev','Dev'),('Bug Backoffice','Backoffice')]
-itc=collections.Counter(x['itype'] for x in sweep)
-det_itens=[{'tipo':lbl,'n':itc.get(key,0)} for key,lbl in DET_ORDER]
-det_outros=sum(v for k,v in itc.items() if k not in dict(DET_ORDER))
-if det_outros: det_itens.append({'tipo':'Outros','n':det_outros})
-det_tot=sum(i['n'] for i in det_itens) or 1
-for i in det_itens: i['pct']=round(100*i['n']/det_tot)
-cliente_n=itc.get('Bug Cliente',0)
-d['deteccao']={'itens':det_itens,'total':det_tot,
-               'escape_pct':round(100*cliente_n/det_tot),
-               'interno_pct':round(100*(det_tot-cliente_n)/det_tot)}
+def _deteccao_de(cc):
+    itens=[{'tipo':lbl,'n':cc.get(key,0)} for key,lbl in DET_ORDER]
+    outros=sum(v for k,v in cc.items() if k not in dict(DET_ORDER))
+    if outros: itens.append({'tipo':'Outros','n':outros})
+    tot=sum(i['n'] for i in itens) or 1
+    for i in itens: i['pct']=round(100*i['n']/tot)
+    cli=cc.get('Bug Cliente',0)
+    return {'itens':itens,'total':tot,'escape_pct':round(100*cli/tot),'interno_pct':round(100*(tot-cli)/tot)}
+det_mes_bruto=collections.defaultdict(lambda:collections.Counter())
+for x in sweep_full:
+    if x['c']: det_mes_bruto[x['c'].strftime('%Y-%m')][x['itype']]+=1
+d['deteccao_por_mes']={m:_deteccao_de(cc) for m,cc in det_mes_bruto.items()}
+d['deteccao']=d['deteccao_por_mes'].get(str(TODAY)[:7]) or _deteccao_de(collections.Counter())
 
 # tot_series mensal: criados (intake) vs entregues (da safra do mês).
 # ENTREGUE (usado só por d['recortes'] abaixo — recorte BIM/Sem BIM, não renderizado no
@@ -201,20 +211,6 @@ d['det_series']=det_series
 _defech=[s for s in det_series if s['mes']<cur_ym and s['total']>0][-6:]
 d['det_series_meta']={'media_fechadas':round(statistics.mean([s['escape'] for s in _defech])) if _defech else 0,
                       'mes_corrente':cur_ym}
-
-# Detecção POR SAFRA — mesmo formato de d['deteccao'] acima (itens/total/escape_pct/
-# interno_pct), mas um por mês, reaproveitando det_mes (já calculado por mês de criação pra
-# d['det_series'] acima — não refaz a contagem). Card "Detecção" em kpiCards passa a usar isso
-# pra mudar junto com o seletor de safra, em vez de mostrar sempre o agregado histórico fixo.
-def _deteccao_de(cc):
-    itens=[{'tipo':lbl,'n':cc.get(key,0)} for key,lbl in DET_ORDER]
-    outros=sum(v for k,v in cc.items() if k not in dict(DET_ORDER))
-    if outros: itens.append({'tipo':'Outros','n':outros})
-    tot=sum(i['n'] for i in itens) or 1
-    for i in itens: i['pct']=round(100*i['n']/tot)
-    cli=cc.get('Bug Cliente',0)
-    return {'itens':itens,'total':tot,'escape_pct':round(100*cli/tot),'interno_pct':round(100*(tot-cli)/tot)}
-d['deteccao_por_mes']={m:_deteccao_de(det_mes[m]) for m in meses}
 
 # ---- RECORTES: BIM (externo) x Sem BIM (internos) ----
 # Mapa ÚNICO módulo->grupo. "Internos" nunca é lista à parte: é o complemento de BIM.
@@ -430,7 +426,8 @@ def build_funil(ref):
     modd=collections.Counter(x['m'] for x in dev).most_common(5)
     # DETECÇÃO do mês — TODOS os cards da safra (inclusive os descartados pelo QA), por tipo do
     # Jira: Cliente = escapou p/ produção; QA/Dev = barrado interno; Backoffice = ferramenta interna.
-    # Mesmo DET_ORDER/critério de d['deteccao'] (agregado), só que recortado por safra do mês.
+    # Mesmo DET_ORDER de d['deteccao_por_mes'] (card "Detecção" do Panorama) — cálculo local e
+    # independente aqui, não reaproveita esse dict (mudança isolada por prompt anterior).
     itc=collections.Counter(x['itype'] for x in crj)
     det_itens=[{'tipo':lbl,'n':itc.get(key,0)} for key,lbl in DET_ORDER]
     det_outros=sum(v for k,v in itc.items() if k not in dict(DET_ORDER))
@@ -453,6 +450,19 @@ mkeys=sorted({x['c'].strftime('%Y-%m') for x in sweep_full if x['c']})
 ref=cur_m if cur_m in mkeys else max(mkeys)   # safra do mês corrente
 d['funil']=build_funil(ref)
 d['funil_por_mes']={m:build_funil(m) for m in mkeys}
+# DIAGNÓSTICO TEMPORÁRIO — card "Detecção" (Panorama) antes (sweep, líquido, agregado
+# histórico único) vs depois (sweep_full por safra), comparado também com o total do passo 1
+# do funil ("bugs criados") pro mesmo mês — devem bater exatamente. Remover depois de validado.
+_amostra=sorted(set(mkeys[-3:]) | {ref})
+for _m in sorted(_amostra):
+    _antigo=det_mes.get(_m)
+    _antigo_tot=sum(_antigo.values()) if _antigo else 0
+    _novo=d['deteccao_por_mes'].get(_m)
+    _novo_tot=_novo['total'] if _novo else 0
+    _funil_tot=d['funil_por_mes'].get(_m,{}).get('total')
+    print(f'  [diagnóstico detecção] safra {_m}: antes(sweep líquido)={_antigo_tot} '
+          f'| depois(sweep_full bruto)={_novo_tot} | funil passo1 (bugs criados)={_funil_tot} '
+          f'| bate={_novo_tot==_funil_tot}')
 # override AO VIVO do funil do mês corrente (contagens JQL do Jira de hoje) — ver funil_live.json / fetch_funil.py
 if os.path.exists('funil_live.json'):
     fl=json.load(open('funil_live.json'))
