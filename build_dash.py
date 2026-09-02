@@ -413,10 +413,10 @@ function escapeChart(){
 }
 function emSel(){ if(!window.__emSel) window.__emSel=new Set(DATA.evol_modulo.ordem); return window.__emSel; }
 function emChips(){
-  const EM=DATA.evol_modulo, sel=emSel(), allOn=sel.size===EM.ordem.length, last=EM.meses.length-1;
+  const EM=DATA.evol_modulo, sel=emSel(), allOn=sel.size===EM.ordem.length;
   const util=`<button class="emchip all${allOn?' on':''}" onclick="emSelectAll()"><i></i>Todos</button><button class="emchip all" onclick="emClearAll()"><i></i>Limpar</button>`;
-  const mods=EM.ordem.map(m=>{const on=sel.has(m),c=trendColor(m),lv=(EM.por_modulo[m]?EM.por_modulo[m].criados[last]:0)||0;
-    return `<button class="trend-chip${on?' on':''}" ${on?`style="background:${c};border-color:${c}"`:''} onclick="emToggle('${m.replace(/'/g,"\\'")}')"><i style="background:${c}"></i>${m}${on?` <b>${lv}</b>`:''}</button>`;}).join('');
+  const mods=EM.ordem.map(m=>{const on=sel.has(m),c=trendColor(m);
+    return `<button class="trend-chip${on?' on':''}" ${on?`style="background:${c};border-color:${c}"`:''} onclick="emToggle('${m.replace(/'/g,"\\'")}')"><i style="background:${c}"></i>${m}</button>`;}).join('');
   return util+mods;
 }
 function emSelcount(){
