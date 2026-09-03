@@ -248,7 +248,7 @@ footer{max-width:1180px;margin:0 auto;padding:10px 18px 40px;color:var(--text-3)
    DADOS — SUBSTITUA ESTE OBJETO A CADA MÊS.
    Estrutura: rvb (run/build), tot_series (criados/concluidos/backlog por mês),
    tabela_modulo (bugs, horas, mttr, tendência por módulo), custo_tipo,
-   por_modulo, pm (produtos/melhorias), aloc_top, sentry.
+   por_modulo, pm (produtos/melhorias), aloc_por_mes, sentry.
    Quando o Google Drive estiver conectado, este bloco é regerado automaticamente.
    ============================================================ */
 const DATA = __DATA__;
@@ -750,11 +750,20 @@ function prodBanner(){
     <div><b>Visão por produto: ${lbl} · ${mesLbl(curSafra())}</b> — mostrando evolução, diagnóstico do mês, sobra por status, panorama e bugs por responsável. As seções de módulo, SLA, squad, custo e alerta ficam ocultas nesta visão (aparecem em <b>Todos</b>).
     <br><i>Obs.: o recorte por produto ainda não filtra os números abaixo — a classificação por produto está em construção (Prime já é módulo próprio; Orçafascio × Orçafascio antigo dependem do marcador na descrição). Por ora os valores são de todos os produtos.</i></div></div>`;
 }
+function alocRows(){
+  const porMes=DATA.aloc_por_mes||{};
+  return porMes[curSafra()]||[];
+}
+function alocChart(){
+  const rows=alocRows();
+  const obj={};rows.forEach(r=>obj[`${r.resp} (${r.pct}%)`]=r.n);
+  return barChart(obj,[col('--s1')]);
+}
 function responsavelPanel(){
   return `<h2>${si('users')}Bugs por responsável</h2>
-   <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Alocação — bugs por responsável (top 10)</div>
-     ${barChart(Object.fromEntries(DATA.aloc_top),[col('--s1')])}
-     <div class="note">"Sem responsável" é o maior balde — sinal de triagem/atribuição a melhorar, não de ociosidade. Enquadramento de sistema, não de pessoa.</div></div>`;
+   <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Bugs concluídos por responsável — safra <b>${mesLbl(curSafra())}</b> (top 10)</div>
+     ${alocChart()}
+     <div class="note">% de bugs concluídos (status atual em Em produção/Done/Concluído/Concluido, sem excluir Cancelado Dev) sobre o total que chegou ao dev na safra selecionada (bugs criados no mês). "Sem responsável" é o maior balde — sinal de triagem/atribuição a melhorar, não de ociosidade. Enquadramento de sistema, não de pessoa.</div></div>`;
 }
 // transforma automaticamente as notas longas em blocos recolhíveis (fechados por padrão)
 function collapsibleNotes(){
@@ -811,9 +820,9 @@ function render(){
      <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Esforço por módulo (top 10, horas) — safra <b>${mesLbl(curSafra())}</b></div>
        ${custoModulo()}
        <div class="note"><b>Esforço distribuído (estimativa)</b>, em horas apontadas (Σ Tempo Gasto) da safra selecionada (cards criados no mês em foco), só de bugs ATIVOS — exclui cards parados em IMPEDIMENTO DEV/PRODUTO e cards com resolução Cancelado Dev (esforço represado ou que não virou entrega). Muda junto com o seletor "Safra em foco" no topo da página. Para virar R$: horas × custo-hora carregado — pendente das taxas de folha e de cada contrato. Cuidado: onde o apontamento é baixo, o esforço aparece subestimado.</div></div>
-     <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Alocação — bugs por responsável (top 10)</div>
-       ${barChart(Object.fromEntries(DATA.aloc_top),[col('--s1')])}
-       <div class="note">"Sem responsável" é o maior balde — sinal de triagem/atribuição a melhorar, não de ociosidade. Enquadramento de sistema, não de pessoa.</div></div>
+     <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Bugs concluídos por responsável — safra <b>${mesLbl(curSafra())}</b> (top 10)</div>
+       ${alocChart()}
+       <div class="note"><b>% concluído por responsável</b>, sobre o total de bugs que chegaram ao dev na safra selecionada (bugs criados no mês). "Concluído" = status atual em Em produção/Done/Concluído/Concluido — mesmo conjunto de status de entrega usado em "Bug por módulo", mas aqui SEM excluir cards com resolução Cancelado Dev. Muda junto com o seletor "Safra em foco" no topo da página. "Sem responsável" é o maior balde — sinal de triagem/atribuição a melhorar, não de ociosidade. Enquadramento de sistema, não de pessoa.</div></div>
    </div>
    <h2>${si('bell')}Alerta operacional</h2>${alertCard()}`:''}`;
   collapsibleNotes();

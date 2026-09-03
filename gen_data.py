@@ -397,10 +397,23 @@ run_seg=sum(x['timespent'] for x in sweep if isinstance(x['timespent'],(int,floa
 d['rvb']={'run_h':round(run_seg/3600),'build_h':round(build_seg/3600),
           'run_pct':round(100*run_seg/(run_seg+build_seg)),'build_pct':round(100*build_seg/(run_seg+build_seg))}
 d['custo_tipo']={'Correção de bug (Run)':d['rvb']['run_h'],'Produtos+Melhorias (Build)':d['rvb']['build_h']}
-# aloc from xlsx assignee
-er=list(wb['Base Atualmódulos'].iter_rows(values_only=True))
-al=collections.Counter((x[4] or 'Sem responsável') for x in er[1:] if x[1])
-d['aloc_top']=al.most_common(10)
+# alocação por responsável (card "Alocação — bugs por responsável", dentro de "Esforço e
+# alocação — bugs", e responsavelPanel() na visão por produto) — POR SAFRA (mês de criação do
+# bug), % sobre o total que "chegou ao dev" naquela safra. Antes vinha da aba "Base
+# Atualmódulos" do xlsx (não lida mais em lugar nenhum do pipeline); agora é nativo do Jira via
+# sweep[].assignee (fetch_jira.py). "Chegaram ao dev" = todos os bugs criados no mês — sweep já
+# exclui Cancelado QA e Chat de Suporte por padrão, mesma base do funil "Diagnóstico do mês".
+# "Concluído" = status ATUAL em STATUS_CONCLUIDO_ALOC — mesmo conjunto de status que representa
+# entrega em "Bug por módulo"/ENTREGUE_TAXA, mas AQUI SEM excluir Cancelado Dev (decisão do
+# setor para este card — diferente de ENTREGUE_TAXA/"Taxa de entrega", que exclui).
+STATUS_CONCLUIDO_ALOC={'Em produção','Done','Concluído','Concluido'}
+aloc_por_mes={}
+for mes in meses:
+    cards=sweep_por_mes[mes]
+    total=len(cards)
+    cc=collections.Counter((x.get('assignee') or 'Sem responsável') for x in cards if x['status'] in STATUS_CONCLUIDO_ALOC)
+    aloc_por_mes[mes]=[{'resp':r,'n':n,'pct':round(100*n/total) if total else 0} for r,n in cc.most_common(10)]
+d['aloc_por_mes']=aloc_por_mes
 
 # ---- previsibilidade (dev) + suporte do CSV ----
 def _h(s):

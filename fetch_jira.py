@@ -199,7 +199,7 @@ def modclean(m):
 def build_outputs(recs):
     # 1) sweep.json (formato do gen_data)
     sweep = [{k: r[k] for k in ('key', 'status', 'prio', 'itype', 'res', 'created', 'resolved', 'timespent',
-              'modulo', 'concluido_mes')} for r in recs]
+              'modulo', 'assignee', 'concluido_mes')} for r in recs]
     json.dump(sweep, open('sweep.json', 'w'), ensure_ascii=False)
 
     def ischat(r): return modclean(r['modulo']) == CHAT
