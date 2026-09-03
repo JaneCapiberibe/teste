@@ -398,20 +398,28 @@ d['rvb']={'run_h':round(run_seg/3600),'build_h':round(build_seg/3600),
           'run_pct':round(100*run_seg/(run_seg+build_seg)),'build_pct':round(100*build_seg/(run_seg+build_seg))}
 d['custo_tipo']={'Correção de bug (Run)':d['rvb']['run_h'],'Produtos+Melhorias (Build)':d['rvb']['build_h']}
 # alocação por responsável (card "Alocação — bugs por responsável", dentro de "Esforço e
-# alocação — bugs", e responsavelPanel() na visão por produto) — POR SAFRA (mês de criação do
-# bug), % sobre o total que "chegou ao dev" naquela safra. Antes vinha da aba "Base
-# Atualmódulos" do xlsx (não lida mais em lugar nenhum do pipeline); agora é nativo do Jira via
-# sweep[].assignee (fetch_jira.py). "Chegaram ao dev" = todos os bugs criados no mês — sweep já
-# exclui Cancelado QA e Chat de Suporte por padrão, mesma base do funil "Diagnóstico do mês".
-# "Concluído" = status ATUAL em STATUS_CONCLUIDO_ALOC — mesmo conjunto de status que representa
-# entrega em "Bug por módulo"/ENTREGUE_TAXA, mas AQUI SEM excluir Cancelado Dev (decisão do
-# setor para este card — diferente de ENTREGUE_TAXA/"Taxa de entrega", que exclui).
-STATUS_CONCLUIDO_ALOC={'Em produção','Done','Concluído','Concluido'}
+# alocação — bugs", e responsavelPanel() na visão por produto). DECISÃO DE 03/09/2026: alinhado
+# com a régua de "Bug por módulo" (_elegivel_evol/_mes_concluido, evol_modulo acima) — primeira
+# versão contava concluído por COORTE de criação (status atual dos bugs criados na safra); a
+# validação contra Jira real mostrou que isso é uma população diferente de "Bug por módulo"
+# (que conta por MÊS DE CONCLUSÃO — concluido_mes — não importa quando o card foi criado), e as
+# somas não batiam (ex.: ago/2026: 53 pela coorte vs 75 por "Bug por módulo"). Agora usa a
+# MESMA base (sweep_full + _elegivel_evol, que já exclui Cancelado QA/Dev e status atual em
+# IMPEDIMENTO PRODUTO/Backlog) e o MESMO mês de conclusão (concluido_mes) — a soma de todos os
+# responsáveis num mês bate exatamente com d['tot_series'][mes]['backlog_concluidos'] (o número
+# de concluídos de "Bug por módulo"/Todos naquele mês). % = fatia de cada responsável sobre o
+# total de concluídos do mês (não mais "sobre chegaram ao dev" — não fazia sentido comparar
+# coortes diferentes).
+concD_por_mes=collections.defaultdict(list)
+for x in sweep_full:
+    if not _elegivel_evol(x): continue
+    mc=_mes_concluido(x)
+    if mc: concD_por_mes[mc].append(x)
 aloc_por_mes={}
 for mes in meses:
-    cards=sweep_por_mes[mes]
+    cards=concD_por_mes[mes]
     total=len(cards)
-    cc=collections.Counter((x.get('assignee') or 'Sem responsável') for x in cards if x['status'] in STATUS_CONCLUIDO_ALOC)
+    cc=collections.Counter((x.get('assignee') or 'Sem responsável') for x in cards)
     aloc_por_mes[mes]=[{'resp':r,'n':n,'pct':round(100*n/total) if total else 0} for r,n in cc.most_common(10)]
 d['aloc_por_mes']=aloc_por_mes
 

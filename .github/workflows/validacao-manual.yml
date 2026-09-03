@@ -3,11 +3,11 @@ name: Validação manual (temporário)
 # Workflow TEMPORÁRIO — roda fetch_jira.py + gen_data.py + build_dash.py (com os segredos do
 # Jira) SEM publicar nada, só pra validar a nova fonte do gráfico "Alocação — bugs por
 # responsável": agora nativa do Jira (campo assignee em sweep.json) em vez da aba "Base
-# Atualmódulos" do xlsx, com métrica nova (% de concluídos por responsável sobre o total que
-# chegou ao dev na safra). Confirma que 'assignee' está em sweep.json e compara a soma dos
-# concluídos por responsável, no mês mais recente, com o número de concluídos mostrado em
-# "Bug por módulo" (d['tot_series']/backlog_concluidos) para o mesmo mês. Será removido depois
-# de usado.
+# Atualmódulos" do xlsx, alinhada com a régua de "Bug por módulo" (concluído = mês da 1ª
+# transição pro status, não mês de criação). Confirma que 'assignee' está em sweep.json e que a
+# soma de concluídos por responsável, por mês, bate EXATAMENTE com d['tot_series']
+# [mes]['backlog_concluidos'] (o mesmo número de concluídos de "Bug por módulo"/Todos). Será
+# removido depois de usado.
 on:
   workflow_dispatch:
 
@@ -39,10 +39,10 @@ jobs:
       - name: "Gerar dashboard (só pra validar que build_dash.py não quebra, sem publicar)"
         run: python build_dash.py
 
-      - name: "Diagnóstico: assignee em sweep.json + alocação por safra x Bug por módulo"
+      - name: "Diagnóstico: assignee em sweep.json + alocação por mês de conclusão x Bug por módulo"
         run: |
           python -c "
-          import json, collections, re
+          import json, re
           raw = json.load(open('sweep.json'))
           d = json.load(open('dash_data.json'))
 
@@ -51,41 +51,37 @@ jobs:
           print('Amostra (3 cards):', [x.get('assignee') for x in raw[:3]])
           print()
 
-          # MESMA base 'sweep' que gen_data.py usa (raw sweep.json ainda tem Chat de Suporte
-          # e Cancelado QA — são filtrados dentro de gen_data.py antes de qualquer cálculo).
-          # Sem isso, o total 'chegaram ao dev' aqui fica inflado e não bate com o real.
+          # Recomputa direto do sweep.json bruto, com a MESMA régua de elegibilidade que
+          # evol_modulo/_elegivel_evol usa em gen_data.py (BUG_TYPES, exclui Cancelado QA/Dev,
+          # exclui status atual em IMPEDIMENTO PRODUTO/Backlog) — pra validar de forma
+          # independente que a soma TOTAL (não só o top 10 exibido) bate exatamente com
+          # 'Bug por módulo'.
           def modclean(m):
               return 'Não classificado' if not m else re.sub(r'^\d+\s*-\s*', '', str(m)).strip()
-          sweep = [x for x in raw if modclean(x.get('modulo')) != 'Chat de Suporte']
-          sweep = [x for x in sweep if x.get('res') != 'Cancelado QA']
+          sweep_full = [x for x in raw if modclean(x.get('modulo')) != 'Chat de Suporte']
+          BUG_TYPES={'Bug Cliente','Bug QA','Bug Dev','Bug Backoffice'}
+          RES_EXCLUI={'Cancelado QA','Cancelado Dev'}
+          STATUS_EXCLUI={'IMPEDIMENTO PRODUTO','Backlog'}
+          def elegivel(x):
+              return x.get('itype') in BUG_TYPES and x.get('res') not in RES_EXCLUI and x.get('status') not in STATUS_EXCLUI
 
-          STATUS_CONCLUIDO_ALOC={'Em produção','Done','Concluído','Concluido'}
           meses_disp = sorted(d['aloc_por_mes'].keys())
 
           def valida(mes):
-              print(f'=== Safra {mes} ===')
-              cards_mes = [x for x in sweep if x.get('created') and x['created'][:7]==mes]
-              total_chegou = len(cards_mes)
-              cc_full = collections.Counter((x.get('assignee') or 'Sem responsável') for x in cards_mes if x.get('status') in STATUS_CONCLUIDO_ALOC)
-              soma_full = sum(cc_full.values())
-
-              print(f'Total chegaram ao dev (bugs criados no mês, sweep líquido): {total_chegou}')
-              print(f'Soma de concluídos (TODOS os responsáveis, regra da Alocação): {soma_full}')
+              print(f'=== Mês de conclusão {mes} ===')
+              full = [x for x in sweep_full if elegivel(x) and x.get('concluido_mes')==mes]
+              soma_full = len(full)
+              print(f'Soma TOTAL de concluídos nesse mês (recomputado direto do sweep.json, todos os responsáveis): {soma_full}')
               print('Top exibido no gráfico (d[aloc_por_mes][mes]):')
               for r in d['aloc_por_mes'][mes]:
                   print(f\"  {r['resp']}: {r['n']} bugs ({r['pct']}%)\")
               soma_top = sum(r['n'] for r in d['aloc_por_mes'][mes])
-              print(f'Soma do que é exibido (até 10 responsáveis): {soma_top} (bate com a soma total acima quando há <=10 responsáveis distintos)')
+              print(f'Soma exibida no gráfico (até 10 responsáveis): {soma_top}')
 
               ts = next((t for t in d['tot_series'] if t['mes']==mes), None)
-              print(f'Bug por módulo / Todos (d[tot_series]) para {mes}: criados={ts[\"backlog_criados\"] if ts else None} concluídos={ts[\"backlog_concluidos\"] if ts else None}')
-              if ts:
-                  diff = soma_full - ts['backlog_concluidos']
-                  print(f'Diferença (soma Alocação - concluídos Bug por módulo): {diff}')
-                  if diff != 0:
-                      print('  -> esperado divergir por desenho: Bug por módulo usa concluido_mes (changelog, 1a')
-                      print('     transição pro status) e EXCLUI Cancelado Dev; Alocação usa status ATUAL na safra')
-                      print('     de criação e NÃO exclui Cancelado Dev (pedido explícito para este card).')
+              concl_bpm = ts['backlog_concluidos'] if ts else None
+              print(f'Bug por módulo / Todos (d[tot_series]) concluídos: {concl_bpm}')
+              print(f'CONFERE (soma total recomputada == concluídos Bug por módulo): {soma_full == concl_bpm}')
               print()
 
           print(f'Mês mais recente disponível: {meses_disp[-1]}')
