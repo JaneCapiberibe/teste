@@ -592,7 +592,7 @@ function custoModulo(){
 function alertCard(){
   const a=DATA.alerta_parados; if(!a) return '';
   const ok=a.count===0;
-  const rows=a.itens.map(i=>`<tr><td><a class="jira-link" href="${i.url}" target="_blank" rel="noopener">${i.key} ver no Jira ↗</a></td><td class="num"><span class="pill">${i.dias} dias úteis</span></td><td>${i.prio}</td><td>${i.mod}</td><td>${i.resp}</td></tr>`).join('');
+  const rows=a.itens.map(i=>`<tr><td><a class="jira-link" href="${i.url}" target="_blank" rel="noopener">${i.key}</a></td><td class="num"><span class="pill">${i.dias} dias úteis</span></td><td>${i.prio}</td><td>${i.mod}</td><td>${i.resp}</td></tr>`).join('');
   return `<div class="alert ${ok?'ok':''}">
     <h3>${svg(ok?'circle-check':'triangle-exclamation')} Cards parados em "Não Iniciado" &gt; ${a.limite} dias úteis <span class="big">${a.count}</span></h3>
     <div class="kpi-sub">Nenhum card deveria ficar parado tanto tempo. Snapshot ${a.snapshot} · ${a.total_nao_iniciado} cards em Não Iniciado no total.</div>
