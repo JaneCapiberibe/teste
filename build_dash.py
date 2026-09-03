@@ -248,7 +248,7 @@ footer{max-width:1180px;margin:0 auto;padding:10px 18px 40px;color:var(--text-3)
    DADOS — SUBSTITUA ESTE OBJETO A CADA MÊS.
    Estrutura: rvb (run/build), tot_series (criados/concluidos/backlog por mês),
    tabela_modulo (bugs, horas, mttr, tendência por módulo), custo_tipo,
-   por_modulo, pm (produtos/melhorias), aloc_top, sentry.
+   por_modulo, pm (produtos/melhorias), aloc_por_mes, sentry.
    Quando o Google Drive estiver conectado, este bloco é regerado automaticamente.
    ============================================================ */
 const DATA = __DATA__;
@@ -750,11 +750,23 @@ function prodBanner(){
     <div><b>Visão por produto: ${lbl} · ${mesLbl(curSafra())}</b> — mostrando evolução, diagnóstico do mês, sobra por status, panorama e bugs por responsável. As seções de módulo, SLA, squad, custo e alerta ficam ocultas nesta visão (aparecem em <b>Todos</b>).
     <br><i>Obs.: o recorte por produto ainda não filtra os números abaixo — a classificação por produto está em construção (Prime já é módulo próprio; Orçafascio × Orçafascio antigo dependem do marcador na descrição). Por ora os valores são de todos os produtos.</i></div></div>`;
 }
+function alocRows(){
+  const porMes=DATA.aloc_por_mes||{};
+  return porMes[curSafra()]||[];
+}
+function alocChart(){
+  const rows=alocRows();
+  if(!rows.length) return '<div class="note" style="margin-top:8px">Sem bugs concluídos neste mês.</div>';
+  const max=Math.max(...rows.map(r=>r.n));
+  return rows.map(r=>`<div class="bar-row" style="cursor:pointer" data-keys="${(r.keys||[]).join(',')}" onclick="abrirCardsBar(this)" title="clique p/ ver os cards no Jira"><div class="lbl">${r.resp} (${r.pct}%)</div>
+     <div class="bar-track"><div class="bar-fill" style="width:${(r.n/max*100).toFixed(1)}%;background:${col('--s1')}"></div></div>
+     <div class="bar-val">${r.n}</div></div>`).join('');
+}
 function responsavelPanel(){
   return `<h2>${si('users')}Bugs por responsável</h2>
-   <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Alocação — bugs por responsável (top 10)</div>
-     ${barChart(Object.fromEntries(DATA.aloc_top),[col('--s1')])}
-     <div class="note">"Sem responsável" é o maior balde — sinal de triagem/atribuição a melhorar, não de ociosidade. Enquadramento de sistema, não de pessoa.</div></div>`;
+   <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Bugs concluídos por responsável — mês <b>${mesLbl(curSafra())}</b> (top 10)</div>
+     ${alocChart()}
+     <div class="note">% de cada responsável sobre o total de bugs concluídos no mês selecionado. "Concluído" = mesma régua de "Bug por módulo" (1ª transição pro status Em produção — fallback Done/Concluído; exclui Cancelado QA/Dev e cards atualmente em Impedimento Produto/Backlog); o mês aqui é o de CONCLUSÃO, não o de criação do card (pode incluir bugs criados em meses anteriores). A soma de todos os responsáveis bate com os concluídos de "Bug por módulo"/Todos no mesmo mês. Clique numa barra p/ ver os cards exatos no Jira. "Sem responsável" é o maior balde — sinal de triagem/atribuição a melhorar, não de ociosidade. Enquadramento de sistema, não de pessoa.</div></div>`;
 }
 // transforma automaticamente as notas longas em blocos recolhíveis (fechados por padrão)
 function collapsibleNotes(){
@@ -811,9 +823,9 @@ function render(){
      <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Esforço por módulo (top 10, horas) — safra <b>${mesLbl(curSafra())}</b></div>
        ${custoModulo()}
        <div class="note"><b>Esforço distribuído (estimativa)</b>, em horas apontadas (Σ Tempo Gasto) da safra selecionada (cards criados no mês em foco), só de bugs ATIVOS — exclui cards parados em IMPEDIMENTO DEV/PRODUTO e cards com resolução Cancelado Dev (esforço represado ou que não virou entrega). Muda junto com o seletor "Safra em foco" no topo da página. Para virar R$: horas × custo-hora carregado — pendente das taxas de folha e de cada contrato. Cuidado: onde o apontamento é baixo, o esforço aparece subestimado.</div></div>
-     <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Alocação — bugs por responsável (top 10)</div>
-       ${barChart(Object.fromEntries(DATA.aloc_top),[col('--s1')])}
-       <div class="note">"Sem responsável" é o maior balde — sinal de triagem/atribuição a melhorar, não de ociosidade. Enquadramento de sistema, não de pessoa.</div></div>
+     <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Bugs concluídos por responsável — mês <b>${mesLbl(curSafra())}</b> (top 10)</div>
+       ${alocChart()}
+       <div class="note"><b>% concluído por responsável</b>, sobre o total de bugs concluídos no mês selecionado — mesma régua de "Bug por módulo" (1ª transição pro status Em produção, fallback Done/Concluído; exclui Cancelado QA/Dev e cards atualmente em Impedimento Produto/Backlog). O mês aqui é o de CONCLUSÃO, não o de criação — pode incluir bugs criados em meses anteriores. Muda junto com o seletor "Safra em foco" no topo da página (nesse card, o seletor escolhe o mês de conclusão). A soma de todos os responsáveis bate com os concluídos de "Bug por módulo"/Todos no mesmo mês. Clique numa barra p/ ver os cards exatos no Jira. "Sem responsável" é o maior balde — sinal de triagem/atribuição a melhorar, não de ociosidade. Enquadramento de sistema, não de pessoa.</div></div>
    </div>
    <h2>${si('bell')}Alerta operacional</h2>${alertCard()}`:''}`;
   collapsibleNotes();
