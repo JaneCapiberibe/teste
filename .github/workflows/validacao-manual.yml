@@ -42,46 +42,57 @@ jobs:
       - name: "Diagnóstico: assignee em sweep.json + alocação por safra x Bug por módulo"
         run: |
           python -c "
-          import json, collections
-          sweep = json.load(open('sweep.json'))
+          import json, collections, re
+          raw = json.load(open('sweep.json'))
           d = json.load(open('dash_data.json'))
 
-          has_assignee = all('assignee' in x for x in sweep)
+          has_assignee = all('assignee' in x for x in raw)
           print('Campo assignee presente em TODOS os cards de sweep.json:', has_assignee)
-          print('Amostra (3 cards):', [x.get('assignee') for x in sweep[:3]])
+          print('Amostra (3 cards):', [x.get('assignee') for x in raw[:3]])
           print()
+
+          # MESMA base 'sweep' que gen_data.py usa (raw sweep.json ainda tem Chat de Suporte
+          # e Cancelado QA — são filtrados dentro de gen_data.py antes de qualquer cálculo).
+          # Sem isso, o total 'chegaram ao dev' aqui fica inflado e não bate com o real.
+          def modclean(m):
+              return 'Não classificado' if not m else re.sub(r'^\d+\s*-\s*', '', str(m)).strip()
+          sweep = [x for x in raw if modclean(x.get('modulo')) != 'Chat de Suporte']
+          sweep = [x for x in sweep if x.get('res') != 'Cancelado QA']
 
           STATUS_CONCLUIDO_ALOC={'Em produção','Done','Concluído','Concluido'}
-          mes = sorted(d['aloc_por_mes'].keys())[-1]
-          print(f'Mês mais recente disponível: {mes}')
+          meses_disp = sorted(d['aloc_por_mes'].keys())
 
-          cards_mes = [x for x in sweep if x.get('created') and x['created'][:7]==mes]
-          total_chegou = len(cards_mes)
-          cc_full = collections.Counter((x.get('assignee') or 'Sem responsável') for x in cards_mes if x.get('status') in STATUS_CONCLUIDO_ALOC)
-          soma_full = sum(cc_full.values())
+          def valida(mes):
+              print(f'=== Safra {mes} ===')
+              cards_mes = [x for x in sweep if x.get('created') and x['created'][:7]==mes]
+              total_chegou = len(cards_mes)
+              cc_full = collections.Counter((x.get('assignee') or 'Sem responsável') for x in cards_mes if x.get('status') in STATUS_CONCLUIDO_ALOC)
+              soma_full = sum(cc_full.values())
 
-          print(f'Total chegaram ao dev em {mes} (bugs criados no mês): {total_chegou}')
-          print(f'Soma de concluídos (TODOS os responsáveis, regra da Alocação): {soma_full}')
-          print()
-          print('Top 10 exibido no gráfico (d[aloc_por_mes][mes]):')
-          for r in d['aloc_por_mes'][mes]:
-              print(f\"  {r['resp']}: {r['n']} bugs ({r['pct']}%)\")
-          soma_top10 = sum(r['n'] for r in d['aloc_por_mes'][mes])
-          print(f'Soma só do top 10 exibido: {soma_top10} (pode ser < soma total se houver mais de 10 responsáveis)')
-          print()
+              print(f'Total chegaram ao dev (bugs criados no mês, sweep líquido): {total_chegou}')
+              print(f'Soma de concluídos (TODOS os responsáveis, regra da Alocação): {soma_full}')
+              print('Top exibido no gráfico (d[aloc_por_mes][mes]):')
+              for r in d['aloc_por_mes'][mes]:
+                  print(f\"  {r['resp']}: {r['n']} bugs ({r['pct']}%)\")
+              soma_top = sum(r['n'] for r in d['aloc_por_mes'][mes])
+              print(f'Soma do que é exibido (até 10 responsáveis): {soma_top} (bate com a soma total acima quando há <=10 responsáveis distintos)')
 
-          ts = next((t for t in d['tot_series'] if t['mes']==mes), None)
-          print(f'Bug por módulo / Todos (d[tot_series]) para {mes}:')
-          print('  criados (backlog_criados):', ts['backlog_criados'] if ts else None)
-          print('  concluídos (backlog_concluidos):', ts['backlog_concluidos'] if ts else None)
-          print()
-          if ts:
-              diff = soma_full - ts['backlog_concluidos']
-              print(f'Diferença (soma Alocação - concluídos Bug por módulo): {diff}')
-              if diff != 0:
-                  print('Esperado ser diferente por desenho: Bug por módulo usa concluido_mes (changelog,')
-                  print('1a transição pro status) e EXCLUI Cancelado Dev; Alocação usa status ATUAL na safra')
-                  print('de criação e NAO exclui Cancelado Dev (pedido explícito para este card).')
+              ts = next((t for t in d['tot_series'] if t['mes']==mes), None)
+              print(f'Bug por módulo / Todos (d[tot_series]) para {mes}: criados={ts[\"backlog_criados\"] if ts else None} concluídos={ts[\"backlog_concluidos\"] if ts else None}')
+              if ts:
+                  diff = soma_full - ts['backlog_concluidos']
+                  print(f'Diferença (soma Alocação - concluídos Bug por módulo): {diff}')
+                  if diff != 0:
+                      print('  -> esperado divergir por desenho: Bug por módulo usa concluido_mes (changelog, 1a')
+                      print('     transição pro status) e EXCLUI Cancelado Dev; Alocação usa status ATUAL na safra')
+                      print('     de criação e NÃO exclui Cancelado Dev (pedido explícito para este card).')
+              print()
+
+          print(f'Mês mais recente disponível: {meses_disp[-1]}')
+          valida(meses_disp[-1])
+          if len(meses_disp) >= 2:
+              print(f'Mês anterior (fechado, amostra maior): {meses_disp[-2]}')
+              valida(meses_disp[-2])
           "
 
       - name: "Diagnóstico: alocChart() e responsavelPanel() usam curSafra()"
