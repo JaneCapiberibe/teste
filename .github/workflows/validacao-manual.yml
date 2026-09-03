@@ -4,10 +4,11 @@ name: Validação manual (temporário)
 # Jira) SEM publicar nada, só pra validar a nova fonte do gráfico "Alocação — bugs por
 # responsável": agora nativa do Jira (campo assignee em sweep.json) em vez da aba "Base
 # Atualmódulos" do xlsx, alinhada com a régua de "Bug por módulo" (concluído = mês da 1ª
-# transição pro status, não mês de criação). Confirma que 'assignee' está em sweep.json e que a
-# soma de concluídos por responsável, por mês, bate EXATAMENTE com d['tot_series']
-# [mes]['backlog_concluidos'] (o mesmo número de concluídos de "Bug por módulo"/Todos). Será
-# removido depois de usado.
+# transição pro status, não mês de criação), e com clique-p/-abrir-no-Jira (data-keys +
+# abrirCardsBar(), mesmo padrão do resto do dashboard). Confirma que 'assignee' está em
+# sweep.json, que a soma de concluídos por responsável bate EXATAMENTE com d['tot_series']
+# [mes]['backlog_concluidos'], e que as 'keys' de cada responsável são exatamente os cards
+# certos (concluido_mes==mes, assignee==responsável). Será removido depois de usado.
 on:
   workflow_dispatch:
 
@@ -67,6 +68,8 @@ jobs:
 
           meses_disp = sorted(d['aloc_por_mes'].keys())
 
+          by_key = {x['key']: x for x in raw}
+
           def valida(mes):
               print(f'=== Mês de conclusão {mes} ===')
               full = [x for x in sweep_full if elegivel(x) and x.get('concluido_mes')==mes]
@@ -74,7 +77,12 @@ jobs:
               print(f'Soma TOTAL de concluídos nesse mês (recomputado direto do sweep.json, todos os responsáveis): {soma_full}')
               print('Top exibido no gráfico (d[aloc_por_mes][mes]):')
               for r in d['aloc_por_mes'][mes]:
-                  print(f\"  {r['resp']}: {r['n']} bugs ({r['pct']}%)\")
+                  keys = r.get('keys', [])
+                  keys_ok = len(keys) == r['n'] and all(
+                      by_key.get(k, {}).get('concluido_mes') == mes and
+                      (by_key.get(k, {}).get('assignee') or 'Sem responsável') == r['resp']
+                      for k in keys)
+                  print(f\"  {r['resp']}: {r['n']} bugs ({r['pct']}%) — keys={keys[:3]}{'...' if len(keys)>3 else ''} (n_keys={len(keys)}, todas do responsável+mês certos: {keys_ok})\")
               soma_top = sum(r['n'] for r in d['aloc_por_mes'][mes])
               print(f'Soma exibida no gráfico (até 10 responsáveis): {soma_top}')
 
@@ -91,8 +99,18 @@ jobs:
               valida(meses_disp[-2])
           "
 
-      - name: "Diagnóstico: alocChart() e responsavelPanel() usam curSafra()"
+      - name: "Diagnóstico: alocChart() gera data-keys/onclick + abrirCardsBar() existe"
         run: |
-          grep -A4 "function alocChart" build_dash.py
+          grep -A6 "function alocChart" build_dash.py
           echo ---
-          grep -A6 "function responsavelPanel" build_dash.py
+          grep -A3 "function abrirCardsBar" build_dash.py
+          echo ---
+          python -c "
+          import json
+          d = json.load(open('dash_data.json'))
+          mes = sorted(d['aloc_por_mes'].keys())[-1]
+          r = d['aloc_por_mes'][mes][0]
+          print(f'Exemplo de linha renderizada (responsável top 1 de {mes}):')
+          print(f\"  data-keys=\\\"{','.join(r.get('keys', []))}\\\"\")
+          print(f\"  onclick=\\\"abrirCardsBar(this)\\\" -> abre {{jira_base}}/issues/?jql=key in ({','.join(r.get('keys', []))})\")
+          "

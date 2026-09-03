@@ -419,8 +419,14 @@ aloc_por_mes={}
 for mes in meses:
     cards=concD_por_mes[mes]
     total=len(cards)
-    cc=collections.Counter((x.get('assignee') or 'Sem responsável') for x in cards)
-    aloc_por_mes[mes]=[{'resp':r,'n':n,'pct':round(100*n/total) if total else 0} for r,n in cc.most_common(10)]
+    por_resp=collections.defaultdict(list)
+    for x in cards:
+        por_resp[x.get('assignee') or 'Sem responsável'].append(x['key'])
+    ranked=sorted(por_resp.items(), key=lambda t:-len(t[1]))[:10]
+    # keys: cards exatos por trás da contagem, pro clique na barra abrir a lista no Jira (mesmo
+    # padrão de criaD_keys/concD_keys em evol_modulo e fila_det_keys no funil).
+    aloc_por_mes[mes]=[{'resp':r,'n':len(keys),'pct':round(100*len(keys)/total) if total else 0,'keys':keys}
+                       for r,keys in ranked]
 d['aloc_por_mes']=aloc_por_mes
 
 # ---- previsibilidade (dev) + suporte do CSV ----
