@@ -319,6 +319,20 @@ for m,mm in mods.items():
 tab.sort(key=lambda t:-t['bugs'])
 d['tabela_modulo']=tab
 
+# esforço por módulo (gráfico "Esforço por módulo", custoModulo() em build_dash.py) — só de
+# cards ATIVOS: exclui quem está parado em IMPEDIMENTO DEV/PRODUTO (esforço represado, não
+# reflete ritmo atual) e quem foi cancelado no dev (esforço que não vira entrega). Cálculo
+# separado de tab/tabela_modulo acima, que soma TODOS os cards (usado pela tabela "Módulo" —
+# colunas Bugs/Tendência/MTTR continuam somando tudo, sem essa exclusão).
+STATUS_EXCLUI_ESFORCO={'IMPEDIMENTO DEV','IMPEDIMENTO PRODUTO'}
+esforco_mod=collections.defaultdict(float)
+for x in sweep:
+    if x['status'] in STATUS_EXCLUI_ESFORCO or x['res']=='Cancelado Dev': continue
+    if isinstance(x['timespent'],(int,float)): esforco_mod[x['m']]+=x['timespent']
+esforco_lista=[{'mod':m,'horas':round(seg/3600,1)} for m,seg in esforco_mod.items()]
+esforco_lista.sort(key=lambda t:-t['horas'])
+d['esforco_modulo_ativo']=esforco_lista[:10]
+
 # alerta parados: status Não Iniciado > 5 dias úteis
 asg=json.load(open('ni_assignee.json'))
 ni=[]
