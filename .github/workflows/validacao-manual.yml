@@ -68,7 +68,7 @@ jobs:
               if host not in urls_vistas:
                   urls_vistas[host] = u
           print(f'Padrões de host distintos entre os avatares: {list(urls_vistas.keys())}')
-          open('avatar_urls_teste.txt','w').write('\n'.join(urls_vistas.values()))
+          open('avatar_urls_teste.txt','w').write('\n'.join(urls_vistas.values())+'\n')
           "
 
       - name: "Diagnóstico: d['em_dev_devs'] em dash_data.json"
