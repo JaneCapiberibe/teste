@@ -319,19 +319,28 @@ for m,mm in mods.items():
 tab.sort(key=lambda t:-t['bugs'])
 d['tabela_modulo']=tab
 
-# esforço por módulo (gráfico "Esforço por módulo", custoModulo() em build_dash.py) — só de
-# cards ATIVOS: exclui quem está parado em IMPEDIMENTO DEV/PRODUTO (esforço represado, não
-# reflete ritmo atual) e quem foi cancelado no dev (esforço que não vira entrega). Cálculo
-# separado de tab/tabela_modulo acima, que soma TODOS os cards (usado pela tabela "Módulo" —
-# colunas Bugs/Tendência/MTTR continuam somando tudo, sem essa exclusão).
+# esforço por módulo (gráfico "Esforço por módulo", custoModulo() em build_dash.py) — POR
+# SAFRA (mês de criação do card, mesmo recorte do seletor "Safra em foco" — muda junto com
+# ele, como os demais painéis que usam curSafra()/DATA.*_por_mes no front-end), e só de cards
+# ATIVOS: exclui quem está parado em IMPEDIMENTO DEV/PRODUTO (esforço represado, não reflete
+# ritmo atual) e quem foi cancelado no dev (esforço que não vira entrega). Cálculo separado de
+# tab/tabela_modulo acima, que soma TODOS os cards de TODO o período (usado pela tabela
+# "Módulo" — colunas Bugs/Tendência/MTTR/Esforço continuam somando tudo, sem essa exclusão nem
+# recorte por safra).
 STATUS_EXCLUI_ESFORCO={'IMPEDIMENTO DEV','IMPEDIMENTO PRODUTO'}
-esforco_mod=collections.defaultdict(float)
+def _esforco_modulo(cards):
+    seg=collections.defaultdict(float)
+    for x in cards:
+        if x['status'] in STATUS_EXCLUI_ESFORCO or x['res']=='Cancelado Dev': continue
+        if isinstance(x['timespent'],(int,float)): seg[x['m']]+=x['timespent']
+    lista=[{'mod':m,'horas':round(s/3600,1)} for m,s in seg.items()]
+    lista.sort(key=lambda t:-t['horas'])
+    return lista[:10]
+d['esforco_modulo_ativo']=_esforco_modulo(sweep)   # todo o período — fallback se a safra selecionada não tiver dado
+sweep_por_mes=collections.defaultdict(list)
 for x in sweep:
-    if x['status'] in STATUS_EXCLUI_ESFORCO or x['res']=='Cancelado Dev': continue
-    if isinstance(x['timespent'],(int,float)): esforco_mod[x['m']]+=x['timespent']
-esforco_lista=[{'mod':m,'horas':round(seg/3600,1)} for m,seg in esforco_mod.items()]
-esforco_lista.sort(key=lambda t:-t['horas'])
-d['esforco_modulo_ativo']=esforco_lista[:10]
+    if x['c']: sweep_por_mes[x['c'].strftime('%Y-%m')].append(x)
+d['esforco_modulo_por_mes']={m:_esforco_modulo(sweep_por_mes[m]) for m in meses}
 
 # alerta parados: status Não Iniciado > 5 dias úteis
 asg=json.load(open('ni_assignee.json'))

@@ -1,10 +1,10 @@
 name: Validação manual (temporário)
 
 # Workflow TEMPORÁRIO — roda fetch_jira.py + gen_data.py + build_dash.py (com os segredos do
-# Jira) SEM publicar nada, só pra validar o novo cálculo de "Esforço por módulo" (top 10,
-# horas) que agora exclui cards em IMPEDIMENTO DEV/PRODUTO e com resolution Cancelado Dev.
-# Mostra, para o módulo de maior volume, horas ANTES (tabela_modulo, todos os cards) e DEPOIS
-# (esforco_modulo_ativo, só ativos) da exclusão. Será removido depois de usado.
+# Jira) SEM publicar nada, só pra validar que "Esforço por módulo" agora muda por safra (mês
+# de criação selecionado no topo do dashboard), com a mesma exclusão de IMPEDIMENTO DEV/PRODUTO
+# e Cancelado Dev de antes. Mostra o top 10 de horas para algumas safras diferentes, pro módulo
+# de maior volume, pra comparar com o valor de todo o período. Será removido depois de usado.
 on:
   workflow_dispatch:
 
@@ -36,27 +36,33 @@ jobs:
       - name: "Gerar dashboard (só pra validar que build_dash.py não quebra, sem publicar)"
         run: python build_dash.py
 
-      - name: "Diagnóstico: esforço por módulo, ANTES x DEPOIS da exclusão"
+      - name: "Diagnóstico: esforço por módulo, por safra x todo o período"
         run: |
           python -c "
           import json
           d = json.load(open('dash_data.json'))
-          tab = {r['mod']: r['horas'] for r in d['tabela_modulo']}
+          porMes = d['esforco_modulo_por_mes']
           ativo = {r['mod']: r['horas'] for r in d['esforco_modulo_ativo']}
-          top_mod = d['tabela_modulo'][0]['mod']
-          print(f'Módulo de maior volume (tabela_modulo[0]): {top_mod}')
-          print(f'  ANTES (todos os cards, tabela_modulo):        {tab.get(top_mod)} h')
-          print(f'  DEPOIS (só ativos, esforco_modulo_ativo):     {ativo.get(top_mod, \"(fora do top 10 ativo? ver abaixo)\")} h')
+          meses = sorted(porMes.keys())
+          print(f'Total de safras (meses) com cálculo: {len(meses)}')
+          print(f'Safra default (funil_default): {d[\"funil_default\"]}')
           print()
-          print('Top 10 esforco_modulo_ativo (o que o gráfico custoModulo() vai desenhar):')
+          print('TODO O PERÍODO (esforco_modulo_ativo, top 10):')
           for r in d['esforco_modulo_ativo']:
               print(f\"  {r['mod']}: {r['horas']} h\")
           print()
-          print('Top 10 tabela_modulo por horas, pra comparação lado a lado (mesmos módulos, TODOS os cards):')
-          top10_ativo_mods = {r['mod'] for r in d['esforco_modulo_ativo']}
-          for m in top10_ativo_mods:
-              print(f'  {m}: antes={tab.get(m)} h -> depois={ativo.get(m)} h (diff={round((tab.get(m) or 0)-(ativo.get(m) or 0),1)} h)')
+          amostra = [meses[-1], meses[-2], meses[-3], meses[0]]
+          for mes in amostra:
+              lst = porMes.get(mes, [])
+              print(f'--- Safra {mes} (top 10 do gráfico se essa safra estiver selecionada): {len(lst)} módulo(s) com horas')
+              for r in lst[:10]:
+                  print(f\"    {r['mod']}: {r['horas']} h\")
+              if not lst:
+                  print('    (vazio -> gráfico cai no fallback: todo o período)')
           "
 
-      - name: "Diagnóstico: nota do painel atualizada"
-        run: grep -A1 "Esforço distribuído" build_dash.py
+      - name: "Diagnóstico: custoModulo() lê curSafra() e o label da safra no painel"
+        run: |
+          grep -A5 "function custoModulo" build_dash.py
+          echo ---
+          grep -B1 -A2 "Esforço por módulo (top 10, horas)" build_dash.py
