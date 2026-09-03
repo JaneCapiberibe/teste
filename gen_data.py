@@ -325,7 +325,8 @@ ni=[]
 for x in sweep:
     if x['status']!='Não Iniciado' or not x['c']: continue
     bd=busdays(x['c'].date(),TODAY)
-    ni.append({'key':x['key'],'dias':bd,'prio':x['prio'] or '—','mod':x['m'],'resp':asg.get(x['key'],'Sem responsável')})
+    ni.append({'key':x['key'],'dias':bd,'prio':x['prio'] or '—','mod':x['m'],'resp':asg.get(x['key'],'Sem responsável'),
+               'url':f"{d['jira_base']}/browse/{x['key']}"})
 ni.sort(key=lambda t:-t['dias'])
 par=[a for a in ni if a['dias']>5]
 d['alerta_parados']={'limite':5,'snapshot':str(TODAY),'total_nao_iniciado':len(ni),'count':len(par),'itens':par}

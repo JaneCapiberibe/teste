@@ -154,6 +154,8 @@ main{max-width:1180px;margin:0 auto;padding:22px 18px 60px}
 .imp-item b{color:var(--brand-navy)}
 .imp-item a,.imp-foot a{color:var(--brand-blue);text-decoration:none;font-weight:600;font-size:11.5px;margin-left:6px;white-space:nowrap}
 .imp-item a:hover,.imp-foot a:hover{text-decoration:underline}
+.jira-link{color:var(--brand-blue);text-decoration:none;font-weight:600;white-space:nowrap}
+.jira-link:hover{text-decoration:underline}
 .imp-foot{font-size:11.5px;color:var(--text-3);margin-top:11px;border-top:1px solid var(--line);padding-top:9px}
 .trend-chips{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px}
 .trend-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface-1);color:var(--text-2);border-radius:20px;padding:4px 11px;font-size:11.5px;font-weight:600;font-family:inherit;cursor:pointer;transition:opacity .12s,background .12s,border-color .12s;opacity:.7}
@@ -590,7 +592,7 @@ function custoModulo(){
 function alertCard(){
   const a=DATA.alerta_parados; if(!a) return '';
   const ok=a.count===0;
-  const rows=a.itens.map(i=>`<tr><td><b>${i.key}</b></td><td class="num"><span class="pill">${i.dias} dias úteis</span></td><td>${i.prio}</td><td>${i.mod}</td><td>${i.resp}</td></tr>`).join('');
+  const rows=a.itens.map(i=>`<tr><td><a class="jira-link" href="${i.url}" target="_blank" rel="noopener">${i.key} ver no Jira ↗</a></td><td class="num"><span class="pill">${i.dias} dias úteis</span></td><td>${i.prio}</td><td>${i.mod}</td><td>${i.resp}</td></tr>`).join('');
   return `<div class="alert ${ok?'ok':''}">
     <h3>${svg(ok?'circle-check':'triangle-exclamation')} Cards parados em "Não Iniciado" &gt; ${a.limite} dias úteis <span class="big">${a.count}</span></h3>
     <div class="kpi-sub">Nenhum card deveria ficar parado tanto tempo. Snapshot ${a.snapshot} · ${a.total_nao_iniciado} cards em Não Iniciado no total.</div>
