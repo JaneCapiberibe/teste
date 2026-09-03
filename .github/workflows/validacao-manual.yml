@@ -57,9 +57,18 @@ jobs:
           print(f'  SEM em_dev_data (changelog sem a transição registrada): {len(em_dev)-len(com_data)}')
           for x in com_data[:3]:
               print(f\"  {x['key']}: em_dev_data={x['em_dev_data']}\")
-          # salva uma URL de avatar real pro próximo step testar com curl puro (sem auth)
-          if com_avatar:
-              open('avatar_url_teste.txt','w').write(com_avatar[0]['assignee_avatar'])
+          # salva URLs de avatar de PADRÕES DIFERENTES de host pro próximo step testar com
+          # curl puro (sem auth) — sweep.json tem pelo menos 2 padrões (gravatar.com, que
+          # costuma REDIRECIONAR — precisa seguir o redirect pra ver o destino real; e
+          # avatar-management--avatars...atl-paas.net, hospedagem nativa do Jira Cloud).
+          urls_vistas = {}
+          for x in com_avatar:
+              u = x['assignee_avatar']
+              host = u.split('/')[2] if '://' in u else u
+              if host not in urls_vistas:
+                  urls_vistas[host] = u
+          print(f'Padrões de host distintos entre os avatares: {list(urls_vistas.keys())}')
+          open('avatar_urls_teste.txt','w').write('\n'.join(urls_vistas.values()))
           "
 
       - name: "Diagnóstico: d['em_dev_devs'] em dash_data.json"
@@ -84,21 +93,26 @@ jobs:
 
       - name: "TESTE CRÍTICO: avatar do Jira carrega sem sessão autenticada?"
         run: |
-          if [ -s avatar_url_teste.txt ]; then
-            URL=$(cat avatar_url_teste.txt)
-            echo "Testando URL sem NENHUM header de auth (simula navegador sem login no Jira): $URL"
-            HTTP_CODE=$(curl -s -o /tmp/avatar_resp -w "%{http_code}" "$URL")
-            CONTENT_TYPE=$(curl -s -I "$URL" | grep -i "content-type" || echo "sem content-type")
-            SIZE=$(wc -c < /tmp/avatar_resp)
-            echo "HTTP status: $HTTP_CODE"
-            echo "Content-Type: $CONTENT_TYPE"
-            echo "Tamanho da resposta: $SIZE bytes"
-            file /tmp/avatar_resp || true
-            if [ "$HTTP_CODE" = "200" ] && file /tmp/avatar_resp | grep -qi "image"; then
-              echo "RESULTADO: a URL carrega uma IMAGEM real sem autenticação — avatar público."
-            else
-              echo "RESULTADO: a URL NÃO devolveu uma imagem sem autenticação (status $HTTP_CODE) — precisa do fallback de iniciais."
-            fi
+          if [ -s avatar_urls_teste.txt ]; then
+            i=0
+            while IFS= read -r URL; do
+              i=$((i+1))
+              echo "=== URL $i (sem NENHUM header de auth, seguindo redirects com -L — simula um navegador sem login no Jira clicando no link) ==="
+              echo "$URL"
+              HTTP_CODE=$(curl -sL -o /tmp/avatar_resp_$i -w "%{http_code}" "$URL")
+              CONTENT_TYPE=$(curl -sL -I "$URL" | grep -i "^content-type" | tail -1 || echo "sem content-type")
+              SIZE=$(wc -c < /tmp/avatar_resp_$i)
+              echo "HTTP status final (após seguir redirects): $HTTP_CODE"
+              echo "Content-Type: $CONTENT_TYPE"
+              echo "Tamanho da resposta: $SIZE bytes"
+              file /tmp/avatar_resp_$i || true
+              if [ "$HTTP_CODE" = "200" ] && file /tmp/avatar_resp_$i | grep -qi "image"; then
+                echo "RESULTADO: carrega uma IMAGEM real sem autenticação — avatar público."
+              else
+                echo "RESULTADO: NÃO devolveu uma imagem sem autenticação (status $HTTP_CODE) — precisa do fallback de iniciais."
+              fi
+              echo
+            done < avatar_urls_teste.txt
           else
             echo "Nenhuma URL de avatar disponível pra testar (nenhum card com assignee_avatar preenchido)."
           fi
