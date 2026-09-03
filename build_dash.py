@@ -584,7 +584,10 @@ function barChart(obj,pal,unit){
 }
 
 function custoModulo(){
-  const rows=DATA.tabela_modulo.filter(r=>r.horas>0).slice(0,10);
+  const porMes=DATA.esforco_modulo_por_mes||{};
+  const daSafra=porMes[curSafra()];
+  const fonte=(daSafra&&daSafra.length)?daSafra:((DATA.esforco_modulo_ativo&&DATA.esforco_modulo_ativo.length)?DATA.esforco_modulo_ativo:DATA.tabela_modulo);
+  const rows=fonte.filter(r=>r.horas>0).slice(0,10);
   const obj={};rows.forEach(r=>obj[r.mod]=r.horas);
   return barChart(obj,[col('--s1')],'h');
 }
@@ -805,9 +808,9 @@ function render(){
    <h2>${si('users')}Carga por squad — folha × contrato</h2>${squadSection()}
    <h2>${si('coins')}Esforço e alocação — bugs</h2>
    <div class="grid2">
-     <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Esforço por módulo (top 10, horas)</div>
+     <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Esforço por módulo (top 10, horas) — safra <b>${mesLbl(curSafra())}</b></div>
        ${custoModulo()}
-       <div class="note"><b>Esforço distribuído (estimativa)</b>, em horas apontadas (Σ Tempo Gasto) só de bugs. Para virar R$: horas × custo-hora carregado — pendente das taxas de folha e de cada contrato. Cuidado: onde o apontamento é baixo, o esforço aparece subestimado.</div></div>
+       <div class="note"><b>Esforço distribuído (estimativa)</b>, em horas apontadas (Σ Tempo Gasto) da safra selecionada (cards criados no mês em foco), só de bugs ATIVOS — exclui cards parados em IMPEDIMENTO DEV/PRODUTO e cards com resolução Cancelado Dev (esforço represado ou que não virou entrega). Muda junto com o seletor "Safra em foco" no topo da página. Para virar R$: horas × custo-hora carregado — pendente das taxas de folha e de cada contrato. Cuidado: onde o apontamento é baixo, o esforço aparece subestimado.</div></div>
      <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Alocação — bugs por responsável (top 10)</div>
        ${barChart(Object.fromEntries(DATA.aloc_top),[col('--s1')])}
        <div class="note">"Sem responsável" é o maior balde — sinal de triagem/atribuição a melhorar, não de ociosidade. Enquadramento de sistema, não de pessoa.</div></div>
