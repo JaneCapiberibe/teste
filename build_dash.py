@@ -201,6 +201,10 @@ h2{font-size:13px;letter-spacing:.3px;color:var(--s1);margin:32px 4px 12px;font-
 .alert table{margin-top:10px}
 .alert td,.alert th{padding:5px 8px;font-size:12.5px}
 .pill{font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;background:rgba(227,73,72,.16);color:var(--bad)}
+.dev-row{display:flex;align-items:center;gap:8px}
+.dev-avatar-wrap{display:inline-flex;width:26px;height:26px;flex:none}
+.dev-avatar{width:26px;height:26px;border-radius:50%;object-fit:cover;flex:none}
+.dev-avatar-fallback{width:26px;height:26px;border-radius:50%;background:var(--brand-navy);color:#fff;align-items:center;justify-content:center;font-size:10.5px;font-weight:700;flex:none;display:none}
 .badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;letter-spacing:.3px}
 .b-up{background:rgba(227,73,72,.14);color:var(--bad)} .b-down{background:rgba(27,175,122,.16);color:var(--good)} .b-flat{background:var(--surface-2);color:var(--text-3)}
 .panel{background:var(--surface-1);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:14px}
@@ -713,6 +717,38 @@ function funilDetc(f){
      <div class="bar-val">${i.n} <span style="color:${col('--text-3')};font-weight:400">(${i.pct}%)</span></div></div>`).join('');
   return `<div class="kpi-label" style="margin:16px 0 6px">Detecção do mês — todos os ${f.total} cards da safra, por onde foram pegos <span class="info" data-tip="Classificação por tipo de item do Jira, sobre TODOS os cards que entraram no mês (inclusive os descartados pelo QA — diferente do funil acima, que já filtra pra 'chegaram ao dev'). Cliente = escapou e chegou à produção; QA/Dev = barrado internamente; Backoffice = ferramenta interna.">i</span></div>${rows}`;
 }
+function initials(name){
+  if(!name || name==='Sem responsável') return '?';
+  const p=name.trim().split(/\s+/);
+  return ((p[0]?.[0]||'')+(p[p.length-1]?.[0]||'')).toUpperCase();
+}
+function devAvatar(resp,url){
+  const ini=initials(resp);
+  if(!url) return `<span class="dev-avatar-fallback" style="display:flex">${ini}</span>`;
+  return `<span class="dev-avatar-wrap">
+    <img class="dev-avatar" src="${url}" alt="${resp}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+    <span class="dev-avatar-fallback">${ini}</span></span>`;
+}
+function prioBadge(p){
+  const map={Highest:['rgba(227,73,72,.16)','var(--bad)'],High:['rgba(235,104,52,.16)','var(--s2)'],
+    Medium:['rgba(240,165,0,.16)','var(--warn)'],Low:['var(--surface-2)','var(--text-3)'],Lowest:['var(--surface-2)','var(--text-3)']};
+  const [bg,fg]=map[p]||['var(--surface-2)','var(--text-3)'];
+  return `<span class="badge" style="background:${bg};color:${fg}">${p||'—'}</span>`;
+}
+function devsEmDesenvolvimento(){
+  const rows=DATA.em_dev_devs||[]; if(!rows.length) return '';
+  const body=rows.map(r=>`<tr>
+     <td><div class="dev-row">${devAvatar(r.resp,r.avatar)}<span>${r.resp}</span></div></td>
+     <td><a class="jira-link" href="${r.url}" target="_blank" rel="noopener">${r.key}</a></td>
+     <td>${prioBadge(r.prio)}</td>
+     <td>${r.mod}</td>
+     <td class="num">${r.data_entrada||'—'}</td>
+     <td class="num">${r.dias!=null?`<span class="pill">${r.dias} dias úteis</span>`:'—'}</td></tr>`).join('');
+  return `<div class="kpi-label" style="margin:16px 0 6px">Cards em desenvolvimento por desenvolvedor <span class="tag-per" title="todos os cards em Em Desenvolvimento hoje, sem filtro de safra">atual · todos os meses</span>
+    <span class="info" data-tip="Todos os cards com status ATUAL em 'Em Desenvolvimento', independente de quando foram criados — visão operacional do trabalho ativo agora (mesmo espírito do Alerta operacional de Não Iniciado, que também não é por safra). 'Parado há' = dias úteis desde a 1ª entrada em Em Desenvolvimento (via changelog do Jira) até hoje. Ordenado do mais parado pro mais recente.">i</span></div>
+    <table><thead><tr><th>Desenvolvedor</th><th>Card</th><th>Prioridade</th><th>Módulo</th><th class="num">Entrou em Em Dev.</th><th class="num">Parado há</th></tr></thead>
+    <tbody>${body}</tbody></table>`;
+}
 function funilPanel(){
   const f=(DATA.funil_por_mes&&DATA.funil_por_mes[curSafra()])||DATA.funil; if(!f) return '';
   const isCorrente=f.mes===DATA.mes_corrente;
@@ -741,6 +777,7 @@ function funilPanel(){
     </div>
     ${filaBreakdown(f)}
     ${funilDetc(f)}
+    ${devsEmDesenvolvimento()}
     ${impedimentoSpotlight()}
     <div class="note" style="margin-top:16px"><b>Leitura de capacidade:</b> o dev recebeu de verdade <b>${f.dev}</b> bugs (não ${f.total} — ${f.descartados_qa} eram ruído de triagem que o QA barrou, ${f.pct_descarte}% do total, e <b>${f.cancelados_dev}</b> foram cancelados no próprio dev antes de virar carga real). Entregou <b>${f.entregues} (${f.pct_entrega}%)</b> dentro do mês; a fila restante são ${f.fila} cards (${filaTxt}), a maior parte já adiantada. Velocidade: MTTR mediano de <b>${f.mttr_mediana} dias úteis</b> (média ${f.mttr_media}). Severidade do que chegou ao dev: ${sevTxt}. Concentração: ${modTxt}. Detecção da safra (todos os cards): ${detTxt}. Apontamento de horas em ${f.apont_cov[0]} de ${f.apont_cov[1]} cards. <b>O gargalo do mês não foi o desenvolvimento</b> — foi a triagem deixando ${f.pct_descarte}% de ruído entrar.</div></div>`;
 }

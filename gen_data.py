@@ -354,6 +354,25 @@ ni.sort(key=lambda t:-t['dias'])
 par=[a for a in ni if a['dias']>5]
 d['alerta_parados']={'limite':5,'snapshot':str(TODAY),'total_nao_iniciado':len(ni),'count':len(par),'itens':par}
 
+# cards em desenvolvimento por desenvolvedor (seção dentro de "Diagnóstico do mês —
+# funil de entrega do dev", build_dash.py) — TODOS os cards com status ATUAL "Em
+# Desenvolvimento", SEM filtro de safra (visão operacional do trabalho ativo agora, mesmo
+# espírito do alerta_parados de Não Iniciado acima, que também não é por safra). "Parado há"
+# = dias úteis desde a 1ª entrada em "Em Desenvolvimento" (via changelog, campo em_dev_data
+# calculado em fetch_jira.py a partir do mesmo /changelog/bulkfetch já usado pra
+# concluido_mes — não busca changelog de novo) até hoje.
+em_dev=[]
+for x in sweep:
+    if x['status']!='Em Desenvolvimento': continue
+    edt=pdt(x.get('em_dev_data'))
+    em_dev.append({'key':x['key'],'resp':x.get('assignee') or 'Sem responsável','avatar':x.get('assignee_avatar'),
+                    'prio':x['prio'] or '—','mod':x['m'],
+                    'data_entrada':edt.strftime('%d/%m/%Y') if edt else None,
+                    'dias':busdays(edt.date(),TODAY) if edt else None,
+                    'url':f"{d['jira_base']}/browse/{x['key']}"})
+em_dev.sort(key=lambda t:-(t['dias'] if t['dias'] is not None else -1))
+d['em_dev_devs']=em_dev
+
 # squads
 SQUAD={'Orçamento':('Orçamento','interno',6),'Bases de Preço':('Orçamento','interno',6),'Gestão de Base Própria':('Orçamento','interno',6),'Sofia':('Orçamento','interno',6),'Cadastro/Administrar Empresa':('Backoffice','interno',2),'Prime':('Prime','interno',3),'TI':('TI','interno',None),'Medição':('Paulo (contrato)','contratado',2),'Diario de Obras':('Paulo (contrato)','contratado',2),'Planejamento':('Paulo (contrato)','contratado',2),'Compras':('Paulo (contrato)','contratado',2),'OF Manager':('Paulo (contrato)','contratado',2),'OF CDE':('OF CDE (contrato)','contratado',None),'OF Elétrico':('Ramoon (contrato)','contratado',1),'OrçaBim':('Edson (contrato)','contratado',1),'OF Hidraulico':('Matheus (contrato)','contratado',1),'OF Estrutural':('Matheus (contrato)','contratado',1),'Chat de Suporte':('Outros (interno)','interno',None),'Arquivos Públicos':('Outros (interno)','interno',None),'OF BI':('Outros (interno)','interno',None)}
 sq=collections.defaultdict(lambda:{'bugs':0,'seg':0.0,'mttr':[],'sn':0,'sok':0,'reg':'—','p':None})
@@ -706,6 +725,7 @@ json.dump({'cards':mod_cards,'labels':mod_funil_labels},open('mod_cards.json','w
 json.dump(d,open('dash_data.json','w'),ensure_ascii=False)
 print('OK. total bugs:',d['meta']['total_bugs_base_atual'])
 print('status parados>5du:',d['alerta_parados']['count'],'| cancelado QA:',d['cancelado_qa'])
+print('em desenvolvimento:',len(d['em_dev_devs']),'| sem data de entrada (changelog):',sum(1 for x in d['em_dev_devs'] if x['dias'] is None))
 print('Run vs Build:',d['rvb']['run_pct'],'/',d['rvb']['build_pct'])
 print('previsibilidade dev:',d['previsibilidade']['agregado'],'%')
 print('top modulos:',[(t['mod'],t['bugs']) for t in d['tabela_modulo'][:5]])

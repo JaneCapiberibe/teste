@@ -145,14 +145,25 @@ def _epoch_month(ep):
         return None
     return datetime.datetime.fromtimestamp(ep, tz=TZ_BR).strftime('%Y-%m')
 
-def _first_to(changes, status_names):
-    """Mês (YYYY-MM) da 1ª transição PARA qualquer nome em `status_names` (string ou tupla).
-    `changes` é uma lista de (epoch_segundos, status_destino) já ordenada por _to_epoch."""
+def _epoch_iso(ep):
+    if ep is None:
+        return None
+    return datetime.datetime.fromtimestamp(ep, tz=TZ_BR).isoformat()
+
+def _first_to_epoch(changes, status_names):
+    """Epoch (segundos) da 1ª transição PARA qualquer nome em `status_names` (string ou
+    tupla). Igual a _first_to, mas devolve o instante exato (não só o mês) — usado pra
+    calcular dias corridos/úteis desde a entrada num status, não só "em que mês entrou"."""
     names = (status_names,) if isinstance(status_names, str) else tuple(status_names)
     for ep, to in changes:
         if to in names and ep:
-            return _epoch_month(ep)
+            return ep
     return None
+
+def _first_to(changes, status_names):
+    """Mês (YYYY-MM) da 1ª transição PARA qualquer nome em `status_names` (string ou tupla).
+    `changes` é uma lista de (epoch_segundos, status_destino) já ordenada por _to_epoch."""
+    return _epoch_month(_first_to_epoch(changes, status_names))
 
 def _concluido_mes(status, created, changes):
     """Mês de conclusão pela régua oficial: 1ª entrada em produção; fallback 1ª entrada em
@@ -169,10 +180,20 @@ def norm(issue, changes=None):
     f = issue.get('fields', {})
     def name(x): return (x or {}).get('value') if isinstance(x, dict) and 'value' in (x or {}) else ((x or {}).get('name') if isinstance(x, dict) else None)
     mod = f.get('customfield_10073')
-    assignee = (f.get('assignee') or {}).get('displayName') or 'Sem responsável'
+    assignee_obj = f.get('assignee') or {}
+    assignee = assignee_obj.get('displayName') or 'Sem responsável'
+    # foto do responsável (pro card "Cards em desenvolvimento por desenvolvedor") — vem junto
+    # do objeto assignee do Jira, sem precisar de outro campo/chamada. 48x48 é o tamanho pedido;
+    # cai pra qualquer outro tamanho disponível se esse não vier.
+    avatar_urls = assignee_obj.get('avatarUrls') or {}
+    assignee_avatar = avatar_urls.get('48x48') or next(iter(avatar_urls.values()), None)
     status = name(f.get('status'))
     created = f.get('created')
     changes = changes or []
+    # data da 1ª entrada em "Em Desenvolvimento" (mesmo changelog já buscado em lote pra
+    # concluido_mes acima — reaproveitado aqui, não busca de novo) — pro card "Cards em
+    # desenvolvimento por desenvolvedor" calcular "parado há" (dias úteis).
+    em_dev_data = _epoch_iso(_first_to_epoch(changes, 'Em Desenvolvimento'))
     return {
         'key': issue.get('key'),
         'status': status,
@@ -185,7 +206,9 @@ def norm(issue, changes=None):
         'timespent': f.get('timespent') if f.get('timespent') is not None else f.get('aggregatetimespent'),
         'modulo': (mod or {}).get('value') if isinstance(mod, dict) else mod,
         'assignee': assignee,
+        'assignee_avatar': assignee_avatar,
         'concluido_mes': _concluido_mes(status, created, changes),
+        'em_dev_data': em_dev_data,
     }
 
 def mm(iso):
@@ -199,7 +222,7 @@ def modclean(m):
 def build_outputs(recs):
     # 1) sweep.json (formato do gen_data)
     sweep = [{k: r[k] for k in ('key', 'status', 'prio', 'itype', 'res', 'created', 'resolved', 'timespent',
-              'modulo', 'assignee', 'concluido_mes')} for r in recs]
+              'modulo', 'assignee', 'assignee_avatar', 'concluido_mes', 'em_dev_data')} for r in recs]
     json.dump(sweep, open('sweep.json', 'w'), ensure_ascii=False)
 
     def ischat(r): return modclean(r['modulo']) == CHAT
