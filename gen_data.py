@@ -315,9 +315,60 @@ d['evol_modulo']={'meses':meses,'ordem':_emordem,
 # um com sua própria regra de resolução por cima, ver comentário no painel).
 STATUS_EXCLUI_ESFORCO={'IMPEDIMENTO DEV','IMPEDIMENTO PRODUTO'}
 
+# PROJEÇÃO POR DIAS ÚTEIS — usada pela Tendência de "Qualidade por módulo" (tabela_modulo)
+# logo abaixo e reaproveitada pelo gráfico "Tendência dos módulos" (moduleTrendChart(),
+# build_dash.py) pro badge de cada chip e pro ponto do mês corrente (estimativa de fechamento,
+# não o valor parcial cru). DECISÃO DE 08/09/2026: compara o volume PARCIAL do módulo neste mês
+# (até hoje) com a média do que os últimos N meses FECHADOS tinham no MESMO número de dias
+# úteis decorridos — não o mês fechado inteiro contra a média de meses inteiros (isso sempre
+# faria o mês corrente parecer "caindo" só por estar incompleto). N = janela de 3 ou 6 meses,
+# selecionável nas duas telas (mesmo seletor, estado compartilhado no front-end).
+import calendar
+def _mes_bounds(ym):
+    y,mo=map(int,ym.split('-'))
+    return datetime.date(y,mo,1),datetime.date(y,mo,calendar.monthrange(y,mo)[1])
+def _nth_busday_cutoff(ym,n):
+    """Data do n-ésimo dia útil do mês `ym` (1-indexado) — corta um mês histórico no mesmo
+    ponto do mês corrente, pra comparação parcial-com-parcial. n<=0 devolve uma data antes do
+    mês (janela vazia); n maior que os dias úteis do mês devolve o mês inteiro."""
+    ini,fim=_mes_bounds(ym)
+    if n<=0: return ini-datetime.timedelta(days=1)
+    d=ini
+    while d<=fim:
+        if busdays(d,d+datetime.timedelta(days=1))==1:
+            n-=1
+            if n==0: return d
+        d+=datetime.timedelta(days=1)
+    return fim
+_ini_atual,_fim_atual=_mes_bounds(cur_ym)
+DIAS_UTEIS_DECORRIDOS=busdays(_ini_atual,TODAY+datetime.timedelta(days=1))   # inclui hoje
+DIAS_UTEIS_TOTAIS_MES=busdays(_ini_atual,_fim_atual+datetime.timedelta(days=1))
+d['meta']['dias_uteis_decorridos_mes']=DIAS_UTEIS_DECORRIDOS
+d['meta']['dias_uteis_totais_mes']=DIAS_UTEIS_TOTAIS_MES
+JANELAS_TENDENCIA=(3,6)
+# mesmo piso de volume mínimo já usado pra "amostra pequena" em Evolução por módulo
+# (emSelcount()) e no recorte por safra (recorteBody()), build_dash.py.
+PISO_AMOSTRA_PEQUENA=120
+def _parcial_no_periodo(mod,ini_d,fim_d):
+    return sum(1 for x in sweep if x['m']==mod and x['c'] and ini_d<=x['c'].date()<=fim_d)
+def _trend_por_janela(mod,atual_parcial):
+    meses_fechados=[mm_ for mm_ in meses if mm_<cur_ym]
+    out={}
+    for nj in JANELAS_TENDENCIA:
+        ult=meses_fechados[-nj:]
+        if not ult:
+            out[nj]={'trend':'flat','media':None}; continue
+        parciais=[_parcial_no_periodo(mod,*( _mes_bounds(mh)[0], _nth_busday_cutoff(mh,DIAS_UTEIS_DECORRIDOS) )) for mh in ult]
+        media=statistics.mean(parciais)
+        if media==0:
+            tr='up' if atual_parcial>0 else 'flat'
+        else:
+            tr='up' if atual_parcial>media*1.15 else ('down' if atual_parcial<media*0.85 else 'flat')
+        out[nj]={'trend':tr,'media':round(media,1)}
+    return out
+
 # por modulo: bugs, horas, mttr, trend (tabela "Qualidade por módulo", moduleTable() em
-# build_dash.py). Colunas "Bugs (volume)"/"Tendência" já reformuladas em outro momento — não
-# tocar nelas aqui.
+# build_dash.py). Coluna "Bugs (volume)" não é tocada aqui (continua total do período inteiro).
 #   MTTR ....... dias úteis entre criação e a data de entrega (campo entrega_data, changelog,
 #                fetch_jira.py): 1ª transição pra "Em produção"/"Em Produção"; se o card nunca
 #                chegou lá, fallback pra 1ª transição pra "Done"/"Concluído"/"Concluido" —
@@ -333,6 +384,15 @@ STATUS_EXCLUI_ESFORCO={'IMPEDIMENTO DEV','IMPEDIMENTO PRODUTO'}
 #                geralmente teve análise real por trás, então o esforço não deve desaparecer
 #                desta tabela. Cálculo isolado do painel "Esforço por módulo" — não reaproveita
 #                a função _esforco_modulo (regra de resolução diferente).
+#   Tendência .. DECISÃO DE 08/09/2026: trocada a régua antiga (último mês fechado inteiro vs.
+#                média de 3 meses fechados inteiros) pela projeção por dias úteis acima
+#                (_trend_por_janela) — parcial deste mês vs. média parcial dos últimos N meses
+#                fechados nos mesmos dias úteis decorridos. Duas janelas calculadas (3 e 6
+#                meses, trend3/trend6) — o seletor no front-end (mtSetWindow, compartilhado com
+#                o gráfico "Tendência dos módulos") escolhe qual mostrar, sem recalcular nada.
+#   small ...... amostra pequena (< PISO_AMOSTRA_PEQUENA bugs no período inteiro do módulo) —
+#                mesmo piso de "Evolução por módulo"/recorte por safra; usado só como selo
+#                visual (build_dash.py), não muda o cálculo.
 mods=collections.defaultdict(lambda:{'bugs':0,'seg':0.0,'mttr':[]})
 cria_mod=collections.defaultdict(lambda:collections.Counter())
 for x in sweep:
@@ -342,14 +402,15 @@ for x in sweep:
     edt=pdt(x.get('entrega_data'))
     if x['c'] and edt: mm['mttr'].append(busdays(x['c'].date(),edt.date()))
     if x['c']: cria_mod[m][x['c'].strftime('%Y-%m')]+=1
-last3=meses[-5:-2]; lastm=meses[-2]   # compara o último mês FECHADO (não o corrente parcial) com os 3 anteriores
 tab=[]
 for m,mm in mods.items():
-    vals=cria_mod[m]; base=statistics.mean([vals.get(x,0) for x in last3]) if last3 else 0
-    lv=vals.get(lastm,0)
-    tr='up' if lv>base*1.15 else ('down' if lv<base*0.85 else 'flat')
+    atual_parcial=cria_mod[m].get(cur_ym,0)
+    tj=_trend_por_janela(m,atual_parcial)
     tab.append({'mod':m,'bugs':mm['bugs'],'horas':round(mm['seg']/3600,1),
-                'mttr':round(statistics.median(mm['mttr']),1) if mm['mttr'] else None,'trend':tr})
+                'mttr':round(statistics.median(mm['mttr']),1) if mm['mttr'] else None,
+                'trend3':tj[3]['trend'],'trend6':tj[6]['trend'],
+                'media3':tj[3]['media'],'media6':tj[6]['media'],
+                'atual_parcial':atual_parcial,'small':mm['bugs']<PISO_AMOSTRA_PEQUENA})
 tab.sort(key=lambda t:-t['bugs'])
 d['tabela_modulo']=tab
 
