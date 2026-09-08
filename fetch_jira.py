@@ -14,7 +14,8 @@ import requests
 BASE = os.environ.get('JIRA_BASE_URL', 'https://orcafascio.atlassian.net').rstrip('/')
 
 FIELDS = ['status', 'priority', 'resolution', 'created', 'updated', 'resolutiondate',
-          'timespent', 'aggregatetimespent', 'issuetype', 'assignee', 'customfield_10073']
+          'timespent', 'aggregatetimespent', 'issuetype', 'assignee', 'customfield_10073',
+          'customfield_10120']
 
 def _auth_headers():
     email = os.environ['JIRA_EMAIL']
@@ -194,6 +195,11 @@ def norm(issue, changes=None):
     # concluido_mes acima — reaproveitado aqui, não busca de novo) — pro card "Cards em
     # desenvolvimento por desenvolvedor" calcular "parado há" (dias úteis).
     em_dev_data = _epoch_iso(_first_to_epoch(changes, 'Em Desenvolvimento'))
+    # "Card Revisado" (customfield_10120) — multi-checkbox: a API devolve uma lista de opções,
+    # cada uma com 'value' (confirmado via API real: [{'value':'Comportamento do Sistema',...}]).
+    # Normaliza pra lista simples de strings — hoje só o escape rate (det_series, gen_data.py)
+    # usa esse campo, mas fica em sweep.json pra eventual uso futuro por outros painéis.
+    card_revisado = [opt.get('value') for opt in (f.get('customfield_10120') or [])]
     return {
         'key': issue.get('key'),
         'status': status,
@@ -209,6 +215,7 @@ def norm(issue, changes=None):
         'assignee_avatar': assignee_avatar,
         'concluido_mes': _concluido_mes(status, created, changes),
         'em_dev_data': em_dev_data,
+        'card_revisado': card_revisado,
     }
 
 def mm(iso):
@@ -222,7 +229,7 @@ def modclean(m):
 def build_outputs(recs):
     # 1) sweep.json (formato do gen_data)
     sweep = [{k: r[k] for k in ('key', 'status', 'prio', 'itype', 'res', 'created', 'resolved', 'timespent',
-              'modulo', 'assignee', 'assignee_avatar', 'concluido_mes', 'em_dev_data')} for r in recs]
+              'modulo', 'assignee', 'assignee_avatar', 'concluido_mes', 'em_dev_data', 'card_revisado')} for r in recs]
     json.dump(sweep, open('sweep.json', 'w'), ensure_ascii=False)
 
     def ischat(r): return modclean(r['modulo']) == CHAT
