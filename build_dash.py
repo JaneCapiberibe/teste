@@ -164,6 +164,10 @@ main{max-width:1180px;margin:0 auto;padding:22px 18px 60px}
 .trend-chip.on{color:#fff;opacity:1}
 .trend-chip.on i{background:#fff!important}
 .trend-chip.on b{color:#fff}
+.selo-amostra{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:rgba(227,73,72,.16);color:var(--bad);font-size:9.5px;font-weight:800;margin-left:5px;cursor:help;flex:none}
+.win-toggle{display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:11.5px;color:var(--text-3)}
+.win-btn{border:1px solid var(--line);background:var(--surface-2);color:var(--text-2);border-radius:8px;padding:5px 11px;cursor:pointer;font-size:11.5px;font-weight:600;font-family:inherit}
+.win-btn.on{background:var(--brand-blue);border-color:var(--brand-blue);color:#fff}
 .mh-c{margin:0}
 .mh-c>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--brand-navy);padding:10px 2px 8px;user-select:none;transition:color .15s}
 .mh-c>summary:hover{color:var(--brand-navy)}
@@ -555,8 +559,20 @@ function moduleTrendChart(){
   return `<div class="trend-chips">${chips}</div>
     <svg viewBox="0 0 ${W} ${H}" width="100%">${band}${grid}${xl}${lines}${dots}</svg>`;
 }
+window.__mtWindow=3;
+function mtSetWindow(n){
+  window.__mtWindow=n;
+  const t=document.getElementById('mtwrap'); if(t) t.innerHTML=moduleTable();
+}
+function mtWinToggle(){
+  const w=window.__mtWindow;
+  return `<div class="win-toggle"><span>Tendência calculada com:</span>
+    <button class="win-btn${w===3?' on':''}" onclick="mtSetWindow(3)">3 meses</button>
+    <button class="win-btn${w===6?' on':''}" onclick="mtSetWindow(6)">6 meses</button></div>`;
+}
 function moduleTable(){
   const rows=DATA.tabela_modulo.slice();
+  const win=window.__mtWindow||3;
   const maxBug=Math.max(...rows.map(r=>r.bugs));
   const maxMt=Math.max(...rows.map(r=>r.mttr||0));
   const bd={up:'b-up',down:'b-down',flat:'b-flat'};
@@ -564,20 +580,21 @@ function moduleTable(){
   window.__sort=(k)=>{const asc=window.__sk===k?!window.__asc:false;window.__sk=k;window.__asc=asc;
     rows.sort((a,b)=>{let x=a[k],y=b[k];if(typeof x==='string'){return asc?x.localeCompare(y):y.localeCompare(x);}return asc?(x||0)-(y||0):(y||0)-(x||0);});
     document.getElementById('mtb').innerHTML=body(rows);};
-  const body=(rs)=>rs.map(r=>`<tr>
-     <td>${r.mod}</td>
+  const body=(rs)=>rs.map(r=>{const tr=r['trend'+win];
+    return `<tr>
+     <td>${r.mod}${r.small?`<span class="selo-amostra" title="Amostra pequena — variação mês a mês pode ser ruído, não tendência.">!</span>`:''}</td>
      <td class="num"><span class="heat" style="${heatColor(r.bugs,maxBug)}">${r.bugs}</span></td>
-     <td><span class="badge ${bd[r.trend]}">${badge[r.trend]}</span></td>
+     <td><span class="badge ${bd[tr]}">${badge[tr]}</span></td>
      <td class="num">${r.mttr!=null?`<span class="heat" style="${heatColor(r.mttr,maxMt)}">${r.mttr}</span>`:'—'}</td>
-     <td class="num">${r.horas}</td></tr>`).join('');
-  return `<table><thead><tr>
+     <td class="num">${r.horas}</td></tr>`;}).join('');
+  return `${mtWinToggle()}<table><thead><tr>
      <th onclick="__sort('mod')">Módulo ${ico('Módulo do sistema onde o bug ocorreu, pelo campo Módulo do card no Jira (dropdown de 20 valores). Não classificado = cards sem módulo preenchido (em geral do tipo Bug Backoffice).')}</th>
      <th class="num" onclick="__sort('bugs')">Bugs (volume) ▾ ${ico('Quantidade total de bugs registrados no módulo em todo o período coberto. Clique no cabeçalho para ordenar a tabela.')}</th>
-     <th onclick="__sort('trend')">Tendência ${ico('Compara os bugs criados no último mês FECHADO (não o corrente, que está parcial) com a MÉDIA dos 3 meses anteriores do módulo. Acima de +15% = subindo (piorando, mais bugs entrando); abaixo de −15% = caindo (melhorando); entre −15% e +15% = estável. A janela de 3 meses suaviza o ruído de um mês atípico.')}</th>
+     <th onclick="__sort('trend${win}')">Tendência ${ico('Compara os bugs criados NESTE MÊS (parcial, até hoje) com a MÉDIA do que os últimos '+win+' meses FECHADOS tinham no MESMO número de dias úteis decorridos — comparação parcial com parcial, justa mesmo com o mês em andamento. Acima de +15% = subindo (piorando, mais bugs entrando); abaixo de −15% = caindo (melhorando); entre −15% e +15% = estável. Troque a janela (3/6 meses) acima da tabela.')}</th>
      <th class="num" onclick="__sort('mttr')">MTTR (dias) ${ico('Mean Time To Repair — tempo médio para resolver o bug, em dias úteis entre a criação e a conclusão do card. Alto = bugs demoram a sair (velocidade), independente do volume. Inclui o tempo de suporte até o Concluído.',1)}</th>
      <th class="num" onclick="__sort('horas')">Esforço (h) ${ico('Soma das horas apontadas (Σ Tempo Gasto / worklog do Jira) nos bugs do módulo. Preenchido em ~64% dos cards, então é um piso, não o total real.',1)}</th></tr></thead>
      <tbody id="mtb">${body(rows)}</tbody></table>
-     <div class="note"><b>Fonte e método:</b> volume, esforço e MTTR da aba "Base Atual" do Jira (base atual, ${DATA.meta.total_bugs_base_atual} bugs). MTTR = média de dias entre criação e resolução. Esforço = Σ Tempo Gasto (assumido em segundos → horas); preenchido em ~64% dos cards, portanto é piso, não total. Tendência = último mês vs média dos 3 anteriores (aba "Resumo por módulos", bugs criados).</div>`;
+     <div class="note"><b>Fonte e método:</b> volume, esforço e MTTR da aba "Base Atual" do Jira (base atual, ${DATA.meta.total_bugs_base_atual} bugs). MTTR = dias úteis entre criação e entrega (1ª "Em produção", fallback Done/Concluído). Esforço = Σ Tempo Gasto (assumido em segundos → horas); preenchido em ~64% dos cards, portanto é piso, não total. Tendência = volume parcial do mês corrente vs. média parcial dos últimos ${win} meses fechados nos mesmos dias úteis decorridos — não o mês fechado inteiro (isso sempre pareceria "caindo" por estar incompleto). "!" ao lado do módulo = amostra pequena (menos de 120 bugs no período).</div>`;
 }
 
 function barChart(obj,pal,unit){
@@ -849,7 +866,7 @@ function render(){
    ${isAll?'':responsavelPanel()}
    ${isAll?`
    <h2>${si('cubes')}Qualidade por módulo</h2>
-   <div class="panel">${moduleTable()}</div>
+   <div class="panel"><div id="mtwrap">${moduleTable()}</div></div>
    <h2>${si('chart-line')}Tendência dos módulos — comparativo mensal (estilo bolsa) <span class="info" data-tip="Cada linha é um módulo: bugs criados por mês (líquido). Compara vários módulos ao mesmo tempo para ver quem está subindo (gerando mais bugs) ou descendo. Mostra os 6 módulos de maior volume + 'Outros' agrupado. Diferente da bolsa: aqui LINHA SUBINDO = mais bugs = PIOR.">i</span></h2>
    <div class="panel"><div id="trendwrap">${moduleTrendChart()}</div>
      <details class="note-c"><summary>Como ler</summary><div class="note-body"><b>Como ler:</b> clique nos <b>chips</b> acima para ligar/desligar cada módulo no gráfico. Cada linha é um <b>módulo</b> e mostra os bugs criados por mês (contagem líquida). É a visão "bolsa de valores" para comparar os módulos lado a lado e ver tendências — quem está <b>subindo</b> (gerando mais bugs) e quem está <b>descendo</b>. Aparecem os <b>6 módulos de maior volume</b> mais "Outros" (o resto somado, linha tracejada). Na legenda, o número é o valor do último mês e a setinha compara com o mês anterior. <b>Atenção à inversão da metáfora:</b> ao contrário da bolsa, aqui <b>linha subindo = mais bugs = pior</b> (por isso a seta de alta é vermelha). O mês corrente ainda está em andamento, então a última ponta tende a subir até fechar. Faixa azul-clara = safra em foco.</div></details></div>
