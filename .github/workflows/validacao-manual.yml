@@ -1,0 +1,123 @@
+name: Validação manual (temporário)
+
+# Workflow TEMPORÁRIO — roda fetch_jira.py + gen_data.py (com os segredos do Jira) SEM
+# publicar nada, só pra validar a nova exclusão em det_series (escape rate): Cancelado Dev +
+# "Comportamento do Sistema" (customfield_10120) saem do cálculo, e SÓ desse cálculo. Compara
+# escape rate antes/depois pra alguns meses com volume de Cancelado Dev, e confere que nenhum
+# outro campo de dash_data.json mudou. Será removido depois de usado.
+on:
+  workflow_dispatch:
+
+jobs:
+  validacao:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Puxar do Jira (branch nova, com a exclusão)
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: python fetch_jira.py
+
+      - name: Recalcular dados NOVOS (com a exclusão) — sem publicar
+        run: |
+          python gen_data.py
+          cp dash_data.json dash_data_novo.json
+          cp sweep.json sweep_novo.json
+
+      - name: "Diagnóstico: card_revisado em sweep.json"
+        run: |
+          python -c "
+          import json
+          sweep = json.load(open('sweep_novo.json'))
+          canc_dev = [x for x in sweep if x.get('res')=='Cancelado Dev']
+          print(f'Total Cancelado Dev em sweep.json: {len(canc_dev)}')
+          comp_sistema = [x for x in canc_dev if 'Comportamento do Sistema' in (x.get('card_revisado') or [])]
+          print(f'Cancelado Dev com Comportamento do Sistema: {len(comp_sistema)}')
+          for x in comp_sistema:
+              print(f\"  {x['key']}: card_revisado={x.get('card_revisado')} criado={x.get('created')}\")
+          "
+
+      - name: Checkout do código ANTIGO (main, sem a exclusão) pra comparar
+        run: |
+          git fetch origin main
+          git worktree add /tmp/antigo origin/main
+
+      - name: Gerar dados ANTIGOS (sem a exclusão) — mesma base do Jira já puxada
+        run: |
+          # copia TODOS os arquivos gerados por fetch_jira.py (gitignorados, o worktree do
+          # main não os tem) pra rodar gen_data.py antigo sobre exatamente o mesmo snapshot
+          # do Jira que gerou dash_data_novo.json — comparação de código, não de dado.
+          cp sweep_novo.json /tmp/antigo/sweep.json
+          for f in jira_backlog.json impedimentos_live.json sobra_live.json ni_assignee.json; do
+            cp "$f" /tmp/antigo/"$f"
+          done
+          cd /tmp/antigo
+          python gen_data.py
+          cp dash_data.json /home/runner/work/teste/teste/dash_data_antigo.json
+
+      - name: "Diagnóstico: escape rate ANTES x DEPOIS, por mês, e exclusões por mês"
+        run: |
+          python -c "
+          import json
+          antigo = json.load(open('dash_data_antigo.json'))
+          novo = json.load(open('dash_data_novo.json'))
+          sweep = json.load(open('sweep_novo.json'))
+
+          canc_dev_comp = [x for x in sweep if x.get('res')=='Cancelado Dev' and 'Comportamento do Sistema' in (x.get('card_revisado') or [])]
+          from collections import Counter
+          excl_por_mes = Counter(x['created'][:7] for x in canc_dev_comp if x.get('created'))
+
+          a_por_mes = {s['mes']: s for s in antigo['det_series']}
+          n_por_mes = {s['mes']: s for s in novo['det_series']}
+
+          meses_afetados = sorted(excl_por_mes.keys())
+          print(f'Meses com pelo menos 1 exclusão: {meses_afetados}')
+          print()
+          for mes in meses_afetados:
+              a = a_por_mes.get(mes, {})
+              n = n_por_mes.get(mes, {})
+              print(f'=== {mes} ===')
+              print(f'  excluidos_neste_mes = {excl_por_mes[mes]}')
+              print(f'  ANTES : total={a.get(\"total\")} cliente={a.get(\"cliente\")} escape={a.get(\"escape\")}%')
+              print(f'  DEPOIS: total={n.get(\"total\")} cliente={n.get(\"cliente\")} escape={n.get(\"escape\")}%')
+              print()
+          "
+
+      - name: "Diagnóstico CRÍTICO: mais nada mudou (funil, aloc_por_mes, deteccao_por_mes, evol_modulo)"
+        run: |
+          python -c "
+          import json
+          antigo = json.load(open('dash_data_antigo.json'))
+          novo = json.load(open('dash_data_novo.json'))
+
+          def comparar(chave):
+              a = antigo.get(chave)
+              n = novo.get(chave)
+              igual = (a == n)
+              print(f'{chave}: IDÊNTICO = {igual}')
+              if not igual:
+                  print(f'  !!! DIFERENÇA ENCONTRADA em {chave} !!!')
+
+          for chave in ['deteccao', 'deteccao_por_mes', 'funil', 'funil_por_mes', 'aloc_por_mes', 'evol_modulo', 'tot_series', 'alerta_parados', 'em_dev_devs', 'esforco_modulo_por_mes', 'esforco_modulo_ativo']:
+              comparar(chave)
+
+          print()
+          print('Campos que DEVEM ter mudado (esperado): det_series, det_series_meta')
+          print(f'det_series IDÊNTICO (esperado False): {antigo[\"det_series\"] == novo[\"det_series\"]}')
+          print(f'det_series_meta IDÊNTICO (esperado False, a menos que a média das 6 fechadas não mude): {antigo[\"det_series_meta\"] == novo[\"det_series_meta\"]}')
+          "
+
+      - name: "Diagnóstico: nenhum outro trecho de código lê card_revisado além do bloco novo"
+        run: grep -n "card_revisado" gen_data.py build_dash.py
