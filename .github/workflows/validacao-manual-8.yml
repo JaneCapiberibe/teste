@@ -82,4 +82,5 @@ jobs:
           "
 
       - name: "Diagnóstico: build_dash.py roda sem erro (já rodou acima) e o painel Tendência dos módulos não mudou"
-        run: grep -n "trendMods\|moduleTrendChart" gen_data.py || echo "OK: gen_data.py não referencia trendMods/moduleTrendChart (painel intocado)"
+        run: |
+          grep -n "trendMods\|moduleTrendChart" gen_data.py || echo "OK - gen_data.py nao referencia trendMods/moduleTrendChart (painel intocado)"
