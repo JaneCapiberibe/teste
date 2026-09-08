@@ -310,13 +310,35 @@ d['evol_modulo']={'meses':meses,'ordem':_emordem,
                     'criados_keys':[_emck[md].get(m,[]) for m in meses],
                     'concluidos_keys':[_emek[md].get(m,[]) for m in meses]} for md in _emordem}}
 
-# por modulo: bugs, horas, mttr, trend
+# status que excluem esforço represado/não-entregue (usado tanto na tabela "Qualidade por
+# módulo" abaixo quanto no painel "Esforço por módulo" mais abaixo — mesma definição, cada
+# um com sua própria regra de resolução por cima, ver comentário no painel).
+STATUS_EXCLUI_ESFORCO={'IMPEDIMENTO DEV','IMPEDIMENTO PRODUTO'}
+
+# por modulo: bugs, horas, mttr, trend (tabela "Qualidade por módulo", moduleTable() em
+# build_dash.py). Colunas "Bugs (volume)"/"Tendência" já reformuladas em outro momento — não
+# tocar nelas aqui.
+#   MTTR ....... dias úteis entre criação e a PRIMEIRA transição pra "Em produção"/"Em
+#                Produção" (campo em_producao_data, changelog — mesma régua oficial de
+#                concluido_mes/evol_modulo, fetch_jira.py). NÃO usa resolutiondate (x['r']):
+#                vazio em boa parte da base, mesmo motivo de evolucao_bugs.py não usar esse
+#                campo. Card que nunca chegou a "Em produção" não entra no cálculo (mesmo
+#                comportamento de antes, só que pela transição real em vez do campo vazio).
+#   Esforço .... soma de timespent do módulo, excluindo só cards com status ATUAL de
+#                impedimento (STATUS_EXCLUI_ESFORCO acima) — esforço represado, não reflete
+#                trabalho concluído. Cancelado Dev CONTINUA contando aqui (diferente do painel
+#                "Esforço por módulo" abaixo, que exclui Cancelado Dev): cancelamento no dev
+#                geralmente teve análise real por trás, então o esforço não deve desaparecer
+#                desta tabela. Cálculo isolado do painel "Esforço por módulo" — não reaproveita
+#                a função _esforco_modulo (regra de resolução diferente).
 mods=collections.defaultdict(lambda:{'bugs':0,'seg':0.0,'mttr':[]})
 cria_mod=collections.defaultdict(lambda:collections.Counter())
 for x in sweep:
     m=x['m']; mm=mods[m]; mm['bugs']+=1
-    if isinstance(x['timespent'],(int,float)): mm['seg']+=x['timespent']
-    if x['c'] and x['r']: mm['mttr'].append(busdays(x['c'].date(),x['r'].date()))
+    if isinstance(x['timespent'],(int,float)) and x['status'] not in STATUS_EXCLUI_ESFORCO:
+        mm['seg']+=x['timespent']
+    epd=pdt(x.get('em_producao_data'))
+    if x['c'] and epd: mm['mttr'].append(busdays(x['c'].date(),epd.date()))
     if x['c']: cria_mod[m][x['c'].strftime('%Y-%m')]+=1
 last3=meses[-5:-2]; lastm=meses[-2]   # compara o último mês FECHADO (não o corrente parcial) com os 3 anteriores
 tab=[]
@@ -332,12 +354,11 @@ d['tabela_modulo']=tab
 # esforço por módulo (gráfico "Esforço por módulo", custoModulo() em build_dash.py) — POR
 # SAFRA (mês de criação do card, mesmo recorte do seletor "Safra em foco" — muda junto com
 # ele, como os demais painéis que usam curSafra()/DATA.*_por_mes no front-end), e só de cards
-# ATIVOS: exclui quem está parado em IMPEDIMENTO DEV/PRODUTO (esforço represado, não reflete
-# ritmo atual) e quem foi cancelado no dev (esforço que não vira entrega). Cálculo separado de
-# tab/tabela_modulo acima, que soma TODOS os cards de TODO o período (usado pela tabela
-# "Módulo" — colunas Bugs/Tendência/MTTR/Esforço continuam somando tudo, sem essa exclusão nem
-# recorte por safra).
-STATUS_EXCLUI_ESFORCO={'IMPEDIMENTO DEV','IMPEDIMENTO PRODUTO'}
+# ATIVOS: exclui quem está parado em IMPEDIMENTO DEV/PRODUTO (STATUS_EXCLUI_ESFORCO, definido
+# acima) e quem foi cancelado no dev (esforço que não vira entrega). Cálculo separado de
+# tab/tabela_modulo acima: aquele soma TODO o período (sem recorte de safra) e mantém
+# Cancelado Dev na coluna "Esforço (h)" — aqui exclui Cancelado Dev também, regra própria
+# deste painel.
 def _esforco_modulo(cards):
     seg=collections.defaultdict(float)
     for x in cards:
