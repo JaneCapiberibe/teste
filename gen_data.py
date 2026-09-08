@@ -318,12 +318,14 @@ STATUS_EXCLUI_ESFORCO={'IMPEDIMENTO DEV','IMPEDIMENTO PRODUTO'}
 # por modulo: bugs, horas, mttr, trend (tabela "Qualidade por módulo", moduleTable() em
 # build_dash.py). Colunas "Bugs (volume)"/"Tendência" já reformuladas em outro momento — não
 # tocar nelas aqui.
-#   MTTR ....... dias úteis entre criação e a PRIMEIRA transição pra "Em produção"/"Em
-#                Produção" (campo em_producao_data, changelog — mesma régua oficial de
-#                concluido_mes/evol_modulo, fetch_jira.py). NÃO usa resolutiondate (x['r']):
-#                vazio em boa parte da base, mesmo motivo de evolucao_bugs.py não usar esse
-#                campo. Card que nunca chegou a "Em produção" não entra no cálculo (mesmo
-#                comportamento de antes, só que pela transição real em vez do campo vazio).
+#   MTTR ....... dias úteis entre criação e a data de entrega (campo entrega_data, changelog,
+#                fetch_jira.py): 1ª transição pra "Em produção"/"Em Produção"; se o card nunca
+#                chegou lá, fallback pra 1ª transição pra "Done"/"Concluído"/"Concluido" —
+#                mesmos dois primeiros níveis da régua oficial de concluido_mes/evol_modulo
+#                (sem o fallback final de mês de criação, que faria sentido pra bucketing por
+#                mês mas daria MTTR=0 aqui). NÃO usa resolutiondate (x['r']): vazio em boa
+#                parte da base, mesmo motivo de evolucao_bugs.py não usar esse campo. Card sem
+#                nenhuma das duas transições no changelog não entra no cálculo.
 #   Esforço .... soma de timespent do módulo, excluindo só cards com status ATUAL de
 #                impedimento (STATUS_EXCLUI_ESFORCO acima) — esforço represado, não reflete
 #                trabalho concluído. Cancelado Dev CONTINUA contando aqui (diferente do painel
@@ -337,8 +339,8 @@ for x in sweep:
     m=x['m']; mm=mods[m]; mm['bugs']+=1
     if isinstance(x['timespent'],(int,float)) and x['status'] not in STATUS_EXCLUI_ESFORCO:
         mm['seg']+=x['timespent']
-    epd=pdt(x.get('em_producao_data'))
-    if x['c'] and epd: mm['mttr'].append(busdays(x['c'].date(),epd.date()))
+    edt=pdt(x.get('entrega_data'))
+    if x['c'] and edt: mm['mttr'].append(busdays(x['c'].date(),edt.date()))
     if x['c']: cria_mod[m][x['c'].strftime('%Y-%m')]+=1
 last3=meses[-5:-2]; lastm=meses[-2]   # compara o último mês FECHADO (não o corrente parcial) com os 3 anteriores
 tab=[]
