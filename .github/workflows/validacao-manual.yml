@@ -1,0 +1,140 @@
+name: Validação manual (temporário)
+
+# Workflow TEMPORÁRIO — roda fetch_jira.py + gen_data.py (com os segredos do Jira) SEM
+# publicar nada, só pra validar a tabela "Qualidade por módulo" (tabela_modulo):
+#   - MTTR: resolutiondate (antigo, main) x 1ª transição pra "Em produção" com fallback pra
+#     Done/Concluído (novo, entrega_data).
+#   - Esforço (h): sem exclusão (antigo) x exclui só status IMPEDIMENTO DEV/PRODUTO, mantendo
+#     Cancelado Dev (novo).
+# Confere também que Bugs/Tendência da mesma tabela e todo o resto do dash_data.json não
+# mudaram. Será removido depois de usado.
+on:
+  workflow_dispatch:
+
+jobs:
+  validacao:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Puxar do Jira (branch nova, com entrega_data)
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: python fetch_jira.py
+
+      - name: Recalcular dados NOVOS — sem publicar
+        run: |
+          python gen_data.py
+          cp dash_data.json dash_data_novo.json
+          cp sweep.json sweep_novo.json
+
+      - name: Checkout do código ANTIGO (main, sem as mudanças) pra comparar
+        run: |
+          git fetch origin main
+          git worktree add /tmp/antigo origin/main
+
+      - name: Gerar dados ANTIGOS — mesma base do Jira já puxada
+        run: |
+          cp sweep_novo.json /tmp/antigo/sweep.json
+          for f in jira_backlog.json impedimentos_live.json sobra_live.json ni_assignee.json; do
+            cp "$f" /tmp/antigo/"$f"
+          done
+          cd /tmp/antigo
+          python gen_data.py
+          cp dash_data.json /home/runner/work/teste/teste/dash_data_antigo.json
+
+      - name: "Diagnóstico: MTTR e Esforço ANTES x DEPOIS, por módulo"
+        run: |
+          python -c "
+          import json
+          antigo = json.load(open('dash_data_antigo.json'))
+          novo = json.load(open('dash_data_novo.json'))
+
+          a_por_mod = {t['mod']: t for t in antigo['tabela_modulo']}
+          n_por_mod = {t['mod']: t for t in novo['tabela_modulo']}
+
+          mods = sorted(n_por_mod, key=lambda m: -n_por_mod[m]['bugs'])[:8]
+          print(f'{\"módulo\":30s} {\"bugs\":>5s} | {\"mttr ANTES\":>11s} {\"mttr DEPOIS\":>12s} | {\"esforço ANTES\":>14s} {\"esforço DEPOIS\":>15s}')
+          for m in mods:
+              a = a_por_mod.get(m, {})
+              n = n_por_mod.get(m, {})
+              print(f'{m[:30]:30s} {n.get(\"bugs\"):>5} | {str(a.get(\"mttr\")):>11s} {str(n.get(\"mttr\")):>12s} | {str(a.get(\"horas\")):>14s} {str(n.get(\"horas\")):>15s}')
+          "
+
+      - name: "Diagnóstico: cobertura do MTTR — antes (resolutiondate) x agora (entrega_data com fallback)"
+        run: |
+          python -c "
+          import json
+          sweep = json.load(open('sweep_novo.json'))
+          total = len(sweep)
+          sem_entrega = [x for x in sweep if not x.get('entrega_data')]
+          sem_resolved = [x for x in sweep if not x.get('resolved')]
+          print(f'Total sweep: {total}')
+          print(f'Sem entrega_data (fora do MTTR novo, com fallback): {len(sem_entrega)} ({100*len(sem_entrega)/total:.0f}%)')
+          print(f'Sem resolved/resolutiondate (fora do MTTR antigo): {len(sem_resolved)} ({100*len(sem_resolved)/total:.0f}%)')
+          for x in sem_entrega[:5]:
+              print(f'  exemplo sem entrega_data: {x[\"key\"]} status={x[\"status\"]}')
+          "
+
+      - name: "Diagnóstico: quantos cards por módulo caem em IMPEDIMENTO DEV/PRODUTO (saem do esforço novo)"
+        run: |
+          python -c "
+          import json, re
+          sweep = json.load(open('sweep_novo.json'))
+          from collections import Counter
+          def mn(m): return 'Não classificado' if not m else re.sub(r'^\d+\s*-\s*','',str(m)).strip()
+          imped = [x for x in sweep if x.get('status') in ('IMPEDIMENTO DEV','IMPEDIMENTO PRODUTO')]
+          por_mod = Counter(mn(x.get('modulo')) for x in imped)
+          print(f'Total em impedimento (saem só do esforço, MTTR não muda por isso): {len(imped)}')
+          for mod, c in por_mod.most_common(10):
+              print(f'  {mod}: {c}')
+          canc_dev = [x for x in sweep if x.get('res')=='Cancelado Dev']
+          print(f'Total Cancelado Dev (continuam contando no esforço novo): {len(canc_dev)}')
+          "
+
+      - name: "Diagnóstico CRÍTICO: só bugs/horas/mttr mudaram na tabela — trend e volume intactos, e nada mais no JSON mudou"
+        run: |
+          python -c "
+          import json
+          antigo = json.load(open('dash_data_antigo.json'))
+          novo = json.load(open('dash_data_novo.json'))
+
+          a_por_mod = {t['mod']: t for t in antigo['tabela_modulo']}
+          n_por_mod = {t['mod']: t for t in novo['tabela_modulo']}
+          diverge_bugs = [m for m in n_por_mod if a_por_mod.get(m,{}).get('bugs') != n_por_mod[m]['bugs']]
+          diverge_trend = [m for m in n_por_mod if a_por_mod.get(m,{}).get('trend') != n_por_mod[m]['trend']]
+          print(f'Módulos com Bugs (volume) diferente (esperado: []): {diverge_bugs}')
+          print(f'Módulos com Tendência diferente (esperado: []): {diverge_trend}')
+          print()
+
+          def comparar(chave):
+              a = antigo.get(chave)
+              n = novo.get(chave)
+              igual = (a == n)
+              print(f'{chave}: IDÊNTICO = {igual}')
+              if not igual:
+                  print(f'  !!! DIFERENÇA ENCONTRADA em {chave} !!!')
+
+          for chave in ['deteccao', 'deteccao_por_mes', 'funil', 'funil_por_mes', 'aloc_por_mes',
+                        'evol_modulo', 'tot_series', 'det_series', 'det_series_meta',
+                        'alerta_parados', 'em_dev_devs', 'esforco_modulo_por_mes', 'esforco_modulo_ativo']:
+              comparar(chave)
+
+          print()
+          print('Campo que DEVE ter mudado (esperado False): tabela_modulo')
+          print(f'tabela_modulo IDÊNTICO: {antigo[\"tabela_modulo\"] == novo[\"tabela_modulo\"]}')
+          "
+
+      - name: "Diagnóstico: onde entrega_data e STATUS_EXCLUI_ESFORCO são usados"
+        run: grep -n "entrega_data\|STATUS_EXCLUI_ESFORCO" fetch_jira.py gen_data.py
