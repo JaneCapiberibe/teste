@@ -215,8 +215,18 @@ d['taxa_sobra']={'media_fechadas':round(statistics.mean([t['taxa_sobra'] for t i
                  'ult_fechada':fech[-1] if fech else None}
 
 # DETECÇÃO ao longo do tempo — escape rate mensal (Bug Cliente ÷ total criado no mês, base líquida, por mês de criação)
+# DECISÃO DE 08/09/2026 — exclusão ADICIONAL, SÓ NESTE GRÁFICO (não mexe em d['deteccao']/
+# d['deteccao_por_mes'] do Panorama, no funil, na Taxa de entrega, em d['aloc_por_mes'] nem em
+# evol_modulo — cada um já tem sua própria régua, decidida à parte): além do Cancelado QA que
+# `sweep` já exclui da base inteira, aqui também saem os cards Cancelado Dev cujo "Card
+# Revisado" (customfield_10120, multi-checkbox) contém "Comportamento do Sistema" — levantamento
+# em 08/09/2026 (ver conversa) mostrou que só 3 dos 18 Cancelado Dev do histórico têm esse valor;
+# os outros 15 (vazios) e qualquer outro valor cadastrado continuam contando normalmente.
+def _exclui_escape(x):
+    return x['res']=='Cancelado Dev' and 'Comportamento do Sistema' in (x.get('card_revisado') or [])
 det_mes=collections.defaultdict(lambda:collections.Counter())
 for x in sweep:
+    if _exclui_escape(x): continue
     if x['c']: det_mes[x['c'].strftime('%Y-%m')][x['itype']]+=1
 det_series=[]
 for m in meses:
