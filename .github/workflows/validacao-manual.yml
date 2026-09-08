@@ -1,0 +1,85 @@
+name: Validação manual (temporário)
+
+# Workflow TEMPORÁRIO — roda fetch_jira.py + gen_data.py (com os segredos do Jira) SEM
+# publicar nada, só pra validar a Tendência por dias úteis (seletor 3/6 meses) da tabela
+# "Qualidade por módulo" com dados reais antes de subir. Confere também que nada mais no
+# dash_data.json mudou (escopo: só tabela_modulo/meta). Será removido depois de usado.
+on:
+  workflow_dispatch:
+
+jobs:
+  validacao:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Puxar do Jira
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: python fetch_jira.py
+
+      - name: Recalcular dados NOVOS — sem publicar
+        run: |
+          python gen_data.py
+          python build_dash.py
+          cp dash_data.json dash_data_novo.json
+          cp sweep.json sweep_novo.json
+
+      - name: Checkout do código ANTIGO (main) pra comparar
+        run: |
+          git fetch origin main
+          git worktree add /tmp/antigo origin/main
+
+      - name: Gerar dados ANTIGOS — mesma base do Jira já puxada
+        run: |
+          cp sweep_novo.json /tmp/antigo/sweep.json
+          for f in jira_backlog.json impedimentos_live.json sobra_live.json ni_assignee.json; do
+            cp "$f" /tmp/antigo/"$f"
+          done
+          cd /tmp/antigo
+          python gen_data.py
+          cp dash_data.json /home/runner/work/teste/teste/dash_data_antigo.json
+
+      - name: "Diagnóstico: MTTR/Esforço/Tendência ANTES x DEPOIS, por módulo (top 8)"
+        run: |
+          python -c "
+          import json
+          antigo = json.load(open('dash_data_antigo.json'))
+          novo = json.load(open('dash_data_novo.json'))
+          a_por_mod = {t['mod']: t for t in antigo['tabela_modulo']}
+          n_por_mod = {t['mod']: t for t in novo['tabela_modulo']}
+          mods = sorted(n_por_mod, key=lambda m: -n_por_mod[m]['bugs'])[:8]
+          print(f'{\"módulo\":30s} {\"bugs\":>5s} | {\"trend3\":>8s} {\"trend6\":>8s} | {\"mttr\":>5s} | {\"esforço\":>8s} | {\"small\":>6s}')
+          for m in mods:
+              n = n_por_mod[m]
+              print(f'{m[:30]:30s} {n[\"bugs\"]:>5} | {n[\"trend3\"]:>8s} {n[\"trend6\"]:>8s} | {str(n[\"mttr\"]):>5s} | {n[\"horas\"]:>8} | {str(n[\"small\"]):>6s}')
+          print()
+          print('meta dias úteis:', novo['meta'].get('dias_uteis_decorridos_mes'), '/', novo['meta'].get('dias_uteis_totais_mes'))
+          "
+
+      - name: "Diagnóstico CRÍTICO: só tabela_modulo/meta mudaram"
+        run: |
+          python -c "
+          import json
+          antigo = json.load(open('dash_data_antigo.json'))
+          novo = json.load(open('dash_data_novo.json'))
+          diffs = [k for k in sorted(set(antigo)|set(novo)) if antigo.get(k) != novo.get(k)]
+          print('Campos diferentes (esperado: apenas tabela_modulo e meta):', diffs)
+          if 'meta' in diffs:
+              ma, mn = antigo.get('meta',{}), novo.get('meta',{})
+              print('  meta diffs:', {k for k in set(ma)|set(mn) if ma.get(k)!=mn.get(k)})
+          "
+
+      - name: "Diagnóstico: build_dash.py roda sem erro (já rodou acima) e o painel Tendência dos módulos não mudou"
+        run: grep -n "trendMods\|moduleTrendChart" gen_data.py || echo "OK: gen_data.py não referencia trendMods/moduleTrendChart (painel intocado)"
