@@ -1,4 +1,4 @@
-name: Validação manual (temporário)
+name: Validação manual 8 (temporário)
 
 # Workflow TEMPORÁRIO — roda fetch_jira.py + gen_data.py (com os segredos do Jira) SEM
 # publicar nada, só pra validar a Tendência por dias úteis (seletor 3/6 meses) da tabela
