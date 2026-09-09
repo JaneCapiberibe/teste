@@ -1,0 +1,112 @@
+name: "[TEMP] Validação Carga por squad (por safra, changelog)"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Puxar do Jira
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: python fetch_jira.py
+
+      - name: Guardar sweep.json (mesma base pras duas rodadas)
+        run: cp sweep.json /tmp/sweep_shared.json
+
+      - name: Rodar gen_data.py NOVO (squad por safra, changelog)
+        run: |
+          cp /tmp/sweep_shared.json sweep.json
+          python gen_data.py
+          cp dash_data.json /tmp/dash_data_new.json
+
+      - name: Buscar gen_data.py ANTIGO (origin/main, pré-mudança)
+        run: |
+          git fetch origin main
+          git show origin/main:gen_data.py > /tmp/gen_data_old.py
+
+      - name: Rodar gen_data.py ANTIGO (squad acumulado, resolutiondate) na MESMA base do Jira
+        run: |
+          cp /tmp/sweep_shared.json sweep.json
+          cp /tmp/gen_data_old.py gen_data.py
+          python gen_data.py
+          cp dash_data.json /tmp/dash_data_old.json
+
+      - name: Diff dash_data.json (old vs new) — só d['squads']/d['squads_por_mes']/meta devem mudar
+        run: |
+          python3 - <<'PYEOF'
+          import json
+          old = json.load(open('/tmp/dash_data_old.json'))
+          new = json.load(open('/tmp/dash_data_new.json'))
+          ok = set(old.keys()) | set(new.keys())
+          changed = [k for k in sorted(ok) if old.get(k) != new.get(k)]
+          same = [k for k in sorted(ok) if old.get(k) == new.get(k)]
+          print("=== CHAVES DE TOPO QUE MUDARAM ===")
+          for k in changed: print(" -", k)
+          print()
+          print("=== CHAVES DE TOPO IGUAIS (", len(same), ") ===")
+          print(" ", ", ".join(same))
+          esperado = {'squads', 'squads_por_mes', 'meta'}
+          inesperado = set(changed) - esperado
+          print()
+          if inesperado:
+              print("!!! MUDOU ALGO FORA DO ESPERADO:", inesperado)
+          else:
+              print(">>> OK: só mudou o esperado:", esperado & set(changed))
+
+          print()
+          print("=== SQUADS (acumulado) — ANTES ===")
+          print(json.dumps(old.get('squads'), ensure_ascii=False, indent=2))
+          print()
+          print("=== SQUADS (agora = mês corrente, via squads_por_mes) — DEPOIS ===")
+          print(json.dumps(new.get('squads'), ensure_ascii=False, indent=2))
+
+          print()
+          print("=== meta.piso_amostra_squad ===")
+          print(new.get('meta', {}).get('piso_amostra_squad'))
+          PYEOF
+
+      - name: Mostrar squads_por_mes de 2 safras reais
+        run: |
+          python3 - <<'PYEOF'
+          import json
+          new = json.load(open('/tmp/dash_data_new.json'))
+          meses = sorted((new.get('squads_por_mes') or {}).keys())
+          amostra = meses[-2:] if len(meses) >= 2 else meses
+          for m in amostra:
+              print(f"\n=== SAFRA {m} — squads_por_mes ===")
+              print(json.dumps(new['squads_por_mes'][m], ensure_ascii=False, indent=2))
+          PYEOF
+
+      - name: Rodar build_dash.py NOVO (garante que não quebra com dado real)
+        run: |
+          cp /tmp/dash_data_new.json dash_data.json
+          git checkout -- gen_data.py
+          python build_dash.py
+          echo "build_dash.py OK com dado real"
+
+      - name: Upload artefatos de validação
+        uses: actions/upload-artifact@v4
+        with:
+          name: validacao-squad-por-safra
+          path: |
+            /tmp/dash_data_old.json
+            /tmp/dash_data_new.json
+          retention-days: 7
