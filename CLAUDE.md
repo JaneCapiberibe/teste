@@ -21,9 +21,9 @@ Publicado via GitHub Actions (roda diário). Ver `README.md` para rodar localmen
 
 ## Regras da casa (obrigatórias)
 
-- **Jira é a fonte da verdade.** Toda métrica de bug vem do sweep (Jira, via `sweep.json`) ou do
-  CSV de Time-in-Status (`inputs/suporte_list.csv`). **Nunca invente número** — se um dado não
-  existe no Jira/CSV, não estimar “no olho”, deixar explícito que falta.
+- **Jira é a fonte da verdade.** Toda métrica de bug vem do sweep (Jira, via `sweep.json`,
+  changelog incluso). **Nunca invente número** — se um dado não existe no Jira, não estimar
+  “no olho”, deixar explícito que falta.
 
 - **Base "líquida".** Toda métrica de bug exclui:
   - resolução **"Cancelado QA"** (descartado pelo QA, não é defeito de produto);
@@ -84,9 +84,10 @@ Publicado via GitHub Actions (roda diário). Ver `README.md` para rodar localmen
    explicitamente mostrar os descartados.
 2. Se a métrica precisa de um corte por módulo, veja se dá pra reaproveitar `d['evol_modulo']` (a
    régua oficial criaD/concD acima, por módulo) em vez de criar um cálculo novo do zero.
-3. Se a métrica depende do CSV de Time-in-Status, lembre que ele é uma amostra **menor** que o
-   total de bugs (nem todo card tem export de tempo em status) — trate a cobertura (`tis_n`) como
-   um número à parte de `n` (total de bugs) e avise quando for pequena.
+3. Se a métrica é calculada por safra (mês) em vez de acumulada, lembre que o volume por safra é
+   bem menor que o total acumulado — abaixo de um piso razoável (ex.: `PISO_AMOSTRA_SLA` em
+   `gen_data.py`, usado no Cumprimento de SLA por prioridade) marque a amostra como pequena
+   (`.selo-amostra`) em vez de mostrar um % que pode não ser confiável.
 4. Depois de mudar `gen_data.py` e/ou `build_dash.py`, rode o pipeline localmente (ver
    `README.md` → "Rodar/testar localmente") e confira que `python build_dash.py` termina sem erro
    antes de subir a mudança.

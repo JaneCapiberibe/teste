@@ -177,6 +177,18 @@ def _concluido_mes(status, created, changes):
             mes = mm(created)
     return mes
 
+def _first_to_epoch_after(changes, status_names, after_epoch):
+    """Igual a _first_to_epoch, mas só considera transições que aconteçam DEPOIS de
+    `after_epoch` (exclusive) — usado pra achar o Done/Concluído que vem DEPOIS da entrega
+    (Em produção), não um Done de um fluxo anterior do card (ex.: reaberto e refeito)."""
+    if after_epoch is None:
+        return None
+    names = (status_names,) if isinstance(status_names, str) else tuple(status_names)
+    for ep, to in changes:
+        if ep and ep > after_epoch and to in names:
+            return ep
+    return None
+
 def _entrega_epoch(changes):
     """Instante exato da entrega pra fins de MTTR (tabela "Qualidade por módulo",
     gen_data.py): 1ª entrada em "Em produção"; fallback 1ª entrada em Done/Concluído — mesmos
@@ -212,6 +224,25 @@ def norm(issue, changes=None):
     # acima) — pro MTTR da tabela "Qualidade por módulo" (tabela_modulo, gen_data.py): dias
     # úteis até a ENTREGA do dev, não até resolutiondate (vazio em boa parte da base).
     entrega_data = _epoch_iso(_entrega_epoch(changes))
+    # Previsibilidade do DEV + "Prioridade & SLA" (gen_data.py) — DECISÃO DE 09/09/2026: régua
+    # de tempo de desenvolvimento passou do export manual inputs/suporte_list.csv pro changelog
+    # (mesmo /changelog/bulkfetch acima, não busca de novo). Três instantes exatos, sem
+    # fallback nenhum entre eles (cada um é o que é; card sem a transição fica de fora do
+    # cálculo em gen_data.py, não tenta adivinhar):
+    #   nao_iniciado_data ......... 1ª entrada em "Não Iniciado" (início da fila).
+    #   producao_data ............. 1ª entrada em "Em produção"/"Em Produção" — PURO, sem o
+    #                               fallback pra Done que entrega_data tem acima (ali o
+    #                               fallback existe pra MTTR nunca ficar sem dado; aqui
+    #                               precisamos do instante exato de "chegou em produção" pra
+    #                               medir o dev separado do suporte — usar o fallback
+    #                               misturaria os dois).
+    #   done_pos_producao_data .... 1ª entrada em Done/Concluído/Concluido DEPOIS de
+    #                               producao_data (não antes — senão pegaria um Done de um
+    #                               ciclo anterior do card, se ele foi reaberto).
+    nao_iniciado_data = _epoch_iso(_first_to_epoch(changes, 'Não Iniciado'))
+    _producao_epoch = _first_to_epoch(changes, ST_PRODUCAO)
+    producao_data = _epoch_iso(_producao_epoch)
+    done_pos_producao_data = _epoch_iso(_first_to_epoch_after(changes, ST_DONE, _producao_epoch))
     # "Card Revisado" (customfield_10120) — multi-checkbox: a API devolve uma lista de opções,
     # cada uma com 'value' (confirmado via API real: [{'value':'Comportamento do Sistema',...}]).
     # Normaliza pra lista simples de strings — hoje só o escape rate (det_series, gen_data.py)
@@ -233,6 +264,9 @@ def norm(issue, changes=None):
         'concluido_mes': _concluido_mes(status, created, changes),
         'em_dev_data': em_dev_data,
         'entrega_data': entrega_data,
+        'nao_iniciado_data': nao_iniciado_data,
+        'producao_data': producao_data,
+        'done_pos_producao_data': done_pos_producao_data,
         'card_revisado': card_revisado,
     }
 
@@ -248,6 +282,7 @@ def build_outputs(recs):
     # 1) sweep.json (formato do gen_data)
     sweep = [{k: r[k] for k in ('key', 'status', 'prio', 'itype', 'res', 'created', 'resolved', 'timespent',
               'modulo', 'assignee', 'assignee_avatar', 'concluido_mes', 'em_dev_data', 'entrega_data',
+              'nao_iniciado_data', 'producao_data', 'done_pos_producao_data',
               'card_revisado')} for r in recs]
     json.dump(sweep, open('sweep.json', 'w'), ensure_ascii=False)
 

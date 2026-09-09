@@ -367,31 +367,46 @@ function kpiCards(){
      <div style="display:flex;align-items:center;gap:14px;margin-top:2px">${donutN(detSegs(det))}
        <div style="font-size:12.5px;line-height:1.55">${detLegend(det)}</div></div>
      <div class="kpi-sub" style="margin-top:8px">${det.escape_pct}% escapou para o cliente · ${det.interno_pct}% barrado internamente.</div></div>
-   <div class="card"><div class="kpi-label">${svg('bullseye','kpi-ico')}Previsibilidade do DEV — % dentro do SLA (Não Iniciado→Produção, p95) <span class="tag-per" title="considera todos os meses até a safra atual">acumulado</span><span class="info" data-tip="% de bugs cujo tempo de DESENVOLVIMENTO (do momento em que entram em 'Não Iniciado' até entrarem em 'Produção') coube no prazo do SLA da sua prioridade, medido em horas úteis. p95: os 5% mais lentos de cada prioridade são excluídos para tirar o efeito de outliers extremos. NÃO inclui o tempo de suporte (Produção → Concluído), que é o período em que o suporte fecha com o cliente — esse é medido à parte no bloco Prioridade & SLA. Calculado a partir de inputs/suporte_list.csv, um export ESTÁTICO — só atualiza quando alguém reexporta e substitui o arquivo (ver dado abaixo).">i</span></div>
+   <div class="card"><div class="kpi-label">${svg('bullseye','kpi-ico')}Previsibilidade do DEV — % dentro do SLA (Não Iniciado→Produção, p95) <span class="tag-per" title="considera todos os meses até a safra atual">acumulado</span><span class="info" data-tip="% de bugs cujo tempo de DESENVOLVIMENTO (do momento em que entram em 'Não Iniciado' até entrarem em 'Produção') coube no prazo do SLA da sua prioridade, medido em dias úteis × 8h. p95: os 5% mais lentos de cada prioridade são excluídos para tirar o efeito de outliers extremos. NÃO inclui o tempo de suporte (Produção → Concluído), que é o período em que o suporte fecha com o cliente — esse é medido à parte no bloco Prioridade & SLA. Calculado ao vivo a partir do changelog do Jira (1ª entrada em cada status), não de um export manual.">i</span></div>
      <div class="kpi-val" style="color:${prevColor(pv.agregado)}">${pv.agregado}%</div>
-     <div class="kpi-sub">${pv.ok} de ${pv.n} bugs dentro do prazo (p95 — excluídos os 5% mais lentos de cada prioridade, ${pv.excluidos} cards). Horas úteis, tempo em status validado. Não inclui o tempo de suporte pós-produção.${pv.snapshot?` <b>Dados de ${pv.snapshot}</b> (export estático, não ao vivo).`:''}</div></div>
+     <div class="kpi-sub">${pv.ok} de ${pv.n} bugs dentro do prazo (p95 — excluídos os 5% mais lentos de cada prioridade, ${pv.excluidos} cards). Dias úteis × 8h, direto do changelog do Jira. Não inclui o tempo de suporte pós-produção.</div></div>
    <div class="card"><div class="kpi-label">${svg('truck-fast','kpi-ico')}Taxa de entrega — safra ${mesLbl(s.mes)}${atual?' (em andamento)':''}<span class="info" data-tip="Dos bugs reais que ENTRARAM no mês selecionado, quantos % já foram entregues — status atual em Em produção/Done/Concluído/Concluido, EXCLUINDO cards cancelados no próprio dev (resolution Cancelado Dev), que não contam como entrega real mesmo se o status ficou Done/Concluído. Muda conforme o mês escolhido no seletor de safra.">i</span></div>
      <div class="kpi-val" style="color:${prevColor(s.pct_entrega)}">${s.pct_entrega}%</div>
      <div class="kpi-sub">${s.mes}: entregou ${s.entregues} de ${s.criados} bugs que entraram · ${s.abertos} ainda abertos dessa safra.${atual?' Mês corrente ainda em andamento — o número tende a subir.':''}</div></div>
   </div>`;
 }
 function slaSection(){
-  const pv=DATA.previsibilidade, sev=DATA.severidade;
-  const maxSev=Math.max(...sev.map(s=>s.n));
+  // Bugs por severidade E Cumprimento de SLA por prioridade — POR SAFRA (mês de criação),
+  // mesma variável de safra selecionada usada em "Taxa de entrega"/"Detecção" (curSafra()).
+  // DIFERENTE de "Previsibilidade do DEV" do Panorama (kpiCards, acima), que continua
+  // acumulado — decisão de 09/09/2026.
+  const last=DATA.tot_series[DATA.tot_series.length-1];
+  const s=DATA.tot_series.find(t=>t.mes===curSafra())||last;
+  const sev=(DATA.severidade_por_mes&&DATA.severidade_por_mes[s.mes])||DATA.severidade||[];
+  const slaLinhas=(DATA.sla_por_mes&&DATA.sla_por_mes[s.mes]&&DATA.sla_por_mes[s.mes].por_prio)||[];
+  const piso=DATA.meta.piso_amostra_sla;
+  const maxSev=Math.max(1,...sev.map(x=>x.n));
   const sevPal=[col('--s8'),col('--s2'),col('--s4'),col('--s1'),col('--s3'),col('--text-3')];
-  const sevBars=sev.map((s,i)=>`<div class="bar-row"><div class="lbl">${s.nivel}</div>
-     <div class="bar-track"><div class="bar-fill" style="width:${(s.n/maxSev*100).toFixed(1)}%;background:${sevPal[i]}"></div></div>
-     <div class="bar-val">${s.n}</div></div>`).join('');
-  const slaRows=pv.por_prio.map(p=>`<tr><td>${p.nivel}</td><td class="num">≤${p.sla}h</td>
+  const sevBars=sev.map((x,i)=>{
+    const barra=`<div class="bar-row"><div class="lbl">${x.nivel}</div>
+     <div class="bar-track"><div class="bar-fill" style="width:${(x.n/maxSev*100).toFixed(1)}%;background:${sevPal[i]}"></div></div>
+     <div class="bar-val">${x.n}</div></div>`;
+    return (x.nivel==='Sem prioridade'&&x.url)
+      ? `<a href="${x.url}" target="_blank" rel="noopener" style="display:block;color:inherit;text-decoration:none;cursor:pointer" title="Clique p/ ver os cards no Jira">${barra}</a>`
+      : barra;
+  }).join('');
+  const slaRows=slaLinhas.map(p=>`<tr><td>${p.nivel}</td><td class="num">≤${p.sla}h</td>
      <td class="num">${p.n}</td>
-     <td class="num" style="color:${prevColor(p.pct)};font-weight:700">${p.pct}%</td>
-     <td class="num">${p.mttr}</td></tr>`).join('');
+     <td class="num">${p.small
+        ?`<span class="selo-amostra" title="Amostra pequena — menos de ${piso} bugs dessa prioridade nesta safra. % ao lado pode não ser confiável, leia com cautela.">!</span> ${p.pct}%`
+        :`<span style="color:${prevColor(p.pct)};font-weight:700">${p.pct}%</span>`}</td>
+     <td class="num">${p.mttr!=null?p.mttr:'—'}</td></tr>`).join('');
   return `<div class="grid2">
-   <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Bugs por severidade</div>${sevBars}
-     <div class="note">Prioridade do card no Jira. "Sem prioridade" = cards em "Preencher Prioridade" — lacuna de triagem.</div></div>
-   <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Cumprimento de SLA por prioridade</div>
-     <table><thead><tr><th>Nível ${ico('Nível de prioridade do bug no Jira (Muito alta a Muito baixa = Highest a Lowest).')}</th><th class="num">SLA ${ico('Prazo-alvo de resolução do desenvolvimento para aquela prioridade, em horas úteis, conforme a régua de SLA da empresa.')}</th><th class="num">Bugs ${ico('Quantidade de bugs resolvidos naquela prioridade que entraram no cálculo (já com o p95 aplicado, ou seja, sem os 5% mais lentos).')}</th><th class="num">Dentro do SLA ${ico('% desses bugs cujo tempo de desenvolvimento (Não Iniciado→Produção) coube no prazo do SLA da prioridade.',1)}</th><th class="num">Mediana dev (d.úteis) ${ico('Tempo mediano de desenvolvimento (Não Iniciado→Produção) da prioridade, em dias úteis (jornada de 8h). Mediana = valor do meio, menos sensível a extremos que a média.',1)}</th></tr></thead><tbody>${slaRows}</tbody></table>
-     <div class="note"><b>Como ler:</b> % de bugs em que o <b>desenvolvimento</b> (Não Iniciado→Produção) coube no prazo da prioridade, em horas úteis — validado célula a célula contra o histórico real do Jira (Time in Status). SLA: Muito alta 8h, Alta 12h, Média 16h, Baixa 24h, Muito baixa 40h. <b>p95:</b> os 5% mais lentos de cada prioridade são excluídos para tirar o efeito de outliers extremos. <b>Mede o dev, não o "Concluído"</b> — o tempo entre Produção e o fechamento do suporte é medido à parte (mediana ${DATA.suporte_lag?DATA.suporte_lag.mediana_h:'—'}h úteis, ${DATA.suporte_lag?DATA.suporte_lag.n:0} cards). Mostra que o SLA antigo — criado sem embasamento — está apertado para a capacidade real; dado para recalibrar.</div></div>
+   <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Bugs por severidade <span class="tag-per" title="muda conforme a safra selecionada">safra ${mesLbl(s.mes)}</span></div>${sevBars||'<div class="note">Sem bugs criados nesta safra.</div>'}
+     <div class="note">Prioridade do card no Jira, só dos bugs <b>criados na safra selecionada</b>. "Sem prioridade" = cards sem prioridade preenchida ou em "Preencher Prioridade" — lacuna de triagem; clique na barra pra ver os cards no Jira.</div></div>
+   <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Cumprimento de SLA por prioridade <span class="tag-per" title="muda conforme a safra selecionada">safra ${mesLbl(s.mes)}</span></div>
+     <table><thead><tr><th>Nível ${ico('Nível de prioridade do bug no Jira (Muito alta a Muito baixa = Highest a Lowest).')}</th><th class="num">SLA ${ico('Prazo-alvo de resolução do desenvolvimento para aquela prioridade, em horas úteis, conforme a régua de SLA da empresa.')}</th><th class="num">Bugs ${ico('Quantidade de bugs dessa prioridade CRIADOS na safra selecionada que entraram no cálculo (já com o p95 aplicado, ou seja, sem os 5% mais lentos).')}</th><th class="num">Dentro do SLA ${ico('% desses bugs cujo tempo de desenvolvimento (Não Iniciado→Produção) coube no prazo do SLA da prioridade. Com menos de '+piso+' bugs na prioridade nesta safra, o selo (!) avisa que a amostra é pequena demais pro % ser confiável.',1)}</th><th class="num">Mediana dev (d.úteis) ${ico('Tempo mediano de desenvolvimento (Não Iniciado→Produção) da prioridade, nesta safra, em dias úteis (jornada de 8h). Mediana = valor do meio, menos sensível a extremos que a média.',1)}</th></tr></thead><tbody>${slaRows||'<tr><td colspan="5" class="num">Sem bugs com dev medido nesta safra.</td></tr>'}</tbody></table>
+     <div class="note"><b>Como ler:</b> % de bugs <b>criados nesta safra</b> em que o <b>desenvolvimento</b> (Não Iniciado→Produção) coube no prazo da prioridade — calculado ao vivo do changelog do Jira (1ª entrada em cada status), dias úteis × 8h. SLA: Muito alta 8h, Alta 12h, Média 16h, Baixa 24h, Muito baixa 40h. <b>p95:</b> os 5% mais lentos de cada prioridade são excluídos para tirar o efeito de outliers extremos (numa safra só, com poucos bugs, isso às vezes não corta nada — daí o selo de amostra pequena). <b>Mede o dev, não o "Concluído"</b> — o tempo entre Produção e o fechamento do suporte é medido à parte, acumulado (mediana ${DATA.suporte_lag?DATA.suporte_lag.mediana_h:'—'}h úteis, ${DATA.suporte_lag?DATA.suporte_lag.n:0} cards). Mostra que o SLA antigo — criado sem embasamento — está apertado para a capacidade real; dado para recalibrar.</div></div>
   </div>`;
 }
 

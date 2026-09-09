@@ -23,11 +23,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # fetch-depth: 0 (histórico completo) — necessário pro snapshot_arquivo() em
-          # gen_data.py (git log -1 -- inputs/suporte_list.csv). Com o padrão (raso,
-          # depth=1) só o commit do checkout existe localmente; como ele não tem pai, git
-          # trata TODO arquivo como "alterado" nesse commit — snapshot sempre mostraria a
-          # data de hoje, escondendo a data real da última reexportação do CSV.
+          # fetch-depth: 0 (histórico completo) — não é mais exigido por gen_data.py (a função
+          # snapshot_arquivo(), que usava `git log` pra achar a data do último export do CSV de
+          # Time-in-Status, foi removida em 09/09/2026 junto com o CSV; previsibilidade/SLA agora
+          # vêm do changelog do Jira). Mantido como está por não ser parte do escopo desta mudança
+          # — revisar se ainda é necessário para algo antes de trocar para checkout raso.
           fetch-depth: 0
 
       - uses: actions/setup-python@v5
