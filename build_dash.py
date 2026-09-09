@@ -674,21 +674,35 @@ function alertCard(){
   </div>`;
 }
 function squadSection(){
-  const S=DATA.squads; const maxL=Math.max(...S.filter(s=>s.bugs_por_pessoa).map(s=>s.bugs_por_pessoa));
+  // Carga por squad — POR SAFRA (mês de criação), mesmo seletor de safra do resto do painel.
+  // DECISÃO DE 09/09/2026: Pessoas/mapa Squad→Módulo continuam hardcoded (SQUAD, gen_data.py);
+  // só as colunas numéricas (Bugs/Bugs por pessoa/Esforço/MTTR/%SLA) passam a refletir só a
+  // safra selecionada. MTTR reaproveita o mesmo método de "Qualidade por módulo" (entrega_data);
+  // %SLA reaproveita a mesma função de "Cumprimento de SLA por prioridade" (_dev_horas no
+  // gen_data.py), agora agrupada por squad.
+  const last=DATA.tot_series[DATA.tot_series.length-1];
+  const s=DATA.tot_series.find(t=>t.mes===curSafra())||last;
+  const S=(DATA.squads_por_mes&&DATA.squads_por_mes[s.mes])||DATA.squads||[];
+  const piso=DATA.meta.piso_amostra_squad;
+  const maxL=Math.max(1,...S.filter(x=>x.bugs_por_pessoa).map(x=>x.bugs_por_pessoa));
+  const maxBugs=Math.max(1,...S.map(x=>x.bugs));
   const badge=(r)=>r==='interno'?'<span class="badge b-flat" style="background:rgba(42,120,214,.14);color:var(--s1)">folha</span>':(r==='contratado'?'<span class="badge b-flat" style="background:rgba(235,104,52,.16);color:var(--s2)">contrato</span>':'<span class="badge b-flat">—</span>');
-  const row=(s)=>`<tr>
-    <td>${s.squad}</td><td>${badge(s.regime)}</td>
-    <td class="num">${s.pessoas??'—'}</td>
-    <td class="num"><span class="heat" style="${heatColor(s.bugs, Math.max(...S.map(x=>x.bugs)))}">${s.bugs}</span></td>
-    <td class="num">${s.bugs_por_pessoa!=null?`<span class="heat" style="${heatColor(s.bugs_por_pessoa,maxL)}">${s.bugs_por_pessoa}</span>`:'—'}</td>
-    <td class="num">${s.horas}</td>
-    <td class="num">${s.mttr??'—'}</td>
-    <td class="num" style="color:${s.sla!=null?prevColor(s.sla):'var(--text-3)'};font-weight:700">${s.sla!=null?s.sla+'%':'—'}</td></tr>`;
+  const selo=(txt)=>`<span class="selo-amostra" title="${txt}">!</span> `;
+  const row=(x)=>`<tr>
+    <td>${x.squad}</td><td>${badge(x.regime)}</td>
+    <td class="num">${x.pessoas??'—'}</td>
+    <td class="num"><span class="heat" style="${heatColor(x.bugs,maxBugs)}">${x.bugs}</span></td>
+    <td class="num">${x.bugs_por_pessoa!=null?`<span class="heat" style="${heatColor(x.bugs_por_pessoa,maxL)}">${x.bugs_por_pessoa}</span>`:'—'}</td>
+    <td class="num">${x.horas}</td>
+    <td class="num">${x.mttr!=null?(x.mttr_small?selo(`Amostra pequena — menos de ${piso} bugs desse squad com entrega medida nesta safra. Valor ao lado pode não ser confiável.`):'')+x.mttr:'—'}</td>
+    <td class="num" style="color:${x.sla!=null?prevColor(x.sla):'var(--text-3)'};font-weight:700">${x.sla!=null?(x.sla_small?selo(`Amostra pequena — menos de ${piso} bugs desse squad com dev medido nesta safra. % pode não ser confiável.`):'')+x.sla+'%':'—'}</td></tr>`;
   const body=S.map(row).join('');
-  return `<div class="panel"><table>
-    <thead><tr><th>Squad ${ico('Time responsável pela manutenção do(s) módulo(s), pelo mapa de responsabilidade definido com a gestão.')}</th><th>Regime ${ico('Como o custo do squad é pago: folha = CLT (salário + encargos); contrato = prestador de serviço externo. Nunca custear módulo contratado com custo-hora da folha.')}</th><th class="num">Pessoas ${ico('Número de pessoas no squad. Em branco quando o headcount ainda não foi confirmado.')}</th><th class="num">Bugs ${ico('Total de bugs atribuídos aos módulos do squad.')}</th><th class="num">Bugs/pessoa ${ico('Bugs ÷ pessoas do squad — indicador de sobrecarga. Quanto maior, mais carga por cabeça.')}</th><th class="num">Esforço (h) ${ico('Soma das horas apontadas (worklog) nos bugs do squad. Piso, pois só ~64% dos cards têm apontamento.',1)}</th><th class="num">MTTR (d.úteis) ${ico('Tempo médio de resolução do squad, em dias úteis entre criação e conclusão do card.',1)}</th><th class="num">% SLA ${ico('% de bugs do squad resolvidos dentro do prazo do SLA da prioridade (criação→conclusão em horas úteis).',1)}</th></tr></thead>
-    <tbody>${body}</tbody></table>
-    <div class="note"><b>Carga × capacidade.</b> "Bugs/pessoa" é o indicador de sobrecarga (headcount do squad). <b>Folha</b> = custo sai de salário+encargos; <b>contrato</b> = custo é o valor do contrato de manutenção (a informar) — nunca custear módulo contratado com custo-hora da folha. Pessoas de TI e do produto OF CDE ainda sem headcount; "Não atribuído" reúne Chat de Suporte, Arquivos Públicos, OF BI e os Não classificado. Base: ${DATA.meta.total_bugs_base_atual} bugs.</div></div>`;
+  return `<div class="panel">
+    <div class="kpi-label" style="margin-bottom:10px">Carga por squad <span class="tag-per" title="muda conforme a safra selecionada">safra ${mesLbl(s.mes)}</span></div>
+    <table>
+    <thead><tr><th>Squad ${ico('Time responsável pela manutenção do(s) módulo(s), pelo mapa de responsabilidade definido com a gestão.')}</th><th>Regime ${ico('Como o custo do squad é pago: folha = CLT (salário + encargos); contrato = prestador de serviço externo. Nunca custear módulo contratado com custo-hora da folha.')}</th><th class="num">Pessoas ${ico('Número de pessoas no squad. Em branco quando o headcount ainda não foi confirmado.')}</th><th class="num">Bugs ${ico('Bugs dos módulos do squad CRIADOS na safra selecionada.')}</th><th class="num">Bugs/pessoa ${ico('Bugs (da safra) ÷ pessoas do squad — indicador de sobrecarga. Quanto maior, mais carga por cabeça.')}</th><th class="num">Esforço (h) ${ico('Soma das horas apontadas (worklog) nos bugs do squad CRIADOS na safra selecionada. Piso, pois nem todo card tem apontamento.',1)}</th><th class="num">MTTR (d.úteis) ${ico('Mediana de dias úteis entre criação e entrega (1ª entrada em Em produção, changelog) dos bugs do squad criados nesta safra — mesmo método de Qualidade por módulo. Com menos de '+piso+' bugs com entrega medida, o selo (!) avisa amostra pequena.',1)}</th><th class="num">% SLA ${ico('% de bugs do squad, criados nesta safra, cujo tempo de desenvolvimento (Não Iniciado→Em Produção) coube no SLA da prioridade — mesmo cálculo de Cumprimento de SLA por prioridade, agrupado por squad. Com menos de '+piso+' bugs com dev medido, o selo (!) avisa amostra pequena.',1)}</th></tr></thead>
+    <tbody>${body||'<tr><td colspan="8" class="num">Sem bugs criados nesta safra.</td></tr>'}</tbody></table>
+    <div class="note"><b>Carga × capacidade.</b> "Bugs/pessoa" é o indicador de sobrecarga (headcount do squad). <b>Folha</b> = custo sai de salário+encargos; <b>contrato</b> = custo é o valor do contrato de manutenção (a informar) — nunca custear módulo contratado com custo-hora da folha. Pessoas de TI e do produto OF CDE ainda sem headcount; "Não atribuído" reúne Chat de Suporte, Arquivos Públicos, OF BI e os Não classificado. Base: ${s.criados} bugs criados na safra ${mesLbl(s.mes)}.</div></div>`;
 }
 window.__mhMod=null;
 function mhCurMod(){return window.__mhMod || DATA.mod_history.ordem[0];}

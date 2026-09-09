@@ -449,26 +449,10 @@ for x in sweep:
 em_dev.sort(key=lambda t:-(t['dias'] if t['dias'] is not None else -1))
 d['em_dev_devs']=em_dev
 
-# squads
+# squads — Pessoas (headcount) e o mapa Squad→Módulo continuam hardcoded aqui (fora do escopo
+# da mudança de 09/09/2026 abaixo). O CÁLCULO por squad (Bugs/Esforço/MTTR/%SLA) foi movido pra
+# mais abaixo (perto de _dev_horas/entrega_data), ver "CARGA POR SQUAD — POR SAFRA".
 SQUAD={'Orçamento':('Orçamento','interno',6),'Bases de Preço':('Orçamento','interno',6),'Gestão de Base Própria':('Orçamento','interno',6),'Sofia':('Orçamento','interno',6),'Cadastro/Administrar Empresa':('Backoffice','interno',2),'Prime':('Prime','interno',3),'TI':('TI','interno',None),'Medição':('Paulo (contrato)','contratado',2),'Diario de Obras':('Paulo (contrato)','contratado',2),'Planejamento':('Paulo (contrato)','contratado',2),'Compras':('Paulo (contrato)','contratado',2),'OF Manager':('Paulo (contrato)','contratado',2),'OF CDE':('OF CDE (contrato)','contratado',None),'OF Elétrico':('Ramoon (contrato)','contratado',1),'OrçaBim':('Edson (contrato)','contratado',1),'OF Hidraulico':('Matheus (contrato)','contratado',1),'OF Estrutural':('Matheus (contrato)','contratado',1),'Chat de Suporte':('Outros (interno)','interno',None),'Arquivos Públicos':('Outros (interno)','interno',None),'OF BI':('Outros (interno)','interno',None)}
-sq=collections.defaultdict(lambda:{'bugs':0,'seg':0.0,'mttr':[],'sn':0,'sok':0,'reg':'—','p':None})
-for x in sweep:
-    nome,reg,ppl=SQUAD.get(x['m'],('Não atribuído','—',None))
-    s=sq[nome]; s['reg']=reg; s['p']=ppl; s['bugs']+=1
-    if isinstance(x['timespent'],(int,float)): s['seg']+=x['timespent']
-    if x['c'] and x['r']:
-        s['mttr'].append(busdays(x['c'].date(),x['r'].date()))
-        if x['prio'] in SLA:
-            s['sn']+=1
-            if busdays(x['c'].date(),x['r'].date())*8<=SLA[x['prio']]: s['sok']+=1
-sqs=[]
-for nome,s in sq.items():
-    sqs.append({'squad':nome,'regime':s['reg'],'pessoas':s['p'],'bugs':s['bugs'],'horas':round(s['seg']/3600),
-        'mttr':round(statistics.mean(s['mttr']),1) if s['mttr'] else None,
-        'sla':round(100*s['sok']/s['sn']) if s['sn'] else None,
-        'bugs_por_pessoa':round(s['bugs']/s['p']) if s['p'] else None})
-sqs.sort(key=lambda t:-t['bugs'])
-d['squads']=sqs
 
 # cancelado QA
 d['cancelado_qa']=cancelado_total
@@ -626,6 +610,59 @@ for m in meses:
 d['severidade_por_mes']=sev_por_mes
 d['sla_por_mes']=sla_por_mes
 d['severidade']=sev_por_mes.get(cur_ym) or [{'nivel':NIVEL[p],'n':0} for p in ORDER]+[{'nivel':'Sem prioridade','n':0,'url':None}]
+
+# ---- CARGA POR SQUAD — POR SAFRA (mês de criação) — DECISÃO DE 09/09/2026 ----
+# squadSection() em build_dash.py. Igual a severidade/SLA acima: mesma variável de safra
+# selecionada (curSafra()). Pessoas (headcount) e o mapa Squad→Módulo (SQUAD, acima) CONTINUAM
+# hardcoded — fora do escopo desta mudança. TODAS as colunas numéricas (Bugs, Bugs/pessoa,
+# Esforço, MTTR, %SLA) passam a considerar só bugs CRIADOS na safra selecionada — inclusive
+# Esforço (soma de timespent), que antes somava o período inteiro.
+#   MTTR ....... MESMO método de "Qualidade por módulo" (tabela_modulo, acima): dias úteis entre
+#                criação e entrega_data (changelog: 1ª transição p/ "Em produção", fallback p/
+#                Done/Concluído), mediana — não mais resolutiondate (x['r']), que é o campo
+#                identificado como não confiável (vazio em boa parte da base).
+#   %SLA ....... MESMA função _dev_horas() de "Previsibilidade do DEV"/"Cumprimento de SLA por
+#                prioridade" acima (Não Iniciado→Em Produção, horas úteis, contra o SLA fixo da
+#                prioridade do card) — agrupado por squad em vez de por prioridade. Sem o corte
+#                p95 daquele painel (lá o p95 é por prioridade isolada; aqui, com o volume já
+#                reduzido pela safra, um segundo corte por squad+prioridade fragmentaria demais
+#                a amostra).
+#   small ...... amostra pequena: <PISO_AMOSTRA_SQUAD bugs com MTTR/SLA medido (mttr_n/sla_n) —
+#                MESMO piso (10) de PISO_AMOSTRA_SLA acima, mesma métrica de fundo (tempo de dev
+#                contra o SLA), só que agrupada diferente. Sinalizado célula a célula (mttr_small
+#                / sla_small podem diferir, já que MTTR usa entrega_data e %SLA usa
+#                nao_iniciado_data+producao_data — nem todo card tem as duas).
+#   Squad sem NENHUM bug criado na safra simplesmente não aparece na tabela daquele mês (mesmo
+#   comportamento de sla_por_mes/severidade_por_mes acima pra categoria sem volume).
+PISO_AMOSTRA_SQUAD=PISO_AMOSTRA_SLA
+def _squads_de(cards):
+    sq=collections.defaultdict(lambda:{'bugs':0,'seg':0.0,'mttr':[],'sla_n':0,'sla_ok':0,'reg':'—','p':None})
+    for x in cards:
+        nome,reg,ppl=SQUAD.get(x['m'],('Não atribuído','—',None))
+        s=sq[nome]; s['reg']=reg; s['p']=ppl; s['bugs']+=1
+        if isinstance(x['timespent'],(int,float)): s['seg']+=x['timespent']
+        edt=pdt(x.get('entrega_data'))
+        if x['c'] and edt: s['mttr'].append(busdays(x['c'].date(),edt.date()))
+        dh=_dev_horas(x)
+        if dh is not None and x['prio'] in SLA:
+            s['sla_n']+=1
+            if dh<=SLA[x['prio']]: s['sla_ok']+=1
+    out=[]
+    for nome,s in sq.items():
+        mttr_n=len(s['mttr'])
+        out.append({'squad':nome,'regime':s['reg'],'pessoas':s['p'],'bugs':s['bugs'],
+            'horas':round(s['seg']/3600),
+            'mttr':round(statistics.median(s['mttr']),1) if s['mttr'] else None,
+            'mttr_n':mttr_n,'mttr_small':mttr_n<PISO_AMOSTRA_SQUAD,
+            'sla':round(100*s['sla_ok']/s['sla_n']) if s['sla_n'] else None,
+            'sla_n':s['sla_n'],'sla_small':s['sla_n']<PISO_AMOSTRA_SQUAD,
+            'bugs_por_pessoa':round(s['bugs']/s['p']) if s['p'] else None})
+    out.sort(key=lambda t:-t['bugs'])
+    return out
+squads_por_mes={m:_squads_de([x for x in sweep if x['c'] and x['c'].strftime('%Y-%m')==m]) for m in meses}
+d['squads_por_mes']=squads_por_mes
+d['squads']=squads_por_mes.get(cur_ym) or []
+d['meta']['piso_amostra_squad']=PISO_AMOSTRA_SQUAD
 
 # ---- FUNIL DE ENTREGA DO DEV — para CADA mês (safra) ----
 # RÉGUA DO FUNIL — só deste painel (build_funil/funilPanel), NÃO usada em mais nenhum
