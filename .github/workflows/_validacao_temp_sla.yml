@@ -1,0 +1,134 @@
+name: "[TEMP] Validação SLA/Previsibilidade (changelog vs CSV)"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Puxar do Jira (código NOVO, changelog já inclui os campos novos)
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: python fetch_jira.py
+
+      - name: Guardar sweep.json (mesma base pras duas rodadas)
+        run: cp sweep.json /tmp/sweep_shared.json
+
+      - name: Rodar gen_data.py NOVO (changelog, por safra)
+        run: |
+          cp /tmp/sweep_shared.json sweep.json
+          python gen_data.py
+          cp dash_data.json /tmp/dash_data_new.json
+
+      - name: Buscar gen_data.py ANTIGO (origin/main, pré-mudança)
+        run: |
+          git fetch origin main
+          git show origin/main:gen_data.py > /tmp/gen_data_old.py
+
+      - name: Rodar gen_data.py ANTIGO (CSV) na MESMA base do Jira
+        run: |
+          cp /tmp/sweep_shared.json sweep.json
+          cp /tmp/gen_data_old.py gen_data.py
+          python gen_data.py
+          cp dash_data.json /tmp/dash_data_old.json
+
+      - name: Diff dash_data.json (old vs new) — só chaves de topo devem mudar
+        run: |
+          python3 - <<'PYEOF'
+          import json
+          old = json.load(open('/tmp/dash_data_old.json'))
+          new = json.load(open('/tmp/dash_data_new.json'))
+          ok = set(old.keys()) | set(new.keys())
+          changed = []
+          same = []
+          for k in sorted(ok):
+              if old.get(k) != new.get(k):
+                  changed.append(k)
+              else:
+                  same.append(k)
+          print("=== CHAVES DE TOPO QUE MUDARAM ===")
+          for k in changed:
+              print(" -", k)
+          print()
+          print("=== CHAVES DE TOPO IGUAIS (", len(same), ") ===")
+          print(" ", ", ".join(same))
+
+          esperado = {'previsibilidade','suporte_lag','severidade','severidade_por_mes','sla_por_mes','meta'}
+          inesperado = set(changed) - esperado
+          print()
+          if inesperado:
+              print("!!! MUDOU ALGO FORA DO ESPERADO:", inesperado)
+          else:
+              print(">>> OK: só mudou o esperado:", esperado & set(changed))
+
+          print()
+          print("=== PREVISIBILIDADE (Panorama, acumulado) — ANTES (CSV) ===")
+          print(json.dumps(old.get('previsibilidade'), ensure_ascii=False, indent=2))
+          print()
+          print("=== PREVISIBILIDADE (Panorama, acumulado) — DEPOIS (changelog) ===")
+          print(json.dumps(new.get('previsibilidade'), ensure_ascii=False, indent=2))
+
+          print()
+          print("=== SUPORTE_LAG — ANTES (CSV) ===")
+          print(json.dumps(old.get('suporte_lag'), ensure_ascii=False, indent=2))
+          print("=== SUPORTE_LAG — DEPOIS (changelog) ===")
+          print(json.dumps(new.get('suporte_lag'), ensure_ascii=False, indent=2))
+
+          print()
+          print("=== NOVO: severidade_por_mes (chaves = safras) ===")
+          print(sorted((new.get('severidade_por_mes') or {}).keys()))
+          print()
+          print("=== NOVO: sla_por_mes (chaves = safras) ===")
+          print(sorted((new.get('sla_por_mes') or {}).keys()))
+
+          print()
+          print("=== meta.piso_amostra_sla ===")
+          print(new.get('meta', {}).get('piso_amostra_sla'))
+          PYEOF
+
+      - name: Mostrar severidade_por_mes/sla_por_mes de 2 safras reais + exemplo de URL Sem prioridade
+        run: |
+          python3 - <<'PYEOF'
+          import json
+          new = json.load(open('/tmp/dash_data_new.json'))
+          meses = sorted((new.get('severidade_por_mes') or {}).keys())
+          amostra = meses[-2:] if len(meses) >= 2 else meses
+          for m in amostra:
+              print(f"\n=== SAFRA {m} — severidade_por_mes ===")
+              print(json.dumps(new['severidade_por_mes'][m], ensure_ascii=False, indent=2))
+              print(f"=== SAFRA {m} — sla_por_mes.por_prio ===")
+              print(json.dumps(new['sla_por_mes'][m]['por_prio'], ensure_ascii=False, indent=2))
+          PYEOF
+
+      - name: Rodar build_dash.py NOVO (garante que não quebra com dado real)
+        run: |
+          cp /tmp/dash_data_new.json dash_data.json
+          git checkout -- gen_data.py
+          python build_dash.py
+          echo "build_dash.py OK com dado real"
+
+      - name: Upload artefatos de validação
+        uses: actions/upload-artifact@v4
+        with:
+          name: validacao-sla-previsibilidade
+          path: |
+            /tmp/dash_data_old.json
+            /tmp/dash_data_new.json
+          retention-days: 7
