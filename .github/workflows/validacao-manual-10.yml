@@ -1,0 +1,82 @@
+name: Validação manual 10 (temporário)
+
+# Workflow TEMPORÁRIO — roda fetch_jira.py + gen_data.py (com os segredos do Jira) SEM
+# publicar nada, só pra validar o novo mod_ano_a_ano (Tendência dos módulos — comparativo ano
+# a ano) com dados reais antes de subir. Confere também que só mod_ano_a_ano mudou (e que
+# mod_history ficou intocado). Será removido depois de usado.
+on:
+  workflow_dispatch:
+
+jobs:
+  validacao:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Puxar do Jira
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: python fetch_jira.py
+
+      - name: Recalcular dados NOVOS — sem publicar
+        run: |
+          python gen_data.py
+          python build_dash.py
+          cp dash_data.json dash_data_novo.json
+          cp sweep.json sweep_novo.json
+
+      - name: Checkout do código ANTIGO (main) pra comparar
+        run: |
+          git fetch origin main
+          git worktree add /tmp/antigo origin/main
+
+      - name: Gerar dados ANTIGOS — mesma base do Jira já puxada
+        run: |
+          cp sweep_novo.json /tmp/antigo/sweep.json
+          for f in jira_backlog.json impedimentos_live.json sobra_live.json ni_assignee.json; do
+            cp "$f" /tmp/antigo/"$f"
+          done
+          cd /tmp/antigo
+          python gen_data.py
+          cp dash_data.json /home/runner/work/teste/teste/dash_data_antigo.json
+
+      - name: "Diagnóstico: quantos módulos e quais, em mod_ano_a_ano"
+        run: |
+          python -c "
+          import json
+          novo = json.load(open('dash_data_novo.json'))
+          aa = novo['mod_ano_a_ano']
+          print('Total de módulos (com pelo menos 1 card em 2025 ou 2026):', len(aa['ordem']))
+          print()
+          for m in aa['ordem']:
+              tot = aa['total_geral'][m]
+              print(f'  {m}: {tot} bugs (2025+2026)')
+          print()
+          print('Padrao inicial (top 6, excluindo Nao classificado):')
+          top6 = [m for m in aa['ordem'] if m != 'Não classificado'][:6]
+          print(' ', top6)
+          print()
+          print('ano_corrente:', aa['ano_corrente'], '| mes_corrente_idx:', aa['mes_corrente_idx'], '(', aa['meses'][aa['mes_corrente_idx']], ')')
+          "
+
+      - name: "Diagnóstico CRÍTICO: só mod_ano_a_ano (e gerado_em) mudaram, mod_history intocado"
+        run: |
+          python -c "
+          import json
+          antigo = json.load(open('dash_data_antigo.json'))
+          novo = json.load(open('dash_data_novo.json'))
+          diffs = [k for k in sorted(set(antigo)|set(novo)) if antigo.get(k) != novo.get(k)]
+          print('Campos diferentes (esperado: gerado_em e mod_ano_a_ano):', diffs)
+          print('mod_history identico:', antigo.get('mod_history') == novo.get('mod_history'))
+          "
