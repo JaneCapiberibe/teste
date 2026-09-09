@@ -537,27 +537,47 @@ function sobraChart(){
 const TREND_PAL=['#005FE8','#eb6834','#1e9e5a','#f0a500','#e87ba4','#e2384d','#7c5cff','#12a4b8','#b5651d','#8a8fa3','#c026d3','#0891b2'];
 function trendColor(m){const i=DATA.mod_history.ordem.indexOf(m);return TREND_PAL[(i<0?0:i)%TREND_PAL.length];}
 window.__trendMods=null;
-function trendMods(){if(!window.__trendMods)window.__trendMods=new Set(DATA.mod_history.ordem.filter(m=>m!=='Não classificado').slice(0,6));return window.__trendMods;}
+function trendMods(){if(!window.__trendMods)window.__trendMods=new Set(DATA.mod_ano_a_ano.ordem.filter(m=>m!=='Não classificado').slice(0,6));return window.__trendMods;}
 function trendToggle(m){const s=trendMods();if(s.has(m))s.delete(m);else s.add(m);document.getElementById('trendwrap').innerHTML=moduleTrendChart();}
+function trendSelectAll(){window.__trendMods=new Set(DATA.mod_ano_a_ano.ordem);document.getElementById('trendwrap').innerHTML=moduleTrendChart();}
+function trendClearAll(){window.__trendMods=new Set();document.getElementById('trendwrap').innerHTML=moduleTrendChart();}
 function moduleTrendChart(){
-  const MH=DATA.mod_history; if(!MH||!MH.ordem||!MH.ordem.length) return '<div class="note">Sem dados de histórico por módulo.</div>';
-  const meses=MH.meses, n=meses.length, sel=trendMods();
-  const chips=MH.ordem.map(m=>{const on=sel.has(m),c=trendColor(m),lv=(MH.por_modulo[m]||[])[n-1]??0;
-    return `<button class="trend-chip${on?' on':''}" ${on?`style="background:${c};border-color:${c}"`:''} onclick="trendToggle('${m}')"><i style="background:${c}"></i>${m}${on?` <b>${lv}</b>`:''}</button>`;}).join('');
-  const series=MH.ordem.filter(m=>sel.has(m)).map(m=>({name:m,vals:MH.por_modulo[m]||meses.map(()=>0),color:trendColor(m)}));
-  if(!series.length) return `<div class="trend-chips">${chips}</div><div class="note" style="margin-top:8px">Selecione ao menos um módulo acima para desenhar a tendência.</div>`;
-  const W=1080,H=330,P=44;
+  const MA=DATA.mod_ano_a_ano; if(!MA||!MA.ordem||!MA.ordem.length) return '<div class="note">Sem dados de histórico por módulo.</div>';
+  const meses=MA.meses, n=meses.length, sel=trendMods(), curIdx=MA.mes_corrente_idx, curAno=MA.ano_corrente;
+  const allOn=sel.size===MA.ordem.length;
+  const util=`<button class="emchip all${allOn?' on':''}" onclick="trendSelectAll()"><i></i>Selecionar todos</button><button class="emchip all" onclick="trendClearAll()"><i></i>Limpar seleção</button>`;
+  const chips=MA.ordem.map(m=>{const on=sel.has(m),c=trendColor(m);
+    const serieCur=(MA.por_modulo[m]||{})[curAno]||[];
+    const lv=serieCur[curIdx]??0;
+    return `<button class="trend-chip${on?' on':''}" ${on?`style="background:${c};border-color:${c}"`:''} onclick="trendToggle('${m.replace(/'/g,"\\'")}')"><i style="background:${c}"></i>${m}${on?` <b>${lv}</b>`:''}</button>`;}).join('');
+  const selMods=MA.ordem.filter(m=>sel.has(m));
+  if(!selMods.length) return `<div class="trend-chips">${util}${chips}</div><div class="note" style="margin-top:8px">Selecione ao menos um módulo acima para desenhar a tendência.</div>`;
+  const W=1080,H=340,P=44;
   const xs=(i)=>P+i*(W-2*P)/(n-1);
-  const maxY=Math.max(4,...series.flatMap(s=>s.vals))*1.12;
+  const allVals=selMods.flatMap(m=>MA.anos.flatMap(a=>((MA.por_modulo[m]||{})[a]||[]).filter(v=>v!=null)));
+  const maxY=Math.max(4,...allVals)*1.12;
   const ys=(v)=>H-P-(v/maxY)*(H-2*P);
-  const path=(vals)=>vals.map((v,i)=>(i?'L':'M')+xs(i).toFixed(1)+' '+ys(v).toFixed(1)).join(' ');
+  const pathFor=(vals)=>{let d='',started=false;
+    vals.forEach((v,i)=>{ if(v==null){started=false;return;}
+      d+=(started?'L':'M')+xs(i).toFixed(1)+' '+ys(v).toFixed(1)+' '; started=true; });
+    return d.trim();};
   let grid='';for(let g=0;g<=4;g++){const yy=P+g*(H-2*P)/4;const val=Math.round(maxY*(1-g/4));grid+=`<line x1="${P}" y1="${yy}" x2="${W-P}" y2="${yy}" stroke="${col('--line')}"/><text x="${P-6}" y="${yy+4}" text-anchor="end" fill="${col('--text-3')}" font-size="10">${val}</text>`;}
-  let xl='';meses.forEach((m,i)=>{if(i%2===0||i===n-1)xl+=`<text x="${xs(i)}" y="${H-P+16}" text-anchor="middle" fill="${col('--text-3')}" font-size="9">${m.slice(2)}</text>`;});
-  const band=safraBand((i)=>xs(i),(W-2*P)/(n-1),P,H);
-  const lines=series.map(s=>`<path d="${path(s.vals)}" fill="none" stroke="${s.color}" stroke-width="2.3" opacity="0.92"><title>${s.name}</title></path>`).join('');
-  const dots=series.map(s=>`<circle cx="${xs(n-1)}" cy="${ys(s.vals[n-1])}" r="3.6" fill="${s.color}"/>`).join('');
-  return `<div class="trend-chips">${chips}</div>
-    <svg viewBox="0 0 ${W} ${H}" width="100%">${band}${grid}${xl}${lines}${dots}</svg>`;
+  let xl='';meses.forEach((m,i)=>{xl+=`<text x="${xs(i)}" y="${H-P+16}" text-anchor="middle" fill="${col('--text-3')}" font-size="9.5">${m}${i===curIdx?' *':''}</text>`;});
+  const bw=(W-2*P)/(n-1);
+  const curBand=`<rect x="${(xs(curIdx)-bw*0.42).toFixed(1)}" y="${P}" width="${(bw*0.84).toFixed(1)}" height="${(H-2*P).toFixed(1)}" fill="${col('--s1')}" opacity="0.10"/>`;
+  let lines='',curDots='';
+  selMods.forEach(m=>{
+    const c=trendColor(m);
+    const v2025=(MA.por_modulo[m]||{})['2025']||meses.map(()=>0);
+    const v2026=(MA.por_modulo[m]||{})['2026']||meses.map(()=>null);
+    lines+=`<path d="${pathFor(v2025)}" fill="none" stroke="${c}" stroke-width="1.8" stroke-dasharray="4 3" opacity="0.55"><title>${m} · 2025</title></path>`;
+    lines+=`<path d="${pathFor(v2026)}" fill="none" stroke="${c}" stroke-width="2.6" opacity="0.95"><title>${m} · 2026</title></path>`;
+    const vAtual=v2026[curIdx];
+    if(vAtual!=null) curDots+=`<circle cx="${xs(curIdx).toFixed(1)}" cy="${ys(vAtual).toFixed(1)}" r="4.2" fill="${col('--surface-1')}" stroke="${c}" stroke-width="2.4"><title>${m} · ${meses[curIdx]}/${curAno} — PARCIAL (até hoje). Só compara de forma proporcional com ${meses[curIdx]}/2025 quando o mês atual terminar.</title></circle>`;
+  });
+  return `<div class="trend-chips">${util}${chips}</div>
+    <svg viewBox="0 0 ${W} ${H}" width="100%">${curBand}${grid}${xl}${lines}${curDots}</svg>
+    <div class="note" style="margin-top:8px">Traço fino/tracejado = <b>2025</b> · traço grosso/cheio = <b>2026</b>, mesma cor por módulo. O círculo vazado em <b>${meses[curIdx]}/${curAno} *</b> é o valor <b>parcial</b> (até hoje, sem projeção) — a comparação com ${meses[curIdx]}/2025 (mês fechado) só é proporcional quando o mês atual terminar.</div>`;
 }
 window.__mtWindow=3;
 function mtSetWindow(n){
@@ -867,9 +887,9 @@ function render(){
    ${isAll?`
    <h2>${si('cubes')}Qualidade por módulo</h2>
    <div class="panel"><div id="mtwrap">${moduleTable()}</div></div>
-   <h2>${si('chart-line')}Tendência dos módulos — comparativo mensal (estilo bolsa) <span class="info" data-tip="Cada linha é um módulo: bugs criados por mês (líquido). Compara vários módulos ao mesmo tempo para ver quem está subindo (gerando mais bugs) ou descendo. Mostra os 6 módulos de maior volume + 'Outros' agrupado. Diferente da bolsa: aqui LINHA SUBINDO = mais bugs = PIOR.">i</span></h2>
+   <h2>${si('chart-line')}Tendência dos módulos — comparativo ano a ano <span class="info" data-tip="Cada módulo tem DUAS linhas sobrepostas, mesma cor: uma fina/tracejada pra 2025, uma grossa/cheia pra 2026 — dá pra ver mês a mês se o módulo está pior ou melhor que no mesmo mês do ano passado. Eixo X fixo Jan-Dez. Selecione quantos módulos quiser (sem limite) via chips, 'Selecionar todos' ou 'Limpar seleção'. O mês corrente de 2026 mostra o valor PARCIAL (até hoje, sem projeção) — círculo vazado, marcado com *.">i</span></h2>
    <div class="panel"><div id="trendwrap">${moduleTrendChart()}</div>
-     <details class="note-c"><summary>Como ler</summary><div class="note-body"><b>Como ler:</b> clique nos <b>chips</b> acima para ligar/desligar cada módulo no gráfico. Cada linha é um <b>módulo</b> e mostra os bugs criados por mês (contagem líquida). É a visão "bolsa de valores" para comparar os módulos lado a lado e ver tendências — quem está <b>subindo</b> (gerando mais bugs) e quem está <b>descendo</b>. Aparecem os <b>6 módulos de maior volume</b> mais "Outros" (o resto somado, linha tracejada). Na legenda, o número é o valor do último mês e a setinha compara com o mês anterior. <b>Atenção à inversão da metáfora:</b> ao contrário da bolsa, aqui <b>linha subindo = mais bugs = pior</b> (por isso a seta de alta é vermelha). O mês corrente ainda está em andamento, então a última ponta tende a subir até fechar. Faixa azul-clara = safra em foco.</div></details></div>
+     <details class="note-c"><summary>Como ler</summary><div class="note-body"><b>Como ler:</b> clique nos <b>chips</b> pra ligar/desligar cada módulo, ou use <b>"Selecionar todos"/"Limpar seleção"</b> — sem limite de quantos ficam visíveis ao mesmo tempo (as 12 cores da paleta se repetem se passar de 12 selecionados). Cada módulo desenha <b>duas linhas na mesma cor</b>: traço fino/tracejado = <b>2025</b>, traço grosso/cheio = <b>2026</b>. Eixo X fixo <b>Janeiro a Dezembro</b> — dá pra comparar o mesmo mês nos dois anos lado a lado. O <b>círculo vazado</b> no mês marcado com <b>*</b> é o mês corrente de 2026: valor <b>parcial</b> (só o que já foi criado até hoje, sem estimativa de fechamento) — por isso ele só fica comparável 1:1 com o mesmo mês de 2025 (fechado) quando o mês atual terminar. Meses de 2026 que ainda não chegaram simplesmente não aparecem (a linha de 2026 termina no mês corrente). Fonte: mesma régua de "Bug por módulo" — bugs criados por mês, excluindo só Cancelado QA.</div></details></div>
    <h2>${si('triangle-exclamation')}Prioridade &amp; SLA</h2>${slaSection()}
    <h2>${si('users')}Carga por squad — folha × contrato</h2>${squadSection()}
    <h2>${si('coins')}Esforço e alocação — bugs</h2>

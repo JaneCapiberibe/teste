@@ -700,6 +700,40 @@ if _mh_changed:
     if any(outros): MHd['series'].append({'mod':'Outros','serie':outros})
     MHd['totais']={mod:tg[mod] for mod in top8}
 
+# ---- TENDÊNCIA DOS MÓDULOS — comparativo ANO A ANO (painel "Tendência dos módulos",
+# moduleTrendChart() em build_dash.py) — DECISÃO DE 09/09/2026: substitui a linha corrida
+# única por módulo por DUAS linhas por módulo (2025 x 2026), eixo X fixo Jan-Dez, pra comparar
+# o mesmo mês nos dois anos lado a lado. Chave PRÓPRIA (mod_ano_a_ano), separada de
+# d['mod_history'] acima: d['mod_history'] continua do jeito que estava, intocado, porque
+# também alimenta moduleHistoryChart() ("Detalhe por ferramenta" → seletor de módulo) e
+# trendColor() (cor fixa por módulo, reaproveitada em "Bug por módulo"/emChips()) — mudar o
+# formato ali quebraria os dois. Mesma fonte/régua de "Bug por módulo" (evol_modulo): usa
+# `sweep` (só exclui Cancelado QA — Cancelado Dev, Impedimentos etc. continuam contando),
+# contagem por mês de CRIAÇÃO do card. Mês corrente de 2026: valor PARCIAL bruto (sem
+# projeção — aqui o objetivo é comparar com o mesmo mês de 2025, não estimar fechamento);
+# meses de 2026 ainda não chegados ficam None (front-end não desenha ponto, a linha só termina
+# no mês corrente em vez de cair pra zero).
+MESES_LBL_AA=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+ANOS_AA=('2025','2026')
+_cur_ano_aa,_cur_mes_idx_aa=str(TODAY.year),TODAY.month-1
+cellaa=collections.defaultdict(lambda:{a:[0]*12 for a in ANOS_AA})
+totaa=collections.Counter()
+for x in sweep:
+    if not x['c']: continue
+    anox=x['c'].strftime('%Y')
+    if anox not in ANOS_AA: continue
+    cellaa[x['m']][anox][x['c'].month-1]+=1
+    totaa[x['m']]+=1
+if _cur_ano_aa in ANOS_AA:
+    for _mod_aa in cellaa:
+        for _i in range(_cur_mes_idx_aa+1,12):
+            cellaa[_mod_aa][_cur_ano_aa][_i]=None
+ordem_aa=[m for m,_ in totaa.most_common()]
+d['mod_ano_a_ano']={'meses':MESES_LBL_AA,'anos':list(ANOS_AA),'ordem':ordem_aa,
+                    'por_modulo':{mod:cellaa[mod] for mod in ordem_aa},
+                    'total_geral':dict(totaa),
+                    'ano_corrente':_cur_ano_aa,'mes_corrente_idx':_cur_mes_idx_aa}
+
 # ---- DETALHE POR FERRAMENTA (funil de títulos) — começa por Orçamento ----
 import unicodedata
 def _norm(s):
