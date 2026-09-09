@@ -1,4 +1,4 @@
-import json, re, datetime, statistics, collections, csv, openpyxl
+import json, re, datetime, statistics, collections, openpyxl, calendar, urllib.parse
 TODAY=datetime.date.today()
 TZ_BR=datetime.timezone(datetime.timedelta(hours=-3))
 AGORA_BR=datetime.datetime.now(tz=TZ_BR)
@@ -11,24 +11,9 @@ def busdays(a,b):
     import numpy as np
     return int(np.busday_count(a,b))
 import numpy as np
-def snapshot_arquivo(path):
-    """Data em que `path` foi realmente atualizado pela última vez. Usa `git log` (a data do
-    último commit que tocou o arquivo) em vez de os.path.getmtime — `actions/checkout` reseta o
-    mtime de todo arquivo pro momento do checkout, então getmtime mostraria "hoje" em todo run
-    do workflow, mesmo se o CSV não muda há meses. Cai pra getmtime só se não for um repo git."""
-    import subprocess
-    try:
-        out=subprocess.run(['git','log','-1','--format=%ad','--date=short','--',path],
-                            capture_output=True,text=True,timeout=5)
-        if out.returncode==0 and out.stdout.strip():
-            return out.stdout.strip()
-    except Exception:
-        pass
-    try:
-        import os as _os
-        return datetime.date.fromtimestamp(_os.path.getmtime(path)).isoformat()
-    except Exception:
-        return None
+def _mes_bounds(ym):
+    y,mo=map(int,ym.split('-'))
+    return datetime.date(y,mo,1),datetime.date(y,mo,calendar.monthrange(y,mo)[1])
 NIVEL={'Highest':'Muito alta','High':'Alta','Medium':'Média','Low':'Baixa','Lowest':'Muito baixa'}
 ORDER=['Highest','High','Medium','Low','Lowest']
 SLA={'Highest':8,'High':12,'Medium':16,'Low':24,'Lowest':40}
@@ -52,10 +37,9 @@ d['meta']={'total_bugs_base_atual':len(sweep),'total_com_descartados':len(sweep_
 # Jira foram puxados). Horário de Brasília (UTC-3 fixo — Brasil não observa horário de verão).
 d['gerado_em']=AGORA_BR.strftime('%d/%m/%Y %H:%M')
 
-# severidade
-pc=collections.Counter(x['prio'] for x in sweep)
-d['severidade']=[{'nivel':NIVEL[p],'n':pc.get(p,0)} for p in ORDER]
-d['severidade'].append({'nivel':'Sem prioridade','n':pc.get('Preencher Prioridade',0)+pc.get(None,0)})
+# severidade: DECISÃO DE 09/09/2026 — passou a ser calculada por SAFRA (mês de criação), não
+# mais acumulado. Ver bloco "Prioridade & SLA" mais abaixo (d['severidade_por_mes']), perto de
+# d['previsibilidade']/d['sla_por_mes'] — mesma seção do dashboard, mesmo lugar no código.
 
 # DETECÇÃO — onde o bug foi pego (issuetype), POR SAFRA (mês de criação). DECISÃO DE
 # 02/09/2026: volume BRUTO, sem nenhuma exclusão — usa sweep_full (inclui Cancelado QA,
@@ -323,10 +307,8 @@ STATUS_EXCLUI_ESFORCO={'IMPEDIMENTO DEV','IMPEDIMENTO PRODUTO'}
 # número de dias úteis decorridos — não o mês fechado inteiro contra a média de meses inteiros
 # (isso sempre faria o mês corrente parecer "caindo" só por estar incompleto). N = janela de 3
 # ou 6 meses, selecionável acima da tabela (mtSetWindow, build_dash.py).
-import calendar
-def _mes_bounds(ym):
-    y,mo=map(int,ym.split('-'))
-    return datetime.date(y,mo,1),datetime.date(y,mo,calendar.monthrange(y,mo)[1])
+# _mes_bounds() usada aqui já está definida no topo do arquivo (também usada pela nova régua
+# de "Prioridade & SLA" por safra, mais abaixo).
 def _nth_busday_cutoff(ym,n):
     """Data do n-ésimo dia útil do mês `ym` (1-indexado) — corta um mês histórico no mesmo
     ponto do mês corrente, pra comparação parcial-com-parcial. n<=0 devolve uma data antes do
@@ -542,20 +524,44 @@ for mes in meses:
                        for r,keys in ranked]
 d['aloc_por_mes']=aloc_por_mes
 
-# ---- previsibilidade (dev) + suporte do CSV ----
-def _h(s):
-    s=(s or '').strip()
-    if s in ('','-'): return 0.0
-    return sum(int(v)*{'M':720,'w':168,'d':24,'h':1,'m':1/60}[u] for v,u in re.findall(r'(\d+)\s*([Mwdhm])',s))
-DEV=['Não Iniciado','Em Desenvolvimento','Revisão QA','Aprovado QA','IMPEDIMENTO DEV','Não Aprovado','Reprovado QA','Revert']
-prio_live={x['key']:x['prio'] for x in sweep}
-by=collections.defaultdict(list); lag=[]
-for r_ in csv.DictReader(open('inputs/suporte_list.csv',encoding='utf-8-sig')):
-    dev=sum(_h(r_.get(c,'')) for c in DEV); prod=_h(r_.get('Em produção',''))
-    if prod>0: lag.append(prod)
-    p=prio_live.get(r_['Key'])
+# ---- PREVISIBILIDADE (dev) + SUPORTE + SEVERIDADE/SLA POR SAFRA — tudo direto do changelog
+# ---- DECISÃO DE 09/09/2026: mata a dependência de inputs/suporte_list.csv (export manual de
+# Time-in-Status, parado desde a última vez que alguém o substituiu). Reaproveita os campos já
+# calculados em fetch_jira.py a partir do MESMO /changelog/bulkfetch usado pra concluido_mes/
+# entrega_data (não busca changelog de novo): nao_iniciado_data (1ª entrada em "Não
+# Iniciado"), producao_data (1ª entrada em "Em produção"/"Em Produção" — SEM o fallback pra
+# Done que entrega_data tem, porque aqui precisamos do instante exato da entrega do dev, não de
+# uma data substituta) e done_pos_producao_data (1ª entrada em Done/Concluído/Concluido DEPOIS
+# da entrega, pro tempo de suporte).
+#   Dev (Não Iniciado -> Em produção) e Suporte (Em produção -> Done) = dias úteis (busdays(),
+#   mesmo padrão usado no resto do dashboard — MTTR, alertas etc.) × 8h/dia útil. Card sem uma
+#   das duas transições, ou com duração negativa (fluxo anômalo/card reaberto), fica fora do
+#   cálculo — mesmo comportamento de "não entra no cálculo" já usado em MTTR/entrega_data.
+def _dev_horas(x):
+    ni=pdt(x.get('nao_iniciado_data')); pr_=pdt(x.get('producao_data'))
+    if not ni or not pr_: return None
+    bd=busdays(ni.date(),pr_.date())
+    return bd*8 if bd>=0 else None
+def _lag_horas(x):
+    pr_=pdt(x.get('producao_data')); dn=pdt(x.get('done_pos_producao_data'))
+    if not pr_ or not dn: return None
+    bd=busdays(pr_.date(),dn.date())
+    return bd*8 if bd>=0 else None
+def _jql_url(jql):
+    # mesmo padrão de montagem de URL de JQL já usado em fetch_jira.py (impedimentos_live.json
+    # / "Alerta operacional"): {jira_base}/issues?jql=<jql codificado>.
+    return d['jira_base']+'/issues?jql='+urllib.parse.quote(jql)
+# "Previsibilidade do DEV" do Panorama (kpiCards() em build_dash.py) CONTINUA ACUMULADA
+# (considera todos os meses até a safra atual, selo "acumulado") — só a FONTE mudou, do CSV
+# manual pro changelog. Universo = sweep (base líquida), igual o CSV antigo (linhas sem match
+# de prioridade válida já eram descartadas via prio_live).
+by=collections.defaultdict(list)
+for x in sweep:
+    dh=_dev_horas(x)
+    if dh is None: continue
+    p=x['prio']
     if p not in SLA: continue
-    by[p].append(dev)
+    by[p].append(dh)
 # p95: remove os 5% mais lentos de cada prioridade antes de medir o cumprimento do SLA
 pr=[]; tn=tk=0; total_bruto=0
 for p in ORDER:
@@ -563,13 +569,63 @@ for p in ORDER:
     devs=sorted(by[p]); total_bruto+=len(devs)
     keep=int(round(len(devs)*0.95)) or len(devs)
     kept=devs[:keep]                     # mantém os 95% mais rápidos
-    ok=sum(1 for x in kept if x<=SLA[p]); n=len(kept)
+    ok=sum(1 for v in kept if v<=SLA[p]); n=len(kept)
     tn+=n; tk+=ok
-    pr.append({'nivel':NIVEL[p],'sla':SLA[p],'n':n,'ok':ok,'pct':round(100*ok/n),
-               'mttr':round(statistics.median(kept)/8,1)})
-d['previsibilidade']={'agregado':round(100*tk/tn),'ok':tk,'n':tn,'metodo':'dev-p95','excluidos':total_bruto-tn,'por_prio':pr,
-    'snapshot':snapshot_arquivo('inputs/suporte_list.csv')}
-d['suporte_lag']={'n':len(lag),'mediana_h':round(statistics.median(lag),1),'media_h':round(statistics.mean(lag),1)}
+    pr.append({'nivel':NIVEL[p],'sla':SLA[p],'n':n,'ok':ok,'pct':round(100*ok/n) if n else 0,
+               'mttr':round(statistics.median(kept)/8,1) if kept else None})
+d['previsibilidade']={'agregado':round(100*tk/tn) if tn else 0,'ok':tk,'n':tn,'metodo':'dev-p95-changelog','excluidos':total_bruto-tn,'por_prio':pr}
+lag=[v for v in (_lag_horas(x) for x in sweep) if v is not None]
+d['suporte_lag']={'n':len(lag),'mediana_h':round(statistics.median(lag),1) if lag else 0,'media_h':round(statistics.mean(lag),1) if lag else 0}
+
+# "Bugs por severidade" E "Cumprimento de SLA por prioridade" (slaSection() em build_dash.py)
+# — DIFERENTE do card acima (que fica acumulado): os dois passam a ser POR SAFRA (mês de
+# criação), mesma variável de safra selecionada usada em "Taxa de entrega"/"Detecção"
+# (curSafra(), build_dash.py). Fallback pro mês corrente igual já feito em d['deteccao']/
+# d['deteccao_por_mes'] (não há mais consumidor do d['severidade'] acumulado antigo, então ele
+# foi removido — só esse fallback escalar fica, no mesmo papel que d['deteccao'] tem hoje).
+#   piso de amostra pequena POR PRIORIDADE DENTRO DE UMA SAFRA: 10. Com <10 bugs numa
+#   prioridade num mês só, o p95 não corta nada de verdade (round(n*0.95) só derruba ao menos 1
+#   card a partir de n~10-11) e 1 outlier já muda o % em >10 pontos — mostrar o % ali seria
+#   confiança falsa. Abaixo do piso, a linha entra com small=True em vez de % (ver moduleTable
+#   "amostra pequena" pra comparação, ainda que o piso lá — 120 — seja de volume ACUMULADO do
+#   período inteiro, bem maior por não ser recortado por mês).
+PISO_AMOSTRA_SLA=10
+d['meta']['piso_amostra_sla']=PISO_AMOSTRA_SLA
+sev_por_mes={}
+sla_por_mes={}
+for m in meses:
+    sub=[x for x in sweep if x['c'] and x['c'].strftime('%Y-%m')==m]
+    pcm=collections.Counter(x['prio'] for x in sub)
+    linha_sev=[{'nivel':NIVEL[p],'n':pcm.get(p,0)} for p in ORDER]
+    _ini_m,_fim_m=_mes_bounds(m)
+    _prox_m=(_fim_m+datetime.timedelta(days=1))
+    sem_url=_jql_url(f'project = BUG AND (priority is EMPTY OR priority = "Preencher Prioridade") '
+                      f'AND created >= "{_ini_m.isoformat()}" AND created < "{_prox_m.isoformat()}"')
+    linha_sev.append({'nivel':'Sem prioridade','n':pcm.get('Preencher Prioridade',0)+pcm.get(None,0),'url':sem_url})
+    sev_por_mes[m]=linha_sev
+    by_m=collections.defaultdict(list)
+    for x in sub:
+        dh=_dev_horas(x)
+        if dh is None: continue
+        p=x['prio']
+        if p not in SLA: continue
+        by_m[p].append(dh)
+    linhas_sla=[]
+    for p in ORDER:
+        if p not in by_m: continue
+        devs=sorted(by_m[p])
+        small=len(devs)<PISO_AMOSTRA_SLA
+        keep=int(round(len(devs)*0.95)) or len(devs)
+        kept=devs[:keep]
+        ok=sum(1 for v in kept if v<=SLA[p]); n=len(kept)
+        linhas_sla.append({'nivel':NIVEL[p],'sla':SLA[p],'n':n,
+            'pct':round(100*ok/n) if n else 0,
+            'mttr':round(statistics.median(kept)/8,1) if kept else None,
+            'small':small})
+    sla_por_mes[m]={'por_prio':linhas_sla}
+d['severidade_por_mes']=sev_por_mes
+d['sla_por_mes']=sla_por_mes
+d['severidade']=sev_por_mes.get(cur_ym) or [{'nivel':NIVEL[p],'n':0} for p in ORDER]+[{'nivel':'Sem prioridade','n':0,'url':None}]
 
 # ---- FUNIL DE ENTREGA DO DEV — para CADA mês (safra) ----
 # RÉGUA DO FUNIL — só deste painel (build_funil/funilPanel), NÃO usada em mais nenhum

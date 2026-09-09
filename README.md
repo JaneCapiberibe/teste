@@ -8,9 +8,11 @@ Intake vs entregas, backlog acumulado (método Diego), severidade, qualidade e h
 módulo, ferramentas por módulo, sobra por status, impedimentos e responsáveis — tudo vindo do Jira.
 
 ## O que é snapshot (atualiza quando você reexporta)
-Três seções vêm de exports que não estão no projeto BUG do Jira e ficam como arquivos fixos em
-`inputs/`: **Build/Sentry** (`inputs/Resumo_bugs.xlsx`) e **tempo em status/previsibilidade**
-(`inputs/suporte_list.csv`). Para atualizá-las, substitua esses dois arquivos no repositório.
+Uma seção vem de export que não está no projeto BUG do Jira e fica como arquivo fixo em
+`inputs/`: **Build/Sentry** (`inputs/Resumo_bugs.xlsx`). Para atualizá-la, substitua esse arquivo
+no repositório. (Previsibilidade/SLA e tempo de suporte, que antes vinham de um CSV manual
+— `inputs/suporte_list.csv` —, passaram a ser calculados ao vivo a partir do changelog do Jira;
+esse CSV não é mais lido pelo pipeline.)
 
 ---
 
