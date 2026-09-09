@@ -552,32 +552,36 @@ function moduleTrendChart(){
     return `<button class="trend-chip${on?' on':''}" ${on?`style="background:${c};border-color:${c}"`:''} onclick="trendToggle('${m.replace(/'/g,"\\'")}')"><i style="background:${c}"></i>${m}${on?` <b>${lv}</b>`:''}</button>`;}).join('');
   const selMods=MA.ordem.filter(m=>sel.has(m));
   if(!selMods.length) return `<div class="trend-chips">${util}${chips}</div><div class="note" style="margin-top:8px">Selecione ao menos um módulo acima para desenhar a tendência.</div>`;
-  const W=1080,H=340,P=44;
-  const xs=(i)=>P+i*(W-2*P)/(n-1);
-  const allVals=selMods.flatMap(m=>MA.anos.flatMap(a=>((MA.por_modulo[m]||{})[a]||[]).filter(v=>v!=null)));
-  const maxY=Math.max(4,...allVals)*1.12;
-  const ys=(v)=>H-P-(v/maxY)*(H-2*P);
-  const pathFor=(vals)=>{let d='',started=false;
-    vals.forEach((v,i)=>{ if(v==null){started=false;return;}
-      d+=(started?'L':'M')+xs(i).toFixed(1)+' '+ys(v).toFixed(1)+' '; started=true; });
-    return d.trim();};
-  let grid='';for(let g=0;g<=4;g++){const yy=P+g*(H-2*P)/4;const val=Math.round(maxY*(1-g/4));grid+=`<line x1="${P}" y1="${yy}" x2="${W-P}" y2="${yy}" stroke="${col('--line')}"/><text x="${P-6}" y="${yy+4}" text-anchor="end" fill="${col('--text-3')}" font-size="10">${val}</text>`;}
-  let xl='';meses.forEach((m,i)=>{xl+=`<text x="${xs(i)}" y="${H-P+16}" text-anchor="middle" fill="${col('--text-3')}" font-size="9.5">${m}${i===curIdx?' *':''}</text>`;});
-  const bw=(W-2*P)/(n-1);
-  const curBand=`<rect x="${(xs(curIdx)-bw*0.42).toFixed(1)}" y="${P}" width="${(bw*0.84).toFixed(1)}" height="${(H-2*P).toFixed(1)}" fill="${col('--s1')}" opacity="0.10"/>`;
-  let lines='',curDots='';
-  selMods.forEach(m=>{
+  // barras, pequeno múltiplo por módulo (2025 clara x 2026 cheia, mesma cor do módulo) — evita
+  // o amontoado de 2×N barras por mês quando vários módulos estão selecionados ao mesmo tempo.
+  const W=1080,P=38,HB=170;
+  const gw=(W-2*P)/n, bw=Math.min(15,gw*0.36);
+  const xs=(i)=>P+(i+0.5)*gw;
+  const blocks=selMods.map(m=>{
     const c=trendColor(m);
     const v2025=(MA.por_modulo[m]||{})['2025']||meses.map(()=>0);
     const v2026=(MA.por_modulo[m]||{})['2026']||meses.map(()=>null);
-    lines+=`<path d="${pathFor(v2025)}" fill="none" stroke="${c}" stroke-width="1.8" stroke-dasharray="4 3" opacity="0.55"><title>${m} · 2025</title></path>`;
-    lines+=`<path d="${pathFor(v2026)}" fill="none" stroke="${c}" stroke-width="2.6" opacity="0.95"><title>${m} · 2026</title></path>`;
-    const vAtual=v2026[curIdx];
-    if(vAtual!=null) curDots+=`<circle cx="${xs(curIdx).toFixed(1)}" cy="${ys(vAtual).toFixed(1)}" r="4.2" fill="${col('--surface-1')}" stroke="${c}" stroke-width="2.4"><title>${m} · ${meses[curIdx]}/${curAno} — PARCIAL (até hoje). Só compara de forma proporcional com ${meses[curIdx]}/2025 quando o mês atual terminar.</title></circle>`;
-  });
+    const vistos=[...v2025,...v2026].filter(v=>v!=null);
+    const maxY=Math.max(4,...vistos)*1.15;
+    const ys=(v)=>HB-P-(v/maxY)*(HB-2*P);
+    let grid='';for(let g=0;g<=3;g++){const yy=P+g*(HB-2*P)/3;const val=Math.round(maxY*(1-g/3));grid+=`<line x1="${P}" y1="${yy}" x2="${W-P}" y2="${yy}" stroke="${col('--line')}"/><text x="${P-6}" y="${yy+4}" text-anchor="end" fill="${col('--text-3')}" font-size="9.5">${val}</text>`;}
+    let xl='';meses.forEach((mm,i)=>{xl+=`<text x="${xs(i).toFixed(1)}" y="${HB-P+15}" text-anchor="middle" fill="${col('--text-3')}" font-size="9">${mm}${i===curIdx?' *':''}</text>`;});
+    let bars='';
+    meses.forEach((mm,i)=>{
+      const x=xs(i), va=v2025[i], vb=v2026[i];
+      if(va!=null && va>0){ const y=ys(va);
+        bars+=`<rect x="${(x-bw-1).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${(HB-P-y).toFixed(1)}" fill="${c}" opacity="0.32" rx="1.5"><title>${m} · ${mm}/2025 · ${va}</title></rect>`; }
+      if(vb!=null){ const y=ys(vb), partial=(i===curIdx);
+        bars+=`<rect x="${(x+1).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${(HB-P-y).toFixed(1)}" fill="${c}" opacity="0.95" rx="1.5" ${partial?`stroke="${col('--text-1')}" stroke-width="1.3" stroke-dasharray="3 2"`:''}><title>${m} · ${mm}/2026 · ${vb}${partial?' — PARCIAL (até hoje), sem projeção':''}</title></rect>`;
+      }
+    });
+    return `<div style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid ${col('--line')}">
+      <div style="display:flex;align-items:center;gap:7px;margin:0 0 4px"><i style="width:9px;height:9px;border-radius:50%;background:${c};display:inline-block;flex:none"></i><b style="font-size:12.5px;color:${col('--text-1')}">${m}</b></div>
+      <svg viewBox="0 0 ${W} ${HB}" width="100%">${grid}${xl}${bars}</svg></div>`;
+  }).join('');
   return `<div class="trend-chips">${util}${chips}</div>
-    <svg viewBox="0 0 ${W} ${H}" width="100%">${curBand}${grid}${xl}${lines}${curDots}</svg>
-    <div class="note" style="margin-top:8px">Traço fino/tracejado = <b>2025</b> · traço grosso/cheio = <b>2026</b>, mesma cor por módulo. O círculo vazado em <b>${meses[curIdx]}/${curAno} *</b> é o valor <b>parcial</b> (até hoje, sem projeção) — a comparação com ${meses[curIdx]}/2025 (mês fechado) só é proporcional quando o mês atual terminar.</div>`;
+    <div style="margin-top:10px">${blocks}</div>
+    <div class="note">Barra clara = <b>2025</b> · barra cheia = <b>2026</b>, mesma cor por módulo. A barra tracejada em <b>${meses[curIdx]}/${curAno} *</b> é o valor <b>parcial</b> (até hoje, sem projeção) — a comparação com ${meses[curIdx]}/2025 (mês fechado) só é proporcional quando o mês atual terminar. Escala do eixo Y é própria de cada módulo.</div>`;
 }
 window.__mtWindow=3;
 function mtSetWindow(n){
@@ -887,9 +891,9 @@ function render(){
    ${isAll?`
    <h2>${si('cubes')}Qualidade por módulo</h2>
    <div class="panel"><div id="mtwrap">${moduleTable()}</div></div>
-   <h2>${si('chart-line')}Tendência dos módulos — comparativo ano a ano <span class="info" data-tip="Cada módulo tem DUAS linhas sobrepostas, mesma cor: uma fina/tracejada pra 2025, uma grossa/cheia pra 2026 — dá pra ver mês a mês se o módulo está pior ou melhor que no mesmo mês do ano passado. Eixo X fixo Jan-Dez. Selecione quantos módulos quiser (sem limite) via chips, 'Selecionar todos' ou 'Limpar seleção'. O mês corrente de 2026 mostra o valor PARCIAL (até hoje, sem projeção) — círculo vazado, marcado com *.">i</span></h2>
+   <h2>${si('chart-line')}Tendência dos módulos — comparativo ano a ano <span class="info" data-tip="Um mini-gráfico de barras por módulo selecionado: barra clara = 2025, barra cheia (mesma cor) = 2026 — dá pra ver mês a mês se o módulo está pior ou melhor que no mesmo mês do ano passado. Eixo X fixo Jan-Dez. Selecione quantos módulos quiser (sem limite) via chips, 'Selecionar todos' ou 'Limpar seleção'. O mês corrente de 2026 mostra o valor PARCIAL (até hoje, sem projeção) — barra com contorno tracejado, marcado com *.">i</span></h2>
    <div class="panel"><div id="trendwrap">${moduleTrendChart()}</div>
-     <details class="note-c"><summary>Como ler</summary><div class="note-body"><b>Como ler:</b> clique nos <b>chips</b> pra ligar/desligar cada módulo, ou use <b>"Selecionar todos"/"Limpar seleção"</b> — sem limite de quantos ficam visíveis ao mesmo tempo (as 12 cores da paleta se repetem se passar de 12 selecionados). Cada módulo desenha <b>duas linhas na mesma cor</b>: traço fino/tracejado = <b>2025</b>, traço grosso/cheio = <b>2026</b>. Eixo X fixo <b>Janeiro a Dezembro</b> — dá pra comparar o mesmo mês nos dois anos lado a lado. O <b>círculo vazado</b> no mês marcado com <b>*</b> é o mês corrente de 2026: valor <b>parcial</b> (só o que já foi criado até hoje, sem estimativa de fechamento) — por isso ele só fica comparável 1:1 com o mesmo mês de 2025 (fechado) quando o mês atual terminar. Meses de 2026 que ainda não chegaram simplesmente não aparecem (a linha de 2026 termina no mês corrente). Fonte: mesma régua de "Bug por módulo" — bugs criados por mês, excluindo só Cancelado QA.</div></details></div>
+     <details class="note-c"><summary>Como ler</summary><div class="note-body"><b>Como ler:</b> clique nos <b>chips</b> pra ligar/desligar cada módulo, ou use <b>"Selecionar todos"/"Limpar seleção"</b> — sem limite de quantos ficam visíveis ao mesmo tempo (cada módulo selecionado ganha seu próprio mini-gráfico, empilhados). Em cada mini-gráfico, duas barras por mês na <b>mesma cor</b> do módulo: barra clara = <b>2025</b>, barra cheia = <b>2026</b>. Eixo X fixo <b>Janeiro a Dezembro</b> — dá pra comparar o mesmo mês nos dois anos lado a lado (escala do eixo Y é própria de cada módulo, pra não achatar os menores). A barra com <b>contorno tracejado</b> no mês marcado com <b>*</b> é o mês corrente de 2026: valor <b>parcial</b> (só o que já foi criado até hoje, sem estimativa de fechamento) — por isso ela só fica comparável 1:1 com o mesmo mês de 2025 (fechado) quando o mês atual terminar. Meses de 2026 que ainda não chegaram simplesmente não aparecem. Fonte: mesma régua de "Bug por módulo" — bugs criados por mês, excluindo só Cancelado QA.</div></details></div>
    <h2>${si('triangle-exclamation')}Prioridade &amp; SLA</h2>${slaSection()}
    <h2>${si('users')}Carga por squad — folha × contrato</h2>${squadSection()}
    <h2>${si('coins')}Esforço e alocação — bugs</h2>
