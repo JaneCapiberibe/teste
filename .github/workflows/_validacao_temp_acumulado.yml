@@ -1,0 +1,144 @@
+name: "[TEMP] Validação Mês/Acumulado nos painéis por safra"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Puxar do Jira
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: python fetch_jira.py
+
+      - name: Guardar sweep.json (mesma base pras duas rodadas)
+        run: cp sweep.json /tmp/sweep_shared.json
+
+      - name: Rodar gen_data.py NOVO (com Mês/Acumulado)
+        run: |
+          cp /tmp/sweep_shared.json sweep.json
+          python gen_data.py
+          cp dash_data.json /tmp/dash_data_new.json
+
+      - name: Buscar gen_data.py ANTIGO (origin/main, pré-mudança)
+        run: |
+          git fetch origin main
+          git show origin/main:gen_data.py > /tmp/gen_data_old.py
+
+      - name: Rodar gen_data.py ANTIGO na MESMA base do Jira
+        run: |
+          cp /tmp/sweep_shared.json sweep.json
+          cp /tmp/gen_data_old.py gen_data.py
+          python gen_data.py
+          cp dash_data.json /tmp/dash_data_old.json
+
+      - name: Diff dash_data.json (old vs new) — só as chaves _acumulado/_por_mes novas devem aparecer
+        run: |
+          python3 - <<'PYEOF'
+          import json
+          old = json.load(open('/tmp/dash_data_old.json'))
+          new = json.load(open('/tmp/dash_data_new.json'))
+          ok = set(old.keys()) | set(new.keys())
+          changed = [k for k in sorted(ok) if old.get(k) != new.get(k)]
+          same = [k for k in sorted(ok) if old.get(k) == new.get(k)]
+          added = [k for k in sorted(new.keys()) if k not in old]
+          print("=== CHAVES DE TOPO NOVAS (só devem aparecer, não substituir) ===")
+          for k in added: print(" +", k)
+          print()
+          print("=== CHAVES DE TOPO QUE MUDARAM DE VALOR (deveriam ser só as de aloc_por_mes, por causa do fim do corte top-10) ===")
+          for k in changed:
+              if k not in added: print(" -", k)
+          print()
+          print("=== CHAVES DE TOPO IGUAIS (", len(same)-len(added), ") ===")
+          print(" ", ", ".join(k for k in same if k not in added))
+
+          esperado_novas = {'deteccao_acumulado_por_mes','entrega_acumulado_por_mes',
+              'aloc_acumulado_por_mes','funil_acumulado_por_mes','severidade_acumulado_por_mes',
+              'sla_acumulado_por_mes','squads_acumulado_por_mes','qualidade_modulo_por_mes',
+              'qualidade_modulo_acumulado_por_mes'}
+          esperado_mudou = {'aloc_por_mes'}  # perdeu o corte top-10 no gen_data.py
+          faltando = esperado_novas - set(added)
+          inesperado_novo = set(added) - esperado_novas
+          inesperado_mudou = set(changed) - added - esperado_mudou
+          print()
+          if faltando: print("!!! FALTOU aparecer:", faltando)
+          if inesperado_novo: print("!!! CHAVE NOVA NÃO ESPERADA:", inesperado_novo)
+          if inesperado_mudou: print("!!! MUDOU ALGO FORA DO ESPERADO:", inesperado_mudou)
+          if not faltando and not inesperado_novo and not inesperado_mudou:
+              print(">>> OK: só as chaves esperadas apareceram/mudaram.")
+          PYEOF
+
+      - name: Conferir acumulação — Detecção (soma simples) e Funil (7 números) pra 3 safras reais
+        run: |
+          python3 - <<'PYEOF'
+          import json
+          new = json.load(open('/tmp/dash_data_new.json'))
+          meses = sorted((new.get('deteccao_por_mes') or {}).keys())
+          amostra = meses[-3:] if len(meses) >= 3 else meses
+          print("=== DETECÇÃO: soma manual dos meses (Mês) vs Acumulado ===")
+          running = {}
+          for m in meses:
+              det = new['deteccao_por_mes'][m]
+              for item in det['itens']:
+                  running[item['tipo']] = running.get(item['tipo'], 0) + item['n']
+              if m in amostra:
+                  acum = new['deteccao_acumulado_por_mes'][m]
+                  acum_n = {i['tipo']: i['n'] for i in acum['itens']}
+                  print(f"  {m}: soma manual={dict(running)} | acumulado_por_mes={acum_n} | bate={dict(running)==acum_n}")
+
+          print()
+          print("=== FUNIL: soma manual dos meses (Mês) vs Acumulado, campos aditivos ===")
+          fields = ['total','descartados_qa','dev','cancelados_dev','entregues','fila']
+          running2 = {k: 0 for k in fields}
+          for m in meses:
+              f = new['funil_por_mes'].get(m)
+              if not f: continue
+              for k in fields: running2[k] += f[k]
+              if m in amostra:
+                  facum = new['funil_acumulado_por_mes'][m]
+                  facum_v = {k: facum[k] for k in fields}
+                  print(f"  {m}: soma manual={dict(running2)} | acumulado={facum_v} | bate={dict(running2)==facum_v}")
+
+          print()
+          print("=== Exemplo completo pras 2 últimas safras (Detecção simples + Funil complexo) ===")
+          for m in amostra[-2:]:
+              print(f"\n--- SAFRA {m} ---")
+              print("Detecção Mês:", json.dumps(new['deteccao_por_mes'][m], ensure_ascii=False))
+              print("Detecção Acumulado:", json.dumps(new['deteccao_acumulado_por_mes'][m], ensure_ascii=False))
+              fm = new['funil_por_mes'][m]; fa = new['funil_acumulado_por_mes'][m]
+              print("Funil Mês:", {k: fm[k] for k in fields})
+              print("Funil Acumulado:", {k: fa[k] for k in fields})
+          PYEOF
+
+      - name: Rodar build_dash.py NOVO (garante que não quebra com dado real)
+        run: |
+          cp /tmp/dash_data_new.json dash_data.json
+          git checkout -- gen_data.py
+          python build_dash.py
+          echo "build_dash.py OK com dado real"
+
+      - name: Upload artefatos de validação
+        uses: actions/upload-artifact@v4
+        with:
+          name: validacao-mes-acumulado
+          path: |
+            /tmp/dash_data_old.json
+            /tmp/dash_data_new.json
+          retention-days: 7
