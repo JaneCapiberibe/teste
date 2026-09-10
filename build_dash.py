@@ -303,10 +303,13 @@ function setSafra(v){window.__safra=v;render();}
 // Seletor "Mês / Acumulado" — DECISÃO DE 10/09/2026, mesmo padrão visual em todos os painéis
 // por safra (reaproveita .win-toggle/.win-btn já usados no seletor de janela da Tendência de
 // Qualidade por módulo). Cada painel tem sua própria chave de estado (independente dos outros)
-// em window.__modoAcum; default 'mes' (== comportamento atual de cada painel, exceto Qualidade
-// por módulo — ver nota no moduleTable()). "Acumulado" = do primeiro mês disponível
+// em window.__modoAcum; default 'mes' (== comportamento atual de cada painel), EXCETO 'qual'
+// (Qualidade por módulo/MTTR+Esforço): ali MTTR/Esforço sempre foram período inteiro (nunca
+// tiveram corte por mês) — abrir em 'mes' faria os números parecerem menores/errados por
+// padrão; default 'acum' reproduz o número de sempre quando a safra selecionada é a mais
+// recente (DECISÃO DE 10/09/2026, a pedido da Jane). "Acumulado" = do primeiro mês disponível
 // (DATA.tot_series[0].mes) até a safra selecionada, inclusive.
-window.__modoAcum={};
+window.__modoAcum={qual:'acum'};
 function modoAcum(key){return window.__modoAcum[key]==='acum';}
 function setModoAcum(key,v){window.__modoAcum[key]=v;render();}
 function acumRange(){return mesLbl(DATA.tot_series[0].mes)+'–'+mesLbl(curSafra());}
