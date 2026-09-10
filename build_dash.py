@@ -300,6 +300,22 @@ function si(n){return '<span class="sec-ico">'+svg(n)+'</span>';}
 window.__safra=null;
 function curSafra(){return window.__safra || DATA.funil_default;}
 function setSafra(v){window.__safra=v;render();}
+// Seletor "Mês / Acumulado" — DECISÃO DE 10/09/2026, mesmo padrão visual em todos os painéis
+// por safra (reaproveita .win-toggle/.win-btn já usados no seletor de janela da Tendência de
+// Qualidade por módulo). Cada painel tem sua própria chave de estado (independente dos outros)
+// em window.__modoAcum; default 'mes' (== comportamento atual de cada painel, exceto Qualidade
+// por módulo — ver nota no moduleTable()). "Acumulado" = do primeiro mês disponível
+// (DATA.tot_series[0].mes) até a safra selecionada, inclusive.
+window.__modoAcum={};
+function modoAcum(key){return window.__modoAcum[key]==='acum';}
+function setModoAcum(key,v){window.__modoAcum[key]=v;render();}
+function acumRange(){return mesLbl(DATA.tot_series[0].mes)+'–'+mesLbl(curSafra());}
+function acumToggle(key){
+  const on=modoAcum(key);
+  return `<span class="win-toggle" style="display:inline-flex;margin:0 0 0 8px;vertical-align:middle">
+    <button class="win-btn${!on?' on':''}" onclick="setModoAcum('${key}','mes')">Mês</button>
+    <button class="win-btn${on?' on':''}" onclick="setModoAcum('${key}','acum')" title="Acumulado de ${acumRange()}">Acumulado</button></span>`;
+}
 function safraIdx(){return DATA.tot_series.findIndex(t=>t.mes===curSafra());}
 // faixa de destaque da safra selecionada; xsFn=posição central do mês, slot=largura do mês
 function safraBand(xsFn,slot,P,H){const i=safraIdx();if(i<0)return '';const x=xsFn(i);const w=slot*0.82;
@@ -359,32 +375,46 @@ function kpiCards(){
   const s=DATA.tot_series.find(t=>t.mes===curSafra())||last; // safra selecionada
   const atual=s.mes===DATA.mes_corrente;
   const pv=DATA.previsibilidade;
-  // Detecção por safra — cai pro fallback (mês corrente) se a safra selecionada não tiver
-  // entrada (ex.: dado gerado antes de d['deteccao_por_mes'] existir).
-  const det=(DATA.deteccao_por_mes&&DATA.deteccao_por_mes[s.mes])||DATA.deteccao;
+  // Detecção por safra — Mês/Acumulado (seletor 'det'). Cai pro fallback (mês corrente,
+  // sempre modo Mês) se a safra selecionada não tiver entrada (ex.: dado gerado antes de
+  // d['deteccao_por_mes'] existir).
+  const detAcum=modoAcum('det');
+  const detSrc=detAcum?DATA.deteccao_acumulado_por_mes:DATA.deteccao_por_mes;
+  const det=(detSrc&&detSrc[s.mes])||DATA.deteccao;
+  // Taxa de entrega — Mês/Acumulado (seletor 'entrega'). Acumulado usa d['entrega_acumulado_por_mes']
+  // (soma criados/entregues desde o primeiro mês disponível até a safra selecionada); Mês
+  // continua lendo direto de tot_series, como sempre.
+  const entAcum=modoAcum('entrega');
+  const ent=entAcum?((DATA.entrega_acumulado_por_mes&&DATA.entrega_acumulado_por_mes[s.mes])||s):s;
   return `<div class="cards">
-   <div class="card"><div class="kpi-label">${svg('filter','kpi-ico')}Detecção — onde o bug foi pego <span class="tag-per" title="muda conforme a safra selecionada">safra ${mesLbl(s.mes)}</span><span class="info" data-tip="Classificação por tipo de item do Jira, de TODOS os bugs CRIADOS na safra selecionada — volume bruto, sem nenhuma exclusão (inclui Cancelado QA, Cancelado Dev e qualquer status), mesmo universo do passo 1 'bugs criados' do funil Diagnóstico do mês, pra sempre baterem no mesmo total: Cliente = bug que escapou e chegou à produção (o cliente sentiu); QA/Dev = bug barrado internamente antes do cliente; Backoffice = ferramenta interna. Quanto maior a fatia interna (QA+Dev), melhor — significa que a gente segura antes de virar problema do cliente. Muda conforme o mês escolhido no seletor de safra.">i</span></div>
+   <div class="card"><div class="kpi-label">${svg('filter','kpi-ico')}Detecção — onde o bug foi pego <span class="tag-per" title="muda conforme a safra selecionada">${detAcum?`acumulado até ${mesLbl(s.mes)}`:`safra ${mesLbl(s.mes)}`}</span>${acumToggle('det')}<span class="info" data-tip="Classificação por tipo de item do Jira, de TODOS os bugs CRIADOS na safra selecionada (ou, em Acumulado, de ${acumRange()}) — volume bruto, sem nenhuma exclusão (inclui Cancelado QA, Cancelado Dev e qualquer status), mesmo universo do passo 1 'bugs criados' do funil Diagnóstico do mês, pra sempre baterem no mesmo total: Cliente = bug que escapou e chegou à produção (o cliente sentiu); QA/Dev = bug barrado internamente antes do cliente; Backoffice = ferramenta interna. Quanto maior a fatia interna (QA+Dev), melhor — significa que a gente segura antes de virar problema do cliente.">i</span></div>
      <div style="display:flex;align-items:center;gap:14px;margin-top:2px">${donutN(detSegs(det))}
        <div style="font-size:12.5px;line-height:1.55">${detLegend(det)}</div></div>
-     <div class="kpi-sub" style="margin-top:8px">${det.escape_pct}% escapou para o cliente · ${det.interno_pct}% barrado internamente.</div></div>
+     <div class="kpi-sub" style="margin-top:8px">${det.escape_pct}% escapou para o cliente · ${det.interno_pct}% barrado internamente.${detAcum?` <b>Acumulado de ${acumRange()}.</b>`:''}</div></div>
    <div class="card"><div class="kpi-label">${svg('bullseye','kpi-ico')}Previsibilidade do DEV — % dentro do SLA (Não Iniciado→Produção, p95) <span class="tag-per" title="considera todos os meses até a safra atual">acumulado</span><span class="info" data-tip="% de bugs cujo tempo de DESENVOLVIMENTO (do momento em que entram em 'Não Iniciado' até entrarem em 'Produção') coube no prazo do SLA da sua prioridade, medido em dias úteis × 8h. p95: os 5% mais lentos de cada prioridade são excluídos para tirar o efeito de outliers extremos. NÃO inclui o tempo de suporte (Produção → Concluído), que é o período em que o suporte fecha com o cliente — esse é medido à parte no bloco Prioridade & SLA. Calculado ao vivo a partir do changelog do Jira (1ª entrada em cada status), não de um export manual.">i</span></div>
      <div class="kpi-val" style="color:${prevColor(pv.agregado)}">${pv.agregado}%</div>
      <div class="kpi-sub">${pv.ok} de ${pv.n} bugs dentro do prazo (p95 — excluídos os 5% mais lentos de cada prioridade, ${pv.excluidos} cards). Dias úteis × 8h, direto do changelog do Jira. Não inclui o tempo de suporte pós-produção.</div></div>
-   <div class="card"><div class="kpi-label">${svg('truck-fast','kpi-ico')}Taxa de entrega — safra ${mesLbl(s.mes)}${atual?' (em andamento)':''}<span class="info" data-tip="Dos bugs reais que ENTRARAM no mês selecionado, quantos % já foram entregues — status atual em Em produção/Done/Concluído/Concluido, EXCLUINDO cards cancelados no próprio dev (resolution Cancelado Dev), que não contam como entrega real mesmo se o status ficou Done/Concluído. Muda conforme o mês escolhido no seletor de safra.">i</span></div>
-     <div class="kpi-val" style="color:${prevColor(s.pct_entrega)}">${s.pct_entrega}%</div>
-     <div class="kpi-sub">${s.mes}: entregou ${s.entregues} de ${s.criados} bugs que entraram · ${s.abertos} ainda abertos dessa safra.${atual?' Mês corrente ainda em andamento — o número tende a subir.':''}</div></div>
+   <div class="card"><div class="kpi-label">${svg('truck-fast','kpi-ico')}Taxa de entrega — ${entAcum?`acumulado até ${mesLbl(s.mes)}`:`safra ${mesLbl(s.mes)}`}${atual&&!entAcum?' (em andamento)':''}${acumToggle('entrega')}<span class="info" data-tip="Dos bugs reais que ENTRARAM no mês selecionado (ou, em Acumulado, de ${acumRange()}), quantos % já foram entregues — status atual em Em produção/Done/Concluído/Concluido, EXCLUINDO cards cancelados no próprio dev (resolution Cancelado Dev), que não contam como entrega real mesmo se o status ficou Done/Concluído.">i</span></div>
+     <div class="kpi-val" style="color:${prevColor(ent.pct_entrega)}">${ent.pct_entrega}%</div>
+     <div class="kpi-sub">${entAcum?`${acumRange()}`:s.mes}: entregou ${ent.entregues} de ${ent.criados} bugs que entraram · ${ent.abertos} ainda abertos${entAcum?' desse período':' dessa safra'}.${atual&&!entAcum?' Mês corrente ainda em andamento — o número tende a subir.':''}</div></div>
   </div>`;
 }
 function slaSection(){
   // Bugs por severidade E Cumprimento de SLA por prioridade — POR SAFRA (mês de criação),
-  // mesma variável de safra selecionada usada em "Taxa de entrega"/"Detecção" (curSafra()).
-  // DIFERENTE de "Previsibilidade do DEV" do Panorama (kpiCards, acima), que continua
-  // acumulado — decisão de 09/09/2026.
+  // mesma variável de safra selecionada usada em "Taxa de entrega"/"Detecção" (curSafra()), COM
+  // seletor Mês/Acumulado (chave 'sla', DECISÃO DE 10/09/2026) — um toggle só pros dois painéis
+  // (severidade e SLA são a mesma "leitura de prioridade" da safra; não faz sentido ver um em
+  // Mês e o outro em Acumulado ao mesmo tempo). DIFERENTE de "Previsibilidade do DEV" do
+  // Panorama (kpiCards, acima), que continua sempre acumulado, sem seletor.
   const last=DATA.tot_series[DATA.tot_series.length-1];
   const s=DATA.tot_series.find(t=>t.mes===curSafra())||last;
-  const sev=(DATA.severidade_por_mes&&DATA.severidade_por_mes[s.mes])||DATA.severidade||[];
-  const slaLinhas=(DATA.sla_por_mes&&DATA.sla_por_mes[s.mes]&&DATA.sla_por_mes[s.mes].por_prio)||[];
+  const acum=modoAcum('sla');
+  const sevSrc=acum?DATA.severidade_acumulado_por_mes:DATA.severidade_por_mes;
+  const slaSrc=acum?DATA.sla_acumulado_por_mes:DATA.sla_por_mes;
+  const sev=(sevSrc&&sevSrc[s.mes])||DATA.severidade||[];
+  const slaLinhas=(slaSrc&&slaSrc[s.mes]&&slaSrc[s.mes].por_prio)||[];
   const piso=DATA.meta.piso_amostra_sla;
+  const periodoTxt=acum?`de ${acumRange()}`:'nesta safra';
   const maxSev=Math.max(1,...sev.map(x=>x.n));
   const sevPal=[col('--s8'),col('--s2'),col('--s4'),col('--s1'),col('--s3'),col('--text-3')];
   const sevBars=sev.map((x,i)=>{
@@ -402,11 +432,11 @@ function slaSection(){
         :`<span style="color:${prevColor(p.pct)};font-weight:700">${p.pct}%</span>`}</td>
      <td class="num">${p.mttr!=null?p.mttr:'—'}</td></tr>`).join('');
   return `<div class="grid2">
-   <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Bugs por severidade <span class="tag-per" title="muda conforme a safra selecionada">safra ${mesLbl(s.mes)}</span></div>${sevBars||'<div class="note">Sem bugs criados nesta safra.</div>'}
-     <div class="note">Prioridade do card no Jira, só dos bugs <b>criados na safra selecionada</b>. "Sem prioridade" = cards sem prioridade preenchida ou em "Preencher Prioridade" — lacuna de triagem; clique na barra pra ver os cards no Jira.</div></div>
-   <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Cumprimento de SLA por prioridade <span class="tag-per" title="muda conforme a safra selecionada">safra ${mesLbl(s.mes)}</span></div>
-     <table><thead><tr><th>Nível ${ico('Nível de prioridade do bug no Jira (Muito alta a Muito baixa = Highest a Lowest).')}</th><th class="num">SLA ${ico('Prazo-alvo de resolução do desenvolvimento para aquela prioridade, em horas úteis, conforme a régua de SLA da empresa.')}</th><th class="num">Bugs ${ico('Quantidade de bugs dessa prioridade CRIADOS na safra selecionada que entraram no cálculo (já com o p95 aplicado, ou seja, sem os 5% mais lentos).')}</th><th class="num">Dentro do SLA ${ico('% desses bugs cujo tempo de desenvolvimento (Não Iniciado→Produção) coube no prazo do SLA da prioridade. Com menos de '+piso+' bugs na prioridade nesta safra, o selo (!) avisa que a amostra é pequena demais pro % ser confiável.',1)}</th><th class="num">Mediana dev (d.úteis) ${ico('Tempo mediano de desenvolvimento (Não Iniciado→Produção) da prioridade, nesta safra, em dias úteis (jornada de 8h). Mediana = valor do meio, menos sensível a extremos que a média.',1)}</th></tr></thead><tbody>${slaRows||'<tr><td colspan="5" class="num">Sem bugs com dev medido nesta safra.</td></tr>'}</tbody></table>
-     <div class="note"><b>Como ler:</b> % de bugs <b>criados nesta safra</b> em que o <b>desenvolvimento</b> (Não Iniciado→Produção) coube no prazo da prioridade — calculado ao vivo do changelog do Jira (1ª entrada em cada status), dias úteis × 8h. SLA: Muito alta 8h, Alta 12h, Média 16h, Baixa 24h, Muito baixa 40h. <b>p95:</b> os 5% mais lentos de cada prioridade são excluídos para tirar o efeito de outliers extremos (numa safra só, com poucos bugs, isso às vezes não corta nada — daí o selo de amostra pequena). <b>Mede o dev, não o "Concluído"</b> — o tempo entre Produção e o fechamento do suporte é medido à parte, acumulado (mediana ${DATA.suporte_lag?DATA.suporte_lag.mediana_h:'—'}h úteis, ${DATA.suporte_lag?DATA.suporte_lag.n:0} cards). Mostra que o SLA antigo — criado sem embasamento — está apertado para a capacidade real; dado para recalibrar.</div></div>
+   <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Bugs por severidade <span class="tag-per" title="muda conforme a safra selecionada">${acum?`acumulado até ${mesLbl(s.mes)}`:`safra ${mesLbl(s.mes)}`}</span>${acumToggle('sla')}</div>${sevBars||'<div class="note">Sem bugs criados neste período.</div>'}
+     <div class="note">Prioridade do card no Jira, só dos bugs <b>criados ${periodoTxt}</b>. "Sem prioridade" = cards sem prioridade preenchida ou em "Preencher Prioridade" — lacuna de triagem; clique na barra pra ver os cards no Jira.</div></div>
+   <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Cumprimento de SLA por prioridade <span class="tag-per" title="muda conforme a safra selecionada">${acum?`acumulado até ${mesLbl(s.mes)}`:`safra ${mesLbl(s.mes)}`}</span>${acumToggle('sla')}</div>
+     <table><thead><tr><th>Nível ${ico('Nível de prioridade do bug no Jira (Muito alta a Muito baixa = Highest a Lowest).')}</th><th class="num">SLA ${ico('Prazo-alvo de resolução do desenvolvimento para aquela prioridade, em horas úteis, conforme a régua de SLA da empresa.')}</th><th class="num">Bugs ${ico('Quantidade de bugs dessa prioridade CRIADOS '+periodoTxt+' que entraram no cálculo (já com o p95 aplicado, ou seja, sem os 5% mais lentos).')}</th><th class="num">Dentro do SLA ${ico('% desses bugs cujo tempo de desenvolvimento (Não Iniciado→Produção) coube no prazo do SLA da prioridade. Com menos de '+piso+' bugs na prioridade neste período, o selo (!) avisa que a amostra é pequena demais pro % ser confiável.',1)}</th><th class="num">Mediana dev (d.úteis) ${ico('Tempo mediano de desenvolvimento (Não Iniciado→Produção) da prioridade, neste período, em dias úteis (jornada de 8h). Mediana = valor do meio, menos sensível a extremos que a média.',1)}</th></tr></thead><tbody>${slaRows||'<tr><td colspan="5" class="num">Sem bugs com dev medido neste período.</td></tr>'}</tbody></table>
+     <div class="note"><b>Como ler:</b> % de bugs <b>criados ${periodoTxt}</b> em que o <b>desenvolvimento</b> (Não Iniciado→Produção) coube no prazo da prioridade — calculado ao vivo do changelog do Jira (1ª entrada em cada status), dias úteis × 8h. SLA: Muito alta 8h, Alta 12h, Média 16h, Baixa 24h, Muito baixa 40h. <b>p95:</b> aplicado sobre o conjunto do período selecionado — os 5% mais lentos de cada prioridade são excluídos para tirar o efeito de outliers extremos (numa safra só, com poucos bugs, isso às vezes não corta nada — daí o selo de amostra pequena). <b>Mede o dev, não o "Concluído"</b> — o tempo entre Produção e o fechamento do suporte é medido à parte, sempre acumulado (mediana ${DATA.suporte_lag?DATA.suporte_lag.mediana_h:'—'}h úteis, ${DATA.suporte_lag?DATA.suporte_lag.n:0} cards). Mostra que o SLA antigo — criado sem embasamento — está apertado para a capacidade real; dado para recalibrar.</div></div>
   </div>`;
 }
 
@@ -619,8 +649,20 @@ function mtWinToggle(){
     <button class="win-btn${w===3?' on':''}" onclick="mtSetWindow(3)">3 meses</button>
     <button class="win-btn${w===6?' on':''}" onclick="mtSetWindow(6)">6 meses</button></div>`;
 }
+function qualModAcumToggle(){
+  return `<div class="win-toggle" style="margin-top:6px"><span>MTTR/Esforço (h) calculados com:</span>${acumToggle('qual')}</div>`;
+}
 function moduleTable(){
-  const rows=DATA.tabela_modulo.slice();
+  // "Bugs (volume)" e "Tendência" (colunas 2 e 3) ficam INTOCADAS pelo seletor Mês/Acumulado
+  // abaixo — sempre o período inteiro / sempre a projeção por dias úteis do mês corrente,
+  // como sempre foram (DECISÃO DE 10/09/2026, ver gen_data.py). Só MTTR e Esforço (h) mudam
+  // com o seletor; por isso o aviso ao lado dos cabeçalhos dessas duas colunas.
+  const acum=modoAcum('qual');
+  const qualSrc=((acum?DATA.qualidade_modulo_acumulado_por_mes:DATA.qualidade_modulo_por_mes)||{})[curSafra()]||{};
+  const rows=DATA.tabela_modulo.map(r=>{
+    const q=qualSrc[r.mod];
+    return {...r,mttr:q?q.mttr:null,horas:q?q.horas:0,mttr_n:q?q.n_mttr:0};
+  });
   const win=window.__mtWindow||3;
   const maxBug=Math.max(...rows.map(r=>r.bugs));
   const maxMt=Math.max(...rows.map(r=>r.mttr||0));
@@ -636,14 +678,15 @@ function moduleTable(){
      <td><span class="badge ${bd[tr]}">${badge[tr]}</span></td>
      <td class="num">${r.mttr!=null?`<span class="heat" style="${heatColor(r.mttr,maxMt)}">${r.mttr}</span>`:'—'}</td>
      <td class="num">${r.horas}</td></tr>`;}).join('');
-  return `${mtWinToggle()}<table><thead><tr>
+  const periodoTxt=acum?`acumulado até ${mesLbl(curSafra())}`:`safra ${mesLbl(curSafra())}`;
+  return `${mtWinToggle()}${qualModAcumToggle()}<table><thead><tr>
      <th onclick="__sort('mod')">Módulo ${ico('Módulo do sistema onde o bug ocorreu, pelo campo Módulo do card no Jira (dropdown de 20 valores). Não classificado = cards sem módulo preenchido (em geral do tipo Bug Backoffice).')}</th>
-     <th class="num" onclick="__sort('bugs')">Bugs (volume) ▾ ${ico('Quantidade total de bugs registrados no módulo em todo o período coberto. Clique no cabeçalho para ordenar a tabela.')}</th>
-     <th onclick="__sort('trend${win}')">Tendência ${ico('Compara os bugs criados NESTE MÊS (parcial, até hoje) com a MÉDIA do que os últimos '+win+' meses FECHADOS tinham no MESMO número de dias úteis decorridos — comparação parcial com parcial, justa mesmo com o mês em andamento. Acima de +15% = subindo (piorando, mais bugs entrando); abaixo de −15% = caindo (melhorando); entre −15% e +15% = estável. Troque a janela (3/6 meses) acima da tabela.')}</th>
-     <th class="num" onclick="__sort('mttr')">MTTR (dias) ${ico('Mean Time To Repair — tempo médio para resolver o bug, em dias úteis entre a criação e a conclusão do card. Alto = bugs demoram a sair (velocidade), independente do volume. Inclui o tempo de suporte até o Concluído.',1)}</th>
-     <th class="num" onclick="__sort('horas')">Esforço (h) ${ico('Soma das horas apontadas (Σ Tempo Gasto / worklog do Jira) nos bugs do módulo. Preenchido em ~64% dos cards, então é um piso, não o total real.',1)}</th></tr></thead>
+     <th class="num" onclick="__sort('bugs')">Bugs (volume) ▾ ${ico('Quantidade total de bugs registrados no módulo em todo o período coberto. NÃO responde ao seletor Mês/Acumulado abaixo (sempre o período inteiro). Clique no cabeçalho para ordenar a tabela.')}<span class="tag-per" title="não muda com o seletor Mês/Acumulado">sempre período inteiro</span></th>
+     <th onclick="__sort('trend${win}')">Tendência ${ico('Compara os bugs criados NESTE MÊS (parcial, até hoje) com a MÉDIA do que os últimos '+win+' meses FECHADOS tinham no MESMO número de dias úteis decorridos — comparação parcial com parcial, justa mesmo com o mês em andamento. Acima de +15% = subindo (piorando, mais bugs entrando); abaixo de −15% = caindo (melhorando); entre −15% e +15% = estável. Troque a janela (3/6 meses) acima da tabela. NÃO responde ao seletor Mês/Acumulado — a projeção por dias úteis não faz sentido acumulada.')}<span class="tag-per" title="não muda com o seletor Mês/Acumulado">sempre mês corrente</span></th>
+     <th class="num" onclick="__sort('mttr')">MTTR (dias) ${ico('Mean Time To Repair — mediana de dias úteis entre a criação e a entrega (1ª entrada em Em produção, fallback Done/Concluído) dos bugs do módulo, na safra selecionada (ou acumulado até ela, no seletor abaixo). Card sem a transição registrada no changelog não entra no cálculo.',1)}</th>
+     <th class="num" onclick="__sort('horas')">Esforço (h) ${ico('Soma das horas apontadas (Σ Tempo Gasto / worklog do Jira) nos bugs do módulo, na safra selecionada (ou acumulado até ela, no seletor abaixo). Preenchido em ~64% dos cards, então é um piso, não o total real.',1)}</th></tr></thead>
      <tbody id="mtb">${body(rows)}</tbody></table>
-     <div class="note"><b>Fonte e método:</b> volume, esforço e MTTR da aba "Base Atual" do Jira (base atual, ${DATA.meta.total_bugs_base_atual} bugs). MTTR = dias úteis entre criação e entrega (1ª "Em produção", fallback Done/Concluído). Esforço = Σ Tempo Gasto (assumido em segundos → horas); preenchido em ~64% dos cards, portanto é piso, não total. Tendência = volume parcial do mês corrente vs. média parcial dos últimos ${win} meses fechados nos mesmos dias úteis decorridos — não o mês fechado inteiro (isso sempre pareceria "caindo" por estar incompleto). "!" ao lado do módulo = amostra pequena (menos de 120 bugs no período).</div>`;
+     <div class="note"><b>Fonte e método:</b> "Bugs (volume)" e "Tendência" são sempre do período inteiro/mês corrente (não respondem ao seletor Mês/Acumulado — ver aviso nos cabeçalhos). MTTR e Esforço são da <b>${periodoTxt}</b>: MTTR = mediana de dias úteis entre criação e entrega (1ª "Em produção", fallback Done/Concluído); Esforço = Σ Tempo Gasto (assumido em segundos → horas), piso pois preenchido em ~64% dos cards. Tendência = volume parcial do mês corrente vs. média parcial dos últimos ${win} meses fechados nos mesmos dias úteis decorridos — não o mês fechado inteiro (isso sempre pareceria "caindo" por estar incompleto). "!" ao lado do módulo = amostra pequena (menos de 120 bugs no período inteiro).</div>`;
 }
 
 function barChart(obj,pal,unit){
@@ -674,16 +717,20 @@ function alertCard(){
   </div>`;
 }
 function squadSection(){
-  // Carga por squad — POR SAFRA (mês de criação), mesmo seletor de safra do resto do painel.
-  // DECISÃO DE 09/09/2026: Pessoas/mapa Squad→Módulo continuam hardcoded (SQUAD, gen_data.py);
-  // só as colunas numéricas (Bugs/Bugs por pessoa/Esforço/MTTR/%SLA) passam a refletir só a
-  // safra selecionada. MTTR reaproveita o mesmo método de "Qualidade por módulo" (entrega_data);
-  // %SLA reaproveita a mesma função de "Cumprimento de SLA por prioridade" (_dev_horas no
-  // gen_data.py), agora agrupada por squad.
+  // Carga por squad — POR SAFRA (mês de criação), mesmo seletor de safra do resto do painel,
+  // COM seletor Mês/Acumulado (chave 'squad', DECISÃO DE 10/09/2026). Pessoas/mapa
+  // Squad→Módulo continuam hardcoded (SQUAD, gen_data.py); só as colunas numéricas (Bugs/Bugs
+  // por pessoa/Esforço/MTTR/%SLA) passam a refletir a safra (ou o acumulado até ela). MTTR
+  // reaproveita o mesmo método de "Qualidade por módulo" (entrega_data); %SLA reaproveita a
+  // mesma função de "Cumprimento de SLA por prioridade" (_dev_horas no gen_data.py), agora
+  // agrupada por squad.
   const last=DATA.tot_series[DATA.tot_series.length-1];
   const s=DATA.tot_series.find(t=>t.mes===curSafra())||last;
-  const S=(DATA.squads_por_mes&&DATA.squads_por_mes[s.mes])||DATA.squads||[];
+  const acum=modoAcum('squad');
+  const S=((acum?DATA.squads_acumulado_por_mes:DATA.squads_por_mes)||{})[s.mes]||DATA.squads||[];
   const piso=DATA.meta.piso_amostra_squad;
+  const periodoTxt=acum?`de ${acumRange()}`:'nesta safra';
+  const totalBugs=S.reduce((a,x)=>a+x.bugs,0);
   const maxL=Math.max(1,...S.filter(x=>x.bugs_por_pessoa).map(x=>x.bugs_por_pessoa));
   const maxBugs=Math.max(1,...S.map(x=>x.bugs));
   const badge=(r)=>r==='interno'?'<span class="badge b-flat" style="background:rgba(42,120,214,.14);color:var(--s1)">folha</span>':(r==='contratado'?'<span class="badge b-flat" style="background:rgba(235,104,52,.16);color:var(--s2)">contrato</span>':'<span class="badge b-flat">—</span>');
@@ -694,15 +741,15 @@ function squadSection(){
     <td class="num"><span class="heat" style="${heatColor(x.bugs,maxBugs)}">${x.bugs}</span></td>
     <td class="num">${x.bugs_por_pessoa!=null?`<span class="heat" style="${heatColor(x.bugs_por_pessoa,maxL)}">${x.bugs_por_pessoa}</span>`:'—'}</td>
     <td class="num">${x.horas}</td>
-    <td class="num">${x.mttr!=null?(x.mttr_small?selo(`Amostra pequena — menos de ${piso} bugs desse squad com entrega medida nesta safra. Valor ao lado pode não ser confiável.`):'')+x.mttr:'—'}</td>
-    <td class="num" style="color:${x.sla!=null?prevColor(x.sla):'var(--text-3)'};font-weight:700">${x.sla!=null?(x.sla_small?selo(`Amostra pequena — menos de ${piso} bugs desse squad com dev medido nesta safra. % pode não ser confiável.`):'')+x.sla+'%':'—'}</td></tr>`;
+    <td class="num">${x.mttr!=null?(x.mttr_small?selo(`Amostra pequena — menos de ${piso} bugs desse squad com entrega medida neste período. Valor ao lado pode não ser confiável.`):'')+x.mttr:'—'}</td>
+    <td class="num" style="color:${x.sla!=null?prevColor(x.sla):'var(--text-3)'};font-weight:700">${x.sla!=null?(x.sla_small?selo(`Amostra pequena — menos de ${piso} bugs desse squad com dev medido neste período. % pode não ser confiável.`):'')+x.sla+'%':'—'}</td></tr>`;
   const body=S.map(row).join('');
   return `<div class="panel">
-    <div class="kpi-label" style="margin-bottom:10px">Carga por squad <span class="tag-per" title="muda conforme a safra selecionada">safra ${mesLbl(s.mes)}</span></div>
+    <div class="kpi-label" style="margin-bottom:10px">Carga por squad <span class="tag-per" title="muda conforme a safra selecionada">${acum?`acumulado até ${mesLbl(s.mes)}`:`safra ${mesLbl(s.mes)}`}</span>${acumToggle('squad')}</div>
     <table>
-    <thead><tr><th>Squad ${ico('Time responsável pela manutenção do(s) módulo(s), pelo mapa de responsabilidade definido com a gestão.')}</th><th>Regime ${ico('Como o custo do squad é pago: folha = CLT (salário + encargos); contrato = prestador de serviço externo. Nunca custear módulo contratado com custo-hora da folha.')}</th><th class="num">Pessoas ${ico('Número de pessoas no squad. Em branco quando o headcount ainda não foi confirmado.')}</th><th class="num">Bugs ${ico('Bugs dos módulos do squad CRIADOS na safra selecionada.')}</th><th class="num">Bugs/pessoa ${ico('Bugs (da safra) ÷ pessoas do squad — indicador de sobrecarga. Quanto maior, mais carga por cabeça.')}</th><th class="num">Esforço (h) ${ico('Soma das horas apontadas (worklog) nos bugs do squad CRIADOS na safra selecionada. Piso, pois nem todo card tem apontamento.',1)}</th><th class="num">MTTR (d.úteis) ${ico('Mediana de dias úteis entre criação e entrega (1ª entrada em Em produção, changelog) dos bugs do squad criados nesta safra — mesmo método de Qualidade por módulo. Com menos de '+piso+' bugs com entrega medida, o selo (!) avisa amostra pequena.',1)}</th><th class="num">% SLA ${ico('% de bugs do squad, criados nesta safra, cujo tempo de desenvolvimento (Não Iniciado→Em Produção) coube no SLA da prioridade — mesmo cálculo de Cumprimento de SLA por prioridade, agrupado por squad. Com menos de '+piso+' bugs com dev medido, o selo (!) avisa amostra pequena.',1)}</th></tr></thead>
-    <tbody>${body||'<tr><td colspan="8" class="num">Sem bugs criados nesta safra.</td></tr>'}</tbody></table>
-    <div class="note"><b>Carga × capacidade.</b> "Bugs/pessoa" é o indicador de sobrecarga (headcount do squad). <b>Folha</b> = custo sai de salário+encargos; <b>contrato</b> = custo é o valor do contrato de manutenção (a informar) — nunca custear módulo contratado com custo-hora da folha. Pessoas de TI e do produto OF CDE ainda sem headcount; "Não atribuído" reúne Chat de Suporte, Arquivos Públicos, OF BI e os Não classificado. Base: ${s.criados} bugs criados na safra ${mesLbl(s.mes)}.</div></div>`;
+    <thead><tr><th>Squad ${ico('Time responsável pela manutenção do(s) módulo(s), pelo mapa de responsabilidade definido com a gestão.')}</th><th>Regime ${ico('Como o custo do squad é pago: folha = CLT (salário + encargos); contrato = prestador de serviço externo. Nunca custear módulo contratado com custo-hora da folha.')}</th><th class="num">Pessoas ${ico('Número de pessoas no squad. Em branco quando o headcount ainda não foi confirmado.')}</th><th class="num">Bugs ${ico('Bugs dos módulos do squad CRIADOS '+periodoTxt+'.')}</th><th class="num">Bugs/pessoa ${ico('Bugs (do período) ÷ pessoas do squad — indicador de sobrecarga. Quanto maior, mais carga por cabeça.')}</th><th class="num">Esforço (h) ${ico('Soma das horas apontadas (worklog) nos bugs do squad CRIADOS '+periodoTxt+'. Piso, pois nem todo card tem apontamento.',1)}</th><th class="num">MTTR (d.úteis) ${ico('Mediana de dias úteis entre criação e entrega (1ª entrada em Em produção, changelog) dos bugs do squad criados '+periodoTxt+' — mesmo método de Qualidade por módulo. Com menos de '+piso+' bugs com entrega medida, o selo (!) avisa amostra pequena.',1)}</th><th class="num">% SLA ${ico('% de bugs do squad, criados '+periodoTxt+', cujo tempo de desenvolvimento (Não Iniciado→Em Produção) coube no SLA da prioridade — mesmo cálculo de Cumprimento de SLA por prioridade, agrupado por squad. Com menos de '+piso+' bugs com dev medido, o selo (!) avisa amostra pequena.',1)}</th></tr></thead>
+    <tbody>${body||'<tr><td colspan="8" class="num">Sem bugs criados neste período.</td></tr>'}</tbody></table>
+    <div class="note"><b>Carga × capacidade.</b> "Bugs/pessoa" é o indicador de sobrecarga (headcount do squad). <b>Folha</b> = custo sai de salário+encargos; <b>contrato</b> = custo é o valor do contrato de manutenção (a informar) — nunca custear módulo contratado com custo-hora da folha. Pessoas de TI e do produto OF CDE ainda sem headcount; "Não atribuído" reúne Chat de Suporte, Arquivos Públicos, OF BI e os Não classificado. Base: ${totalBugs} bugs criados ${periodoTxt}.</div></div>`;
 }
 window.__mhMod=null;
 function mhCurMod(){return window.__mhMod || DATA.mod_history.ordem[0];}
@@ -830,7 +877,14 @@ function devsEmDesenvolvimento(){
     <tbody>${body}</tbody></table>`;
 }
 function funilPanel(){
-  const f=(DATA.funil_por_mes&&DATA.funil_por_mes[curSafra()])||DATA.funil; if(!f) return '';
+  // "Diagnóstico do mês — funil de entrega do dev" — COM seletor Mês/Acumulado (chave 'funil',
+  // DECISÃO DE 10/09/2026): Acumulado usa d['funil_acumulado_por_mes'] (mesma build_funil() do
+  // gen_data.py, só que alimentada pelo intervalo [primeiro mês, safra selecionada] em vez de
+  // um mês só) — os 7 números da cadeia E a Composição da fila mudam juntos. devsEmDesenvolvimento()/
+  // impedimentoSpotlight() abaixo NÃO entram no seletor — são sempre "estado atual", sem conceito de mês.
+  const acum=modoAcum('funil');
+  const fSrc=acum?DATA.funil_acumulado_por_mes:DATA.funil_por_mes;
+  const f=(fSrc&&fSrc[curSafra()])||DATA.funil; if(!f) return '';
   const isCorrente=f.mes===DATA.mes_corrente;
   const step=(val,lbl,sub,c)=>`<div style="flex:1;min-width:120px;text-align:center">
      <div style="font-size:34px;font-weight:800;color:${c};letter-spacing:-1px">${val}</div>
@@ -841,9 +895,10 @@ function funilPanel(){
   const modTxt=f.mod_top.map(m=>`${m[0]} ${m[1]}`).join(' · ');
   const filaTxt=f.fila_det.length?f.fila_det.map(x=>`${x[1]} ${x[0].toLowerCase()}`).join(', '):'—';
   const detTxt=(f.detc||[]).map(i=>`${i.tipo} ${i.n} (${i.pct}%)`).join(' · ');
+  const periodoLbl=acum?`acumulado de ${acumRange()}`:`safra de <b>${mesLbl(f.mes)}</b>${isCorrente?' (mês corrente, em andamento)':' (mês fechado)'}`;
   return `<div class="panel" style="border-left:5px solid var(--s1)">
-    <div class="kpi-label" style="margin-bottom:14px;font-size:13px">Carga real que chegou ao desenvolvimento — safra de <b>${mesLbl(f.mes)}</b>${isCorrente?' (mês corrente, em andamento)':' (mês fechado)'}
-      <span class="info" data-tip="O funil mostra a carga REAL do desenvolvimento no mês. Parte do total de bugs criados (sem exclusão nesta etapa), remove os que o QA descartou (Cancelado QA — não eram defeito de produto) e os que o próprio dev cancelou depois (Cancelado Dev — resolution, segmento à parte, mostrado antes de 'chegaram ao dev' porque não é carga real): o que sobra é o volume líquido que chegou ao dev — mesmo critério de exclusão da régua oficial (Bug por módulo/evolucao_bugs.py), pra bater com aquele painel no mesmo mês. 'Entregues' = status atual em Em produção/Em Produção/Done/Concluído/Concluido (regra só deste painel — diferente do resto do dashboard, que conta só 'Em produção' como entregue). 'na fila' = o que ainda está no pipeline (Backlog + status ativos). É a leitura honesta de capacidade: mede o dev pelo que ele recebeu de verdade, não pelo volume bruto inflado por triagem ou por cancelamentos.">i</span></div>
+    <div class="kpi-label" style="margin-bottom:14px;font-size:13px">Carga real que chegou ao desenvolvimento — ${periodoLbl}${acumToggle('funil')}
+      <span class="info" data-tip="O funil mostra a carga REAL do desenvolvimento no período. Parte do total de bugs criados (sem exclusão nesta etapa), remove os que o QA descartou (Cancelado QA — não eram defeito de produto) e os que o próprio dev cancelou depois (Cancelado Dev — resolution, segmento à parte, mostrado antes de 'chegaram ao dev' porque não é carga real): o que sobra é o volume líquido que chegou ao dev — mesmo critério de exclusão da régua oficial (Bug por módulo/evolucao_bugs.py), pra bater com aquele painel no mesmo mês. 'Entregues' = status atual em Em produção/Em Produção/Done/Concluído/Concluido (regra só deste painel — diferente do resto do dashboard, que conta só 'Em produção' como entregue). 'na fila' = o que ainda está no pipeline (Backlog + status ativos). Em Acumulado, cada número soma o intervalo inteiro (do primeiro mês disponível até a safra selecionada), recalculado do zero sobre a união dos cards — não é a soma dos números já prontos de cada mês. É a leitura honesta de capacidade: mede o dev pelo que ele recebeu de verdade, não pelo volume bruto inflado por triagem ou por cancelamentos.">i</span></div>
     <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:stretch">
       ${step(f.total,'bugs criados','entraram como bug',col('--text-2'))}
       ${arrow('−'+f.descartados_qa+' ('+f.pct_descarte+'%)')}
@@ -859,7 +914,7 @@ function funilPanel(){
     ${funilDetc(f)}
     ${devsEmDesenvolvimento()}
     ${impedimentoSpotlight()}
-    <div class="note" style="margin-top:16px"><b>Leitura de capacidade:</b> o dev recebeu de verdade <b>${f.dev}</b> bugs (não ${f.total} — ${f.descartados_qa} eram ruído de triagem que o QA barrou, ${f.pct_descarte}% do total, e <b>${f.cancelados_dev}</b> foram cancelados no próprio dev antes de virar carga real). Entregou <b>${f.entregues} (${f.pct_entrega}%)</b> dentro do mês; a fila restante são ${f.fila} cards (${filaTxt}), a maior parte já adiantada. Velocidade: MTTR mediano de <b>${f.mttr_mediana} dias úteis</b> (média ${f.mttr_media}). Severidade do que chegou ao dev: ${sevTxt}. Concentração: ${modTxt}. Detecção da safra (todos os cards): ${detTxt}. Apontamento de horas em ${f.apont_cov[0]} de ${f.apont_cov[1]} cards. <b>O gargalo do mês não foi o desenvolvimento</b> — foi a triagem deixando ${f.pct_descarte}% de ruído entrar.</div></div>`;
+    <div class="note" style="margin-top:16px"><b>Leitura de capacidade:</b> o dev recebeu de verdade <b>${f.dev}</b> bugs (não ${f.total} — ${f.descartados_qa} eram ruído de triagem que o QA barrou, ${f.pct_descarte}% do total, e <b>${f.cancelados_dev}</b> foram cancelados no próprio dev antes de virar carga real). Entregou <b>${f.entregues} (${f.pct_entrega}%)</b>${acum?' no período':' dentro do mês'}; a fila restante são ${f.fila} cards (${filaTxt}), a maior parte já adiantada. Velocidade: MTTR mediano de <b>${f.mttr_mediana} dias úteis</b> (média ${f.mttr_media}). Severidade do que chegou ao dev: ${sevTxt}. Concentração: ${modTxt}. Detecção ${acum?'do período':'da safra'} (todos os cards): ${detTxt}. Apontamento de horas em ${f.apont_cov[0]} de ${f.apont_cov[1]} cards. <b>O gargalo${acum?' do período':' do mês'} não foi o desenvolvimento</b> — foi a triagem deixando ${f.pct_descarte}% de ruído entrar.</div></div>`;
 }
 function prodBanner(){
   const lbl=PRODLBL[curProduto()];
@@ -867,23 +922,37 @@ function prodBanner(){
     <div><b>Visão por produto: ${lbl} · ${mesLbl(curSafra())}</b> — mostrando evolução, diagnóstico do mês, sobra por status, panorama e bugs por responsável. As seções de módulo, SLA, squad, custo e alerta ficam ocultas nesta visão (aparecem em <b>Todos</b>).
     <br><i>Obs.: o recorte por produto ainda não filtra os números abaixo — a classificação por produto está em construção (Prime já é módulo próprio; Orçafascio × Orçafascio antigo dependem do marcador na descrição). Por ora os valores são de todos os produtos.</i></div></div>`;
 }
+// Alocação — bugs concluídos por responsável — COM seletor Mês/Acumulado (chave 'aloc',
+// DECISÃO DE 10/09/2026). O corte "top 10" agora é só visual (feito aqui, não mais no
+// gen_data.py — ver _aloc_de()), pra alguém que não estava no top 10 de um mês isolado poder
+// aparecer no top 10 do acumulado sem ficar de fora da soma.
+function alocAcum(){return modoAcum('aloc');}
 function alocRows(){
-  const porMes=DATA.aloc_por_mes||{};
-  return porMes[curSafra()]||[];
+  const porMes=(alocAcum()?DATA.aloc_acumulado_por_mes:DATA.aloc_por_mes)||{};
+  return (porMes[curSafra()]||[]).slice(0,10);
 }
 function alocChart(){
   const rows=alocRows();
-  if(!rows.length) return '<div class="note" style="margin-top:8px">Sem bugs concluídos neste mês.</div>';
+  if(!rows.length) return `<div class="note" style="margin-top:8px">Sem bugs concluídos ${alocAcum()?'no período':'neste mês'}.</div>`;
   const max=Math.max(...rows.map(r=>r.n));
   return rows.map(r=>`<div class="bar-row" style="cursor:pointer" data-keys="${(r.keys||[]).join(',')}" onclick="abrirCardsBar(this)" title="clique p/ ver os cards no Jira"><div class="lbl">${r.resp} (${r.pct}%)</div>
      <div class="bar-track"><div class="bar-fill" style="width:${(r.n/max*100).toFixed(1)}%;background:${col('--s1')}"></div></div>
      <div class="bar-val">${r.n}</div></div>`).join('');
 }
+function alocLabel(){
+  const acum=alocAcum();
+  return `Bugs concluídos por responsável — ${acum?`acumulado até ${mesLbl(curSafra())}`:`mês <b>${mesLbl(curSafra())}</b>`} (top 10)${acumToggle('aloc')}`;
+}
+function alocNote(intro){
+  const acum=alocAcum();
+  const newcomer=acum?' <b>Cuidado ao comparar pessoas no Acumulado:</b> quem entrou no time há pouco tempo aparece com número menor só por ter menos meses na janela acumulada, não por render menos.':'';
+  return `${intro}${acum?` O período aqui é de ${acumRange()} (mês de CONCLUSÃO, não o de criação do card).`:' o mês aqui é o de CONCLUSÃO, não o de criação do card (pode incluir bugs criados em meses anteriores).'} A soma de todos os responsáveis bate com os concluídos de "Bug por módulo"/Todos no mesmo período. Clique numa barra p/ ver os cards exatos no Jira. "Sem responsável" é o maior balde — sinal de triagem/atribuição a melhorar, não de ociosidade. Enquadramento de sistema, não de pessoa.${newcomer}`;
+}
 function responsavelPanel(){
   return `<h2>${si('users')}Bugs por responsável</h2>
-   <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Bugs concluídos por responsável — mês <b>${mesLbl(curSafra())}</b> (top 10)</div>
+   <div class="panel"><div class="kpi-label" style="margin-bottom:10px">${alocLabel()}</div>
      ${alocChart()}
-     <div class="note">% de cada responsável sobre o total de bugs concluídos no mês selecionado. "Concluído" = mesma régua de "Bug por módulo" (1ª transição pro status Em produção — fallback Done/Concluído; exclui Cancelado QA/Dev e cards atualmente em Impedimento Produto/Backlog); o mês aqui é o de CONCLUSÃO, não o de criação do card (pode incluir bugs criados em meses anteriores). A soma de todos os responsáveis bate com os concluídos de "Bug por módulo"/Todos no mesmo mês. Clique numa barra p/ ver os cards exatos no Jira. "Sem responsável" é o maior balde — sinal de triagem/atribuição a melhorar, não de ociosidade. Enquadramento de sistema, não de pessoa.</div></div>`;
+     <div class="note">${alocNote('% de cada responsável sobre o total de bugs concluídos no período selecionado. "Concluído" = mesma régua de "Bug por módulo" (1ª transição pro status Em produção — fallback Done/Concluído; exclui Cancelado QA/Dev e cards atualmente em Impedimento Produto/Backlog);')}</div></div>`;
 }
 // transforma automaticamente as notas longas em blocos recolhíveis (fechados por padrão)
 function collapsibleNotes(){
@@ -940,9 +1009,9 @@ function render(){
      <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Esforço por módulo (top 10, horas) — safra <b>${mesLbl(curSafra())}</b></div>
        ${custoModulo()}
        <div class="note"><b>Esforço distribuído (estimativa)</b>, em horas apontadas (Σ Tempo Gasto) da safra selecionada (cards criados no mês em foco), só de bugs ATIVOS — exclui cards parados em IMPEDIMENTO DEV/PRODUTO e cards com resolução Cancelado Dev (esforço represado ou que não virou entrega). Muda junto com o seletor "Safra em foco" no topo da página. Para virar R$: horas × custo-hora carregado — pendente das taxas de folha e de cada contrato. Cuidado: onde o apontamento é baixo, o esforço aparece subestimado.</div></div>
-     <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Bugs concluídos por responsável — mês <b>${mesLbl(curSafra())}</b> (top 10)</div>
+     <div class="panel"><div class="kpi-label" style="margin-bottom:10px">${alocLabel()}</div>
        ${alocChart()}
-       <div class="note"><b>% concluído por responsável</b>, sobre o total de bugs concluídos no mês selecionado — mesma régua de "Bug por módulo" (1ª transição pro status Em produção, fallback Done/Concluído; exclui Cancelado QA/Dev e cards atualmente em Impedimento Produto/Backlog). O mês aqui é o de CONCLUSÃO, não o de criação — pode incluir bugs criados em meses anteriores. Muda junto com o seletor "Safra em foco" no topo da página (nesse card, o seletor escolhe o mês de conclusão). A soma de todos os responsáveis bate com os concluídos de "Bug por módulo"/Todos no mesmo mês. Clique numa barra p/ ver os cards exatos no Jira. "Sem responsável" é o maior balde — sinal de triagem/atribuição a melhorar, não de ociosidade. Enquadramento de sistema, não de pessoa.</div></div>
+       <div class="note">${alocNote('<b>% concluído por responsável</b>, sobre o total de bugs concluídos no período selecionado — mesma régua de "Bug por módulo" (1ª transição pro status Em produção, fallback Done/Concluído; exclui Cancelado QA/Dev e cards atualmente em Impedimento Produto/Backlog).')}</div></div>
    </div>
    <h2>${si('bell')}Alerta operacional</h2>${alertCard()}`:''}`;
   collapsibleNotes();
