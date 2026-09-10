@@ -887,12 +887,32 @@ if _mh_changed:
 # d['mod_history'] acima: d['mod_history'] continua do jeito que estava, intocado, porque
 # também alimenta moduleHistoryChart() ("Detalhe por ferramenta" → seletor de módulo) e
 # trendColor() (cor fixa por módulo, reaproveitada em "Bug por módulo"/emChips()) — mudar o
-# formato ali quebraria os dois. Mesma fonte/régua de "Bug por módulo" (evol_modulo): usa
-# `sweep` (só exclui Cancelado QA — Cancelado Dev, Impedimentos etc. continuam contando),
-# contagem por mês de CRIAÇÃO do card. Mês corrente de 2026: valor PARCIAL bruto (sem
-# projeção — aqui o objetivo é comparar com o mesmo mês de 2025, não estimar fechamento);
-# meses de 2026 ainda não chegados ficam None (front-end não desenha ponto, a linha só termina
-# no mês corrente em vez de cair pra zero).
+# formato ali quebraria os dois.
+#
+# MÉTRICA (DECISÃO DE 10/09/2026, implementação final): Criados deixou de ser a métrica do
+# painel — agora é CARGA REAL DE TRABALHO:
+#   Carga(módulo, M) = Criados(módulo, M) + Sobra(módulo, M-1)
+#   Criados(módulo, M) ... mesma régua de "Bug por módulo"/evol_modulo: sweep (só exclui
+#                          Cancelado QA), contagem por mês de CRIAÇÃO (cria_mod, acima).
+#   Sobra(módulo, M-1) .... cards do módulo criados no mês M-1 cujo STATUS, reconstruído via
+#                          changelog (status_changelog.json, fetch_jira.py) no ÚLTIMO DIA de
+#                          M-1, ainda não tinha entrado em ENTREGUE naquele momento — "foto
+#                          congelada" do passado, nunca recalculada depois de gravada (ver
+#                          cache abaixo). ENTREGUE aqui = mesma régua ampla de entrega_data/
+#                          ENTREGUE_TAXA já usada no resto do pipeline (Em produção, fallback
+#                          Done/Concluído) — NÃO o `ENTREGUE` estreito (só "Em produção") lá
+#                          embaixo em d['recortes'], que é vestigial (painel BIM removido, ver
+#                          CLAUDE.md) e não devia virar precedente pra nada novo.
+# CACHE (carga_modulo_cache.json): Sobra de mês FECHADO é congelada — uma vez calculada, fica
+# gravada e nunca mais recalculada via changelog num run futuro; só meses novos que fecharam
+# desde o último run entram no cálculo. Nunca cacheia o mês corrente (não fechou ainda).
+# MÊS CORRENTE: só os CRIADOS são projetados — por RUN-RATE SIMPLES (Criados_até_agora ÷ dias
+# úteis decorridos × dias úteis do mês), o método VENCEDOR do backtest real feito antes desta
+# implementação (run-rate x regressão linear sobre dado real e fechado do Jira: run-rate ganhou
+# em MAE e MAPE, nos 3 módulos e nos 3 checkpoints testados, erro 37,5% menor, sem exceção —
+# regressão e qualquer combinação entre os dois foram testadas e descartadas). A Sobra do mês
+# anterior somada a essa projeção já é exata (mês fechado, cacheada) — não precisa de nenhum
+# ajuste extra. Meses de 2026 ainda não chegados ficam None (front-end não desenha ponto).
 MESES_LBL_AA=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
 ANOS_AA=('2025','2026')
 _cur_ano_aa,_cur_mes_idx_aa=str(TODAY.year),TODAY.month-1
@@ -904,15 +924,72 @@ for x in sweep:
     if anox not in ANOS_AA: continue
     cellaa[x['m']][anox][x['c'].month-1]+=1
     totaa[x['m']]+=1
-if _cur_ano_aa in ANOS_AA:
-    for _mod_aa in cellaa:
-        for _i in range(_cur_mes_idx_aa+1,12):
-            cellaa[_mod_aa][_cur_ano_aa][_i]=None
 ordem_aa=[m for m,_ in totaa.most_common()]
+
+ST_ENTREGUE=('Em produção','Em Produção','Done','Concluído','Concluido')
+_status_changelog=json.load(open('status_changelog.json')) if os.path.exists('status_changelog.json') else {}
+CARGA_CACHE_PATH='carga_modulo_cache.json'
+_carga_cache=json.load(open(CARGA_CACHE_PATH)) if os.path.exists(CARGA_CACHE_PATH) else {}
+_carga_cache_changed=False
+_cards_por_mod_mes=collections.defaultdict(list)
+for x in sweep:
+    if x['c']: _cards_por_mod_mes[(x['m'],x['c'].strftime('%Y-%m'))].append(x)
+def _status_em(sc,cutoff_ep):
+    """Status reconstruído de um card na data `cutoff_ep` (epoch), a partir do seu changelog
+    (sc={'inicial':...,'mudancas':[[iso,to],...]} — ver status_changelog.json). Antes da 1ª
+    mudança registrada (ou se o card nunca mudou de status): devolve o status inicial."""
+    mud=sc.get('mudancas') or []
+    if not mud: return sc.get('inicial')
+    if cutoff_ep<pdt(mud[0][0]).timestamp(): return sc.get('inicial')
+    st=sc.get('inicial')
+    for iso,to in mud:
+        if pdt(iso).timestamp()<=cutoff_ep: st=to
+        else: break
+    return st
+def _sobra_modulo_mes(mod,ym):
+    _,fim=_mes_bounds(ym)
+    cutoff_ep=datetime.datetime.combine(fim,datetime.time(23,59,59),tzinfo=TZ_BR).timestamp()
+    n=0
+    for x in _cards_por_mod_mes.get((mod,ym),[]):
+        sc=_status_changelog.get(x['key'])
+        # sem changelog persistido pro card (ex.: falha pontual no fetch) — melhor esforço:
+        # usa o status ATUAL como aproximação em vez de deixar o card de fora da contagem.
+        st=_status_em(sc,cutoff_ep) if sc else x['status']
+        if st not in ST_ENTREGUE: n+=1
+    return n
+def _sobra_cache(mod,ym):
+    global _carga_cache_changed
+    mm=_carga_cache.setdefault(mod,{})
+    if ym in mm: return mm[ym]
+    v=_sobra_modulo_mes(mod,ym)
+    mm[ym]=v; _carga_cache_changed=True
+    return v
+def _mes_anterior(ym):
+    y,mo=map(int,ym.split('-'))
+    return f'{y-1}-12' if mo==1 else f'{y}-{mo-1:02d}'
+
+cargaaa=collections.defaultdict(lambda:{a:[None]*12 for a in ANOS_AA})
+for mod in ordem_aa:
+    for ano in ANOS_AA:
+        for mi in range(12):
+            if ano==_cur_ano_aa and mi>_cur_mes_idx_aa: continue  # mês futuro: fica None
+            ym=f'{ano}-{mi+1:02d}'
+            sobra_ant=_sobra_cache(mod,_mes_anterior(ym))  # sempre mês fechado (ant < ym <= cur_ym)
+            if ym==cur_ym:
+                criados_ate_agora=cria_mod[mod].get(ym,0)
+                criados=(criados_ate_agora/DIAS_UTEIS_DECORRIDOS*DIAS_UTEIS_TOTAIS_MES) if DIAS_UTEIS_DECORRIDOS>0 else criados_ate_agora
+                cargaaa[mod][ano][mi]=round(criados+sobra_ant,1)
+            else:
+                cargaaa[mod][ano][mi]=cria_mod[mod].get(ym,0)+sobra_ant
+if _carga_cache_changed:
+    json.dump(_carga_cache,open(CARGA_CACHE_PATH,'w'),ensure_ascii=False,indent=1)
+
 d['mod_ano_a_ano']={'meses':MESES_LBL_AA,'anos':list(ANOS_AA),'ordem':ordem_aa,
-                    'por_modulo':{mod:cellaa[mod] for mod in ordem_aa},
+                    'por_modulo':{mod:cargaaa[mod] for mod in ordem_aa},
                     'total_geral':dict(totaa),
-                    'ano_corrente':_cur_ano_aa,'mes_corrente_idx':_cur_mes_idx_aa}
+                    'pequenos':[m for m in ordem_aa if mods.get(m,{'bugs':0})['bugs']<PISO_AMOSTRA_PEQUENA],
+                    'ano_corrente':_cur_ano_aa,'mes_corrente_idx':_cur_mes_idx_aa,
+                    'mes_corrente_ym':cur_ym}
 
 # ---- DETALHE POR FERRAMENTA (funil de títulos) — começa por Orçamento ----
 import unicodedata
