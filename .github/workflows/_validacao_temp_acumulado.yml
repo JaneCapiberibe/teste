@@ -76,7 +76,7 @@ jobs:
           esperado_mudou = {'aloc_por_mes'}  # perdeu o corte top-10 no gen_data.py
           faltando = esperado_novas - set(added)
           inesperado_novo = set(added) - esperado_novas
-          inesperado_mudou = set(changed) - added - esperado_mudou
+          inesperado_mudou = set(changed) - set(added) - esperado_mudou
           print()
           if faltando: print("!!! FALTOU aparecer:", faltando)
           if inesperado_novo: print("!!! CHAVE NOVA NÃO ESPERADA:", inesperado_novo)
