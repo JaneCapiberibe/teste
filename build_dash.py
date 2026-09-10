@@ -728,8 +728,13 @@ function barChart(obj,pal,unit){
      <div class="bar-val">${v.toLocaleString('pt-BR')}${unit||''}</div></div>`).join('');
 }
 
+function custoModuloAcum(){return modoAcum('esforco');}
+function custoModuloLabel(){
+  const acum=custoModuloAcum();
+  return `Esforço por módulo (top 10, horas) — ${acum?`acumulado até ${mesLbl(curSafra())}`:`safra <b>${mesLbl(curSafra())}</b>`}${acumToggle('esforco')}`;
+}
 function custoModulo(){
-  const porMes=DATA.esforco_modulo_por_mes||{};
+  const porMes=(custoModuloAcum()?DATA.esforco_modulo_acumulado_por_mes:DATA.esforco_modulo_por_mes)||{};
   const daSafra=porMes[curSafra()];
   const fonte=(daSafra&&daSafra.length)?daSafra:((DATA.esforco_modulo_ativo&&DATA.esforco_modulo_ativo.length)?DATA.esforco_modulo_ativo:DATA.tabela_modulo);
   const rows=fonte.filter(r=>r.horas>0).slice(0,10);
@@ -1038,9 +1043,9 @@ function render(){
    <h2>${si('users')}Carga por squad — folha × contrato</h2>${squadSection()}
    <h2>${si('coins')}Esforço e alocação — bugs</h2>
    <div class="grid2">
-     <div class="panel"><div class="kpi-label" style="margin-bottom:10px">Esforço por módulo (top 10, horas) — safra <b>${mesLbl(curSafra())}</b></div>
+     <div class="panel"><div class="kpi-label" style="margin-bottom:10px">${custoModuloLabel()}</div>
        ${custoModulo()}
-       <div class="note"><b>Esforço distribuído (estimativa)</b>, em horas apontadas (Σ Tempo Gasto) da safra selecionada (cards criados no mês em foco), só de bugs ATIVOS — exclui cards parados em IMPEDIMENTO DEV/PRODUTO e cards com resolução Cancelado Dev (esforço represado ou que não virou entrega). Muda junto com o seletor "Safra em foco" no topo da página. Para virar R$: horas × custo-hora carregado — pendente das taxas de folha e de cada contrato. Cuidado: onde o apontamento é baixo, o esforço aparece subestimado.</div></div>
+       <div class="note"><b>Esforço distribuído (estimativa)</b>, em horas apontadas (Σ Tempo Gasto), só de bugs ATIVOS — exclui cards parados em IMPEDIMENTO DEV/PRODUTO e cards com resolução Cancelado Dev (esforço represado ou que não virou entrega). ${custoModuloAcum()?`Acumulado: cards criados de ${acumRange()}.`:'Mês: só os cards criados na safra selecionada.'} Muda junto com o seletor "Safra em foco" no topo da página. Para virar R$: horas × custo-hora carregado — pendente das taxas de folha e de cada contrato. Cuidado: onde o apontamento é baixo, o esforço aparece subestimado.</div></div>
      <div class="panel"><div class="kpi-label" style="margin-bottom:10px">${alocLabel()}</div>
        ${alocChart()}
        <div class="note">${alocNote('<b>% concluído por responsável</b>, sobre o total de bugs concluídos no período selecionado — mesma régua de "Bug por módulo" (1ª transição pro status Em produção, fallback Done/Concluído; exclui Cancelado QA/Dev e cards atualmente em Impedimento Produto/Backlog).')}</div></div>
