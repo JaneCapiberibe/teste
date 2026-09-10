@@ -464,6 +464,14 @@ sweep_por_mes=collections.defaultdict(list)
 for x in sweep:
     if x['c']: sweep_por_mes[x['c'].strftime('%Y-%m')].append(x)
 d['esforco_modulo_por_mes']={m:_esforco_modulo(sweep_por_mes[m]) for m in meses}
+# view "Acumulado" do seletor Mês/Acumulado (chave 'esforco', DECISÃO DE 11/09/2026 — painel
+# ficou de fora da leva de 10/09/2026 por engano; mesmo padrão dos demais painéis por safra:
+# do primeiro mês disponível até a safra selecionada, inclusive). Reaproveita a MESMA
+# _esforco_modulo() acima, só que alimentada pelos cards do intervalo em vez de um mês só —
+# recalcula do zero sobre a união dos cards (top 10 é tirado DEPOIS de somar as horas do
+# período inteiro, não é a soma de tops-10 mensais já cortados, então ninguém que só não
+# aparece no top 10 de um mês isolado fica de fora do acumulado).
+d['esforco_modulo_acumulado_por_mes']={m:_esforco_modulo([x for x in sweep if x['c'] and x['c'].strftime('%Y-%m')<=m]) for m in meses}
 
 # alerta parados: status Não Iniciado > 5 dias úteis
 asg=json.load(open('ni_assignee.json'))
