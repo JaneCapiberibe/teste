@@ -592,19 +592,22 @@ function trendClearAll(){window.__trendMods=new Set();document.getElementById('t
 function moduleTrendChart(){
   const MA=DATA.mod_ano_a_ano; if(!MA||!MA.ordem||!MA.ordem.length) return '<div class="note">Sem dados de histórico por módulo.</div>';
   const meses=MA.meses, n=meses.length, sel=trendMods(), curIdx=MA.mes_corrente_idx, curAno=MA.ano_corrente;
+  const pequenos=new Set(MA.pequenos||[]);
   const allOn=sel.size===MA.ordem.length;
   const util=`<button class="emchip all${allOn?' on':''}" onclick="trendSelectAll()"><i></i>Selecionar todos</button><button class="emchip all" onclick="trendClearAll()"><i></i>Limpar seleção</button>`;
   const chips=MA.ordem.map(m=>{const on=sel.has(m),c=trendColor(m);
     const serieCur=(MA.por_modulo[m]||{})[curAno]||[];
-    const lv=serieCur[curIdx]??0;
-    return `<button class="trend-chip${on?' on':''}" ${on?`style="background:${c};border-color:${c}"`:''} onclick="trendToggle('${m.replace(/'/g,"\\'")}')"><i style="background:${c}"></i>${m}${on?` <b>${lv}</b>`:''}</button>`;}).join('');
+    const lv=serieCur[curIdx]; const lvTxt=lv==null?'—':Math.round(lv);
+    const selo=pequenos.has(m)?'<span class="selo-amostra" title="Amostra pequena — projeção do mês corrente pouco confiável (o backtest mostrou erro de até ~98% em módulos de baixo volume).">!</span>':'';
+    return `<button class="trend-chip${on?' on':''}" ${on?`style="background:${c};border-color:${c}"`:''} onclick="trendToggle('${m.replace(/'/g,"\\'")}')"><i style="background:${c}"></i>${m}${on?` <b>${lvTxt}</b>${selo}`:''}</button>`;}).join('');
   const selMods=MA.ordem.filter(m=>sel.has(m));
   if(!selMods.length) return `<div class="trend-chips">${util}${chips}</div><div class="note" style="margin-top:8px">Selecione ao menos um módulo acima para desenhar a tendência.</div>`;
   // barras agrupadas por mês, módulos lado a lado dentro do mesmo cluster (mesmo padrão de
   // "Bug por módulo"/emChart()) — cada módulo com seu par 2025 (clara) x 2026 (cheia), mesma
   // cor do chip. Sub-agrupa por módulo (par 2025/2026 bem juntinho) com um respiro maior entre
   // módulos diferentes, pra dar pra comparar módulos entre si E o módulo com seu próprio ano
-  // anterior ao mesmo tempo.
+  // anterior ao mesmo tempo. Métrica: CARGA REAL DE TRABALHO (criados + sobra do mês anterior),
+  // não só criados — ver gen_data.py.
   const W=1080,P=44,H=380;
   const gw=(W-2*P)/n;
   const innerGap=1, modGap=3;
@@ -620,6 +623,8 @@ function moduleTrendChart(){
   let xl='';meses.forEach((mm,i)=>{xl+=`<text x="${(P+i*gw+gw/2).toFixed(1)}" y="${H-P+16}" text-anchor="middle" fill="${col('--text-3')}" font-size="9.5">${mm}${i===curIdx?' *':''}</text>`;});
   const curBand=`<rect x="${(P+curIdx*gw).toFixed(1)}" y="${P}" width="${gw.toFixed(1)}" height="${(H-2*P).toFixed(1)}" fill="${col('--s1')}" opacity="0.08"/>`;
   let bars='';
+  const linePts={};  // por módulo: [{i,x,y,v}] — pontos do 2026 (Carga), pra desenhar a
+                      // tendência por cima das barras e marcar o mês corrente como estimativa.
   meses.forEach((mm,i)=>{
     let x0=xsBase(i);
     selMods.forEach((m,mi)=>{
@@ -631,15 +636,39 @@ function moduleTrendChart(){
         bars+=`<rect x="${x0.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-y).toFixed(1)}" fill="${c}" opacity="0.32"><title>${m} · ${mm}/2025 · ${va}</title></rect>`;
       }
       x0+=bw+innerGap;
-      if(vb!=null){ const y=ys(vb), partial=(i===curIdx);
-        bars+=`<rect x="${x0.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-y).toFixed(1)}" fill="${c}" opacity="0.95" ${partial?`stroke="${col('--text-1')}" stroke-width="1" stroke-dasharray="2 1.4"`:''}><title>${m} · ${mm}/2026 · ${vb}${partial?' — PARCIAL (até hoje), sem projeção':''}</title></rect>`;
+      if(vb!=null){ const y=ys(vb), atual=(i===curIdx);
+        const vbTxt=Number.isInteger(vb)?vb:vb.toFixed(1);
+        bars+=`<rect x="${x0.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-y).toFixed(1)}" fill="${c}" opacity="0.95"><title>${m} · ${mm}/2026 · ${vbTxt}${atual?' — inclui projeção run-rate dos criados deste mês (sobra do mês anterior já exata)':''}</title></rect>`;
+        (linePts[m]=linePts[m]||[]).push({i,x:x0+bw/2,y,v:vbTxt});
       }
       x0+=bw+(mi<nMods-1?modGap:0);
     });
   });
+  // overlay: linha de tendência do 2026 por módulo (mesma cor do chip), sólida nos meses
+  // fechados; segmento TRACEJADO entre o penúltimo e o último ponto + círculo VAZADO no último
+  // ponto (mês corrente) — convenção padrão do dashboard pra marcar um valor como ESTIMATIVA.
+  let overlay='';
+  selMods.forEach(m=>{
+    const c=trendColor(m), pts=linePts[m]||[];
+    if(pts.length>=2){
+      const fechados=pts.slice(0,-1);
+      if(fechados.length>=2){
+        const dp=fechados.map((p,idx)=>(idx?'L':'M')+p.x.toFixed(1)+' '+p.y.toFixed(1)).join(' ');
+        overlay+=`<path d="${dp}" fill="none" stroke="${c}" stroke-width="1.6" opacity="0.85"/>`;
+      }
+      const p1=pts[pts.length-2],p2=pts[pts.length-1];
+      overlay+=`<line x1="${p1.x.toFixed(1)}" y1="${p1.y.toFixed(1)}" x2="${p2.x.toFixed(1)}" y2="${p2.y.toFixed(1)}" stroke="${c}" stroke-width="1.6" stroke-dasharray="4 3" opacity="0.9"/>`;
+    }
+    pts.forEach((p,idx)=>{
+      const isEstimativa=idx===pts.length-1;
+      overlay+=isEstimativa
+        ?`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4.2" fill="${col('--surface-1')}" stroke="${c}" stroke-width="2"><title>${m} · ${meses[p.i]}/2026 · ${p.v} · ESTIMATIVA (projeção run-rate)</title></circle>`
+        :`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="2.6" fill="${c}" stroke="${col('--surface-1')}" stroke-width="1"><title>${m} · ${meses[p.i]}/2026 · ${p.v}</title></circle>`;
+    });
+  });
   return `<div class="trend-chips">${util}${chips}</div>
-    <svg viewBox="0 0 ${W} ${H}" width="100%">${curBand}${grid}${xl}${bars}</svg>
-    <div class="note" style="margin-top:8px">Dentro de cada mês, os módulos selecionados ficam lado a lado (mesma cor do chip); barra clara = <b>2025</b>, barra cheia = <b>2026</b>. A barra tracejada em <b>${meses[curIdx]}/${curAno} *</b> é o valor <b>parcial</b> (até hoje, sem projeção) — a comparação com ${meses[curIdx]}/2025 (mês fechado) só é proporcional quando o mês atual terminar. Quanto mais módulos selecionados, mais finas ficam as barras.</div>`;
+    <svg viewBox="0 0 ${W} ${H}" width="100%">${curBand}${grid}${xl}${bars}${overlay}</svg>
+    <div class="note" style="margin-top:8px">Métrica: <b>Carga real de trabalho</b> = criados no mês + sobra (não entregue) do mês anterior — não só criados. Dentro de cada mês, os módulos selecionados ficam lado a lado (mesma cor do chip); barra clara = <b>2025</b>, barra cheia = <b>2026</b>. O <b>círculo vazado</b> em <b>${meses[curIdx]}/${curAno} *</b>, ligado por um traço tracejado, é a <b>ESTIMATIVA</b> do mês corrente: só os criados são projetados (run-rate simples, método vencedor de um backtest contra dado real — ver nota "Como ler"), a sobra do mês anterior já é exata. "!" ao lado do valor no chip = módulo de baixo volume, projeção pouco confiável. Quanto mais módulos selecionados, mais finas ficam as barras.</div>`;
 }
 window.__mtWindow=3;
 function mtSetWindow(n){
@@ -1002,9 +1031,9 @@ function render(){
    ${isAll?`
    <h2>${si('cubes')}Qualidade por módulo</h2>
    <div class="panel"><div id="mtwrap">${moduleTable()}</div></div>
-   <h2>${si('chart-line')}Tendência dos módulos — comparativo ano a ano <span class="info" data-tip="Um gráfico só, barras agrupadas por mês: dentro de cada mês, os módulos selecionados ficam lado a lado, cada um com seu par 2025 (clara) x 2026 (cheia) na mesma cor do chip — dá pra comparar módulos entre si E cada módulo com seu próprio ano anterior. Eixo X fixo Jan-Dez. Selecione quantos módulos quiser (sem limite) via chips, 'Selecionar todos' ou 'Limpar seleção' — quanto mais selecionados, mais finas as barras. O mês corrente de 2026 mostra o valor PARCIAL (até hoje, sem projeção) — barra com contorno tracejado, marcado com *.">i</span></h2>
+   <h2>${si('chart-line')}Tendência dos módulos — comparativo ano a ano <span class="info" data-tip="Métrica: Carga real de trabalho (criados no mês + sobra/não entregue do mês anterior), não só criados. Barras agrupadas por mês: dentro de cada mês, os módulos selecionados ficam lado a lado, cada um com seu par 2025 (clara) x 2026 (cheia) na mesma cor do chip. Eixo X fixo Jan-Dez. Selecione quantos módulos quiser via chips, 'Selecionar todos' ou 'Limpar seleção'. O mês corrente de 2026 é uma ESTIMATIVA — círculo vazado ligado por traço tracejado, marcado com * — só os criados são projetados por run-rate simples (método vencedor de um backtest contra dado real do Jira); a sobra do mês anterior já é exata.">i</span></h2>
    <div class="panel"><div id="trendwrap">${moduleTrendChart()}</div>
-     <details class="note-c"><summary>Como ler</summary><div class="note-body"><b>Como ler:</b> clique nos <b>chips</b> pra ligar/desligar cada módulo, ou use <b>"Selecionar todos"/"Limpar seleção"</b> — sem limite de quantos ficam visíveis ao mesmo tempo. Dentro de cada <b>mês</b>, os módulos selecionados ficam <b>lado a lado</b> (mesma cor do chip), cada um com seu par de barras: clara = <b>2025</b>, cheia = <b>2026</b>. Eixo X fixo <b>Janeiro a Dezembro</b> — dá pra comparar módulos entre si no mesmo mês, e cada módulo com o próprio ano anterior. A barra com <b>contorno tracejado</b> no mês marcado com <b>*</b> é o mês corrente de 2026: valor <b>parcial</b> (só o que já foi criado até hoje, sem estimativa de fechamento) — por isso ela só fica comparável 1:1 com o mesmo mês de 2025 (fechado) quando o mês atual terminar. Meses de 2026 que ainda não chegaram simplesmente não aparecem. Quanto mais módulos selecionados, mais finas ficam as barras. Fonte: mesma régua de "Bug por módulo" — bugs criados por mês, excluindo só Cancelado QA.</div></details></div>
+     <details class="note-c"><summary>Como ler</summary><div class="note-body"><b>Métrica — Carga real de trabalho:</b> Carga(módulo, mês) = criados no módulo naquele mês + sobra (cards do mês anterior ainda não entregues, status reconstruído via changelog no último dia daquele mês). Não é só volume de criados — é o que realmente ficou de trabalho pro módulo naquele mês, incluindo o que sobrou do mês anterior. <b>Como ler:</b> clique nos <b>chips</b> pra ligar/desligar cada módulo, ou use <b>"Selecionar todos"/"Limpar seleção"</b>. Dentro de cada <b>mês</b>, os módulos selecionados ficam <b>lado a lado</b> (mesma cor do chip): clara = <b>2025</b>, cheia = <b>2026</b>. Eixo X fixo <b>Janeiro a Dezembro</b>. O <b>círculo vazado</b> no mês marcado com <b>*</b>, ligado às barras anteriores por um <b>traço tracejado</b>, é a <b>ESTIMATIVA</b> do mês corrente: só os criados deste mês são projetados — por <b>run-rate simples</b> (criados até agora ÷ dias úteis decorridos × dias úteis do mês) — a sobra do mês anterior já é um valor exato e fechado, não precisa de projeção. Esse método foi escolhido depois de um backtest contra 15 meses de dado real e fechado do Jira, comparando run-rate contra regressão linear: run-rate venceu em erro médio (MAE) e erro percentual (MAPE), nos 3 módulos testados e nos 3 pontos do mês testados, sem exceção (erro 37,5% menor no total) — por isso só ele é usado aqui, sem regressão nem combinação entre os dois métodos. Módulos com "!" no chip têm volume baixo — o mesmo backtest mostrou que a projeção fica bem menos confiável nesses casos (erro percentual de até ~98%). A sobra de cada mês fechado é calculada uma única vez e congelada (não muda mais depois, mesmo rodando o pipeline de novo). Meses de 2026 que ainda não chegaram simplesmente não aparecem. Quanto mais módulos selecionados, mais finas ficam as barras. Fonte dos criados: mesma régua de "Bug por módulo" — bugs criados por mês, excluindo só Cancelado QA.</div></details></div>
    <h2>${si('triangle-exclamation')}Prioridade &amp; SLA</h2>${slaSection()}
    <h2>${si('users')}Carga por squad — folha × contrato</h2>${squadSection()}
    <h2>${si('coins')}Esforço e alocação — bugs</h2>

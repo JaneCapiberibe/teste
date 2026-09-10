@@ -1,7 +1,7 @@
 """
 fetch_jira.py — puxa TODOS os bugs do Jira (projeto BUG) via API REST e gera os
 arquivos que o pipeline consome: sweep.json + jira_backlog.json + impedimentos_live.json
-+ sobra_live.json + ni_assignee.json.
++ sobra_live.json + ni_assignee.json + status_changelog.json.
 
 Credenciais via variáveis de ambiente (segredos do GitHub Actions):
   JIRA_BASE_URL   ex.: https://orcafascio.atlassian.net
@@ -50,13 +50,27 @@ def fetch_all(jql='project = BUG ORDER BY created ASC'):
 def fetch_changelogs(issue_ids):
     """Busca o histórico de status de todos os issues via o endpoint dedicado de changelog em
     lote (/changelog/bulkfetch) — usado pela régua oficial de Evolução por módulo (concluído =
-    1ª entrada em "Em produção"). Se o endpoint falhar por qualquer motivo (ex.: mudança de
-    contrato da API), avisa e devolve {} — o pipeline segue rodando sem essa régua (fica
-    None/False pra todo mundo) em vez de derrubar o update inteiro."""
+    1ª entrada em "Em produção") e pela reconstrução de status num ponto do passado (Carga real
+    de trabalho/Sobra, gen_data.py — precisa saber em que status um card estava numa data
+    específica, não só as transições nomeadas que os outros campos já extraem). Se o endpoint
+    falhar por qualquer motivo (ex.: mudança de contrato da API), avisa e devolve ({}, {}) — o
+    pipeline segue rodando sem essa régua (fica None/False pra todo mundo) em vez de derrubar o
+    update inteiro.
+
+    Devolve (out, iniciais):
+      out[issueId] ....... lista [(epoch_segundos, status_destino), ...] ordenada — mesma forma
+                            de sempre, consumida por _first_to_epoch/_first_to em norm().
+      iniciais[issueId] .. status ANTES da 1ª transição registrada (fromString da 1ª mudança de
+                            status no changelog) — necessário pra reconstruir o status do card
+                            em datas anteriores à sua primeira transição. Ausente (dict sem a
+                            chave) quando o card nunca mudou de status: nesse caso o status
+                            ATUAL do card (campo 'status', sweep.json) É o inicial — quem
+                            reconstrói (gen_data.py) já faz esse fallback."""
     HEAD = _auth_headers()
     url = f'{BASE}/rest/api/3/changelog/bulkfetch'
     ids = [i for i in issue_ids if i]
     out = {}
+    iniciais = {}
     try:
         BATCH = 200
         for i in range(0, len(ids), BATCH):
@@ -74,22 +88,24 @@ def fetch_changelogs(issue_ids):
                 for ic in data.get('issueChangeLogs', []):
                     iid = ic.get('issueId')
                     hist = ic.get('changeHistories') or ic.get('histories') or []
-                    changes = []
+                    changes_full = []
                     for h in hist:
                         ep = _to_epoch(h.get('created'))
                         for item in h.get('items', []):
                             if item.get('field') == 'status':
-                                changes.append((ep, item.get('toString')))
-                    changes.sort(key=lambda x: x[0] if x[0] is not None else 0)
-                    out[iid] = changes
+                                changes_full.append((ep, item.get('fromString'), item.get('toString')))
+                    changes_full.sort(key=lambda x: x[0] if x[0] is not None else 0)
+                    out[iid] = [(ep, to) for ep, frm, to in changes_full]
+                    if changes_full:
+                        iniciais[iid] = changes_full[0][1]
                 token = data.get('nextPageToken')
                 if not token:
                     break
     except Exception as e:
         print(f'aviso: falha ao buscar changelog em lote ({e}) — seguindo sem concluido_mes '
               f'(a Evolução por módulo fica sem dado de concluídos até o próximo run).')
-        return {}
-    return out
+        return {}, {}
+    return out, iniciais
 
 def fetch_all_com_retentativa(tentativas=3, espera_s=15):
     """Chama fetch_all() com retentativas. O projeto BUG tem centenas de issues — uma resposta
@@ -349,6 +365,27 @@ def build_outputs(recs):
     print(f'  issues: {len(recs)} | sweep: {len(sweep)} | backlog meses: {len(jb)} | '
           f'impedimentos: {len(imp)} | NI: {len(ni)}')
 
+def build_status_changelog(issues, changelogs, iniciais, recs_all):
+    """status_changelog.json — histórico de status por card (key -> {'inicial':..., 'mudancas':
+    [[iso, status], ...]}), pra gen_data.py reconstruir "em que status o card estava numa data
+    X" (usado pela Carga real de trabalho/Sobra, DECISÃO DE 10/09/2026 — congelada por mês
+    fechado em carga_modulo_cache.json, ver gen_data.py). Gerado pra TODOS os issues puxados
+    (antes do filtro de BUG_TYPES) — sem custo real (é só serialização do changelog já buscado
+    em fetch_changelogs, nenhuma chamada extra ao Jira) e evita qualquer desalinhamento entre
+    `issues` e `recs` se o filtro mudar no futuro; gen_data.py só olha as chaves que existem em
+    sweep.json de qualquer forma."""
+    out = {}
+    for i, r in zip(issues, recs_all):
+        iid = i.get('id')
+        changes = changelogs.get(iid) or []
+        mudancas = [[_epoch_iso(ep), to] for ep, to in changes if ep is not None]
+        inicial = iniciais.get(iid)
+        if inicial is None and not mudancas:
+            inicial = r['status']  # nunca mudou de status — o status atual É o inicial
+        out[r['key']] = {'inicial': inicial, 'mudancas': mudancas}
+    json.dump(out, open('status_changelog.json', 'w'), ensure_ascii=False)
+    return out
+
 if __name__ == '__main__':
     print('Puxando do Jira...')
     issues = fetch_all_com_retentativa()
@@ -361,12 +398,13 @@ if __name__ == '__main__':
             'BUG. Confira os segredos em Settings > Secrets and variables > Actions.'
         )
     print('Puxando changelog (histórico de status) em lote...')
-    changelogs = fetch_changelogs([i.get('id') for i in issues])
-    recs = [norm(i, changelogs.get(i.get('id'))) for i in issues]
-    fora_do_tipo = sum(1 for r in recs if r['itype'] not in BUG_TYPES)
+    changelogs, iniciais = fetch_changelogs([i.get('id') for i in issues])
+    recs_all = [norm(i, changelogs.get(i.get('id'))) for i in issues]
+    build_status_changelog(issues, changelogs, iniciais, recs_all)
+    fora_do_tipo = sum(1 for r in recs_all if r['itype'] not in BUG_TYPES)
     if fora_do_tipo:
         print(f'  aviso: {fora_do_tipo} issue(s) do painel BUG fora de BUG_TYPES '
               f'(nem Bug Cliente/QA/Dev/Backoffice) — excluído(s) de sweep.json.')
-    recs = [r for r in recs if r['itype'] in BUG_TYPES]
+    recs = [r for r in recs_all if r['itype'] in BUG_TYPES]
     build_outputs(recs)
     print('OK — arquivos gerados.')
