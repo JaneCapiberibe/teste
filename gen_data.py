@@ -64,6 +64,17 @@ for x in sweep_full:
     if x['c']: det_mes_bruto[x['c'].strftime('%Y-%m')][x['itype']]+=1
 d['deteccao_por_mes']={m:_deteccao_de(cc) for m,cc in det_mes_bruto.items()}
 d['deteccao']=d['deteccao_por_mes'].get(str(TODAY)[:7]) or _deteccao_de(collections.Counter())
+# DECISÃO DE 10/09/2026: view "Acumulado" (seletor Mês/Acumulado, build_dash.py) — desde o
+# primeiro mês disponível até a safra selecionada, inclusive. Reaproveita a MESMA _deteccao_de()
+# acima; só o insumo muda (Counter acumulado em vez do Counter de um mês só), somando os Counters
+# por mês na ordem cronológica (soma de Counter é associativa — bate exatamente com refazer a
+# contagem sobre a união dos meses).
+_det_acum=collections.Counter()
+deteccao_acumulado_por_mes={}
+for m in sorted(det_mes_bruto):
+    _det_acum+=det_mes_bruto[m]
+    deteccao_acumulado_por_mes[m]=_deteccao_de(_det_acum.copy())
+d['deteccao_acumulado_por_mes']=deteccao_acumulado_por_mes
 
 # tot_series mensal: criados (intake) vs entregues (da safra do mês).
 # ENTREGUE (usado só por d['recortes'] abaixo — recorte BIM/Sem BIM, não renderizado no
@@ -141,6 +152,18 @@ for m in meses:
     inicio = acum
 d['acum_fonte']="Jira ao vivo · régua oficial (concluído = 1ª entrada em Em produção — mesmo cálculo usado em Bug por módulo)"
 d['tot_series']=ts
+# "Taxa de entrega — safra" (kpiCards() em build_dash.py) — view "Acumulado" do seletor
+# Mês/Acumulado (DECISÃO DE 10/09/2026): soma criados/entregues desde o primeiro mês
+# disponível até a safra selecionada, inclusive, e recalcula pct_entrega sobre a soma — NÃO é
+# o mesmo campo que 'acumulado' dentro de tot_series acima (que é o backlog rolante, método
+# Diego; nome diferente de propósito pra não confundir os dois).
+_ent_cc=_ent_ee=0
+entrega_acumulado_por_mes={}
+for m in meses:
+    _ent_cc+=cria.get(m,0); _ent_ee+=entr.get(m,0)
+    entrega_acumulado_por_mes[m]={'criados':_ent_cc,'entregues':_ent_ee,'abertos':_ent_cc-_ent_ee,
+        'pct_entrega':round(100*_ent_ee/_ent_cc) if _ent_cc else 0}
+d['entrega_acumulado_por_mes']=entrega_acumulado_por_mes
 d['jira_base']='https://orcafascio.atlassian.net'
 
 # Divisão da safra por PRODUTO: Prime (módulo próprio) · Orçafascio (novo) · Orçafascio antigo.
@@ -395,6 +418,30 @@ for m,mm in mods.items():
                 'atual_parcial':atual_parcial,'small':mm['bugs']<PISO_AMOSTRA_PEQUENA})
 tab.sort(key=lambda t:-t['bugs'])
 d['tabela_modulo']=tab
+# MTTR e Esforço (h) por SAFRA — seletor Mês/Acumulado (DECISÃO DE 10/09/2026). "Bugs (volume)"
+# e "Tendência" acima ficam INTOCADOS (sempre o período inteiro / sempre a projeção por dias
+# úteis do mês corrente, como hoje) — só MTTR/Esforço passam a responder à safra selecionada,
+# usando a MESMA régua já documentada acima (entrega_data pro MTTR, timespent líquido de
+# impedimento pro Esforço), só que aplicada a um recorte de cards em vez do período inteiro.
+#   Mês ......... só os cards do módulo CRIADOS na safra selecionada — capacidade NOVA (antes
+#                 esta tabela não tinha nenhuma visão por mês isolado pra MTTR/Esforço).
+#   Acumulado ... do primeiro mês disponível até a safra selecionada, inclusive — quando a
+#                 safra selecionada é a mais recente, bate exatamente com os números fixos de
+#                 d['tabela_modulo'] acima (que sempre foram o período inteiro); em safras mais
+#                 antigas, mostra só a fatia acumulada até ali.
+def _qual_modulo_de(cards):
+    mm=collections.defaultdict(lambda:{'seg':0.0,'mttr':[]})
+    for x in cards:
+        s=mm[x['m']]
+        if isinstance(x['timespent'],(int,float)) and x['status'] not in STATUS_EXCLUI_ESFORCO:
+            s['seg']+=x['timespent']
+        edt=pdt(x.get('entrega_data'))
+        if x['c'] and edt: s['mttr'].append(busdays(x['c'].date(),edt.date()))
+    return {mod:{'horas':round(s['seg']/3600,1),
+                 'mttr':round(statistics.median(s['mttr']),1) if s['mttr'] else None,
+                 'n_mttr':len(s['mttr'])} for mod,s in mm.items()}
+d['qualidade_modulo_por_mes']={m:_qual_modulo_de([x for x in sweep if x['c'] and x['c'].strftime('%Y-%m')==m]) for m in meses}
+d['qualidade_modulo_acumulado_por_mes']={m:_qual_modulo_de([x for x in sweep if x['c'] and x['c'].strftime('%Y-%m')<=m]) for m in meses}
 
 # esforço por módulo (gráfico "Esforço por módulo", custoModulo() em build_dash.py) — POR
 # SAFRA (mês de criação do card, mesmo recorte do seletor "Safra em foco" — muda junto com
@@ -494,19 +541,31 @@ for x in sweep_full:
     if not _elegivel_evol(x): continue
     mc=_mes_concluido(x)
     if mc: concD_por_mes[mc].append(x)
-aloc_por_mes={}
-for mes in meses:
-    cards=concD_por_mes[mes]
+# _aloc_de(cards): ranking COMPLETO (sem cortar em 10) — o corte "top 10" agora é só visual,
+# feito no front-end (alocRows(), build_dash.py), pra não perder gente de fora do top-10 de um
+# mês isolado quando a view "Acumulado" (DECISÃO DE 10/09/2026, seletor Mês/Acumulado) soma
+# vários meses e essa pessoa passa a entrar no top 10 do período acumulado.
+def _aloc_de(cards):
     total=len(cards)
     por_resp=collections.defaultdict(list)
     for x in cards:
         por_resp[x.get('assignee') or 'Sem responsável'].append(x['key'])
-    ranked=sorted(por_resp.items(), key=lambda t:-len(t[1]))[:10]
+    ranked=sorted(por_resp.items(), key=lambda t:-len(t[1]))
     # keys: cards exatos por trás da contagem, pro clique na barra abrir a lista no Jira (mesmo
     # padrão de criaD_keys/concD_keys em evol_modulo e fila_det_keys no funil).
-    aloc_por_mes[mes]=[{'resp':r,'n':len(keys),'pct':round(100*len(keys)/total) if total else 0,'keys':keys}
-                       for r,keys in ranked]
+    return [{'resp':r,'n':len(keys),'pct':round(100*len(keys)/total) if total else 0,'keys':keys}
+            for r,keys in ranked]
+aloc_por_mes={mes:_aloc_de(concD_por_mes[mes]) for mes in meses}
 d['aloc_por_mes']=aloc_por_mes
+# view "Acumulado": desde o primeiro mês disponível até a safra selecionada, inclusive — MESMA
+# _aloc_de() acima, só que alimentada pela união dos cards concluídos de todos os meses até ali
+# (concatenação em ordem cronológica), não uma métrica nova.
+_aloc_acum_cards=[]
+aloc_acumulado_por_mes={}
+for mes in meses:
+    _aloc_acum_cards.extend(concD_por_mes[mes])
+    aloc_acumulado_por_mes[mes]=_aloc_de(_aloc_acum_cards)
+d['aloc_acumulado_por_mes']=aloc_acumulado_por_mes
 
 # ---- PREVISIBILIDADE (dev) + SUPORTE + SEVERIDADE/SLA POR SAFRA — tudo direto do changelog
 # ---- DECISÃO DE 09/09/2026: mata a dependência de inputs/suporte_list.csv (export manual de
@@ -575,20 +634,21 @@ d['suporte_lag']={'n':len(lag),'mediana_h':round(statistics.median(lag),1) if la
 #   período inteiro, bem maior por não ser recortado por mês).
 PISO_AMOSTRA_SLA=10
 d['meta']['piso_amostra_sla']=PISO_AMOSTRA_SLA
-sev_por_mes={}
-sla_por_mes={}
-for m in meses:
-    sub=[x for x in sweep if x['c'] and x['c'].strftime('%Y-%m')==m]
-    pcm=collections.Counter(x['prio'] for x in sub)
+# _sev_sla_de(cards, ini_date, fim_date): factorado pra ser reaproveitado pela view "Acumulado"
+# do seletor Mês/Acumulado (DECISÃO DE 10/09/2026) — mesma função, alimentada pelo conjunto de
+# cards do intervalo inteiro (ini_date/fim_date só mudam a janela da URL "Sem prioridade" pra
+# cobrir o período certo). Sem essa factoração, %/mediana/p95 do acumulado teriam que ser
+# recalculados em cima de médias já prontas — estatisticamente errado (não dá pra tirar a
+# mediana de medianas); assim, tudo é recalculado do zero sobre a união dos cards, do jeito certo.
+def _sev_sla_de(cards,ini_date,fim_date):
+    pcm=collections.Counter(x['prio'] for x in cards)
     linha_sev=[{'nivel':NIVEL[p],'n':pcm.get(p,0)} for p in ORDER]
-    _ini_m,_fim_m=_mes_bounds(m)
-    _prox_m=(_fim_m+datetime.timedelta(days=1))
+    _prox=(fim_date+datetime.timedelta(days=1))
     sem_url=_jql_url(f'project = BUG AND (priority is EMPTY OR priority = "Preencher Prioridade") '
-                      f'AND created >= "{_ini_m.isoformat()}" AND created < "{_prox_m.isoformat()}"')
+                      f'AND created >= "{ini_date.isoformat()}" AND created < "{_prox.isoformat()}"')
     linha_sev.append({'nivel':'Sem prioridade','n':pcm.get('Preencher Prioridade',0)+pcm.get(None,0),'url':sem_url})
-    sev_por_mes[m]=linha_sev
     by_m=collections.defaultdict(list)
-    for x in sub:
+    for x in cards:
         dh=_dev_horas(x)
         if dh is None: continue
         p=x['prio']
@@ -606,9 +666,20 @@ for m in meses:
             'pct':round(100*ok/n) if n else 0,
             'mttr':round(statistics.median(kept)/8,1) if kept else None,
             'small':small})
-    sla_por_mes[m]={'por_prio':linhas_sla}
+    return linha_sev,{'por_prio':linhas_sla}
+sev_por_mes={}; sla_por_mes={}
+sev_acumulado_por_mes={}; sla_acumulado_por_mes={}
+_primeiro_ini=_mes_bounds(meses[0])[0]
+for m in meses:
+    _ini_m,_fim_m=_mes_bounds(m)
+    sub=[x for x in sweep if x['c'] and x['c'].strftime('%Y-%m')==m]
+    sev_por_mes[m],sla_por_mes[m]=_sev_sla_de(sub,_ini_m,_fim_m)
+    sub_acum=[x for x in sweep if x['c'] and x['c'].strftime('%Y-%m')<=m]
+    sev_acumulado_por_mes[m],sla_acumulado_por_mes[m]=_sev_sla_de(sub_acum,_primeiro_ini,_fim_m)
 d['severidade_por_mes']=sev_por_mes
 d['sla_por_mes']=sla_por_mes
+d['severidade_acumulado_por_mes']=sev_acumulado_por_mes
+d['sla_acumulado_por_mes']=sla_acumulado_por_mes
 d['severidade']=sev_por_mes.get(cur_ym) or [{'nivel':NIVEL[p],'n':0} for p in ORDER]+[{'nivel':'Sem prioridade','n':0,'url':None}]
 
 # ---- CARGA POR SQUAD — POR SAFRA (mês de criação) — DECISÃO DE 09/09/2026 ----
@@ -663,6 +734,9 @@ squads_por_mes={m:_squads_de([x for x in sweep if x['c'] and x['c'].strftime('%Y
 d['squads_por_mes']=squads_por_mes
 d['squads']=squads_por_mes.get(cur_ym) or []
 d['meta']['piso_amostra_squad']=PISO_AMOSTRA_SQUAD
+# view "Acumulado" do seletor Mês/Acumulado (DECISÃO DE 10/09/2026) — MESMA _squads_de() acima,
+# só alimentada pela união dos cards criados do primeiro mês disponível até a safra selecionada.
+d['squads_acumulado_por_mes']={m:_squads_de([x for x in sweep if x['c'] and x['c'].strftime('%Y-%m')<=m]) for m in meses}
 
 # ---- FUNIL DE ENTREGA DO DEV — para CADA mês (safra) ----
 # RÉGUA DO FUNIL — só deste painel (build_funil/funilPanel), NÃO usada em mais nenhum
@@ -686,8 +760,15 @@ d['meta']['piso_amostra_squad']=PISO_AMOSTRA_SQUAD
 #                       colunas de status ativas. Por safra: cada mês roda isolado (crj = só
 #                       cards criados naquele mês).
 ST_ENTREGUE_FUNIL={'Em produção','Em Produção','Done','Concluído','Concluido'}
-def build_funil(ref):
-    crj=[x for x in sweep_full if x['c'] and x['c'].strftime('%Y-%m')==ref]
+def build_funil(ini,fim=None):
+    """`ini==fim` (ou `fim` omitido) = funil de UM mês só (view "Mês", comportamento original).
+    `ini<fim` = funil ACUMULADO do intervalo [ini,fim] (view "Acumulado", seletor Mês/Acumulado,
+    DECISÃO DE 10/09/2026) — MESMA função, só o filtro de mês vira uma faixa (strings 'YYYY-MM'
+    comparam cronologicamente); nenhuma conta é reaproveitada de fora, tudo recalculado sobre o
+    conjunto de cards do intervalo, exatamente como se o intervalo inteiro fosse "um mês" só.
+    `ref` (campo 'mes' do retorno) fica como o fim do intervalo — a safra selecionada."""
+    if fim is None: fim=ini
+    crj=[x for x in sweep_full if x['c'] and ini<=x['c'].strftime('%Y-%m')<=fim]
     disc=[x for x in crj if x['res']=='Cancelado QA']
     pos_qa=[x for x in crj if x['res']!='Cancelado QA']
     canc_dev=[x for x in pos_qa if x['res']=='Cancelado Dev']
@@ -715,7 +796,7 @@ def build_funil(ref):
     for i in det_itens: i['pct']=round(100*i['n']/det_tot)
     mt=[busdays(x['c'].date(),x['r'].date()) for x in dev if x['c'] and x['r']]
     napont=sum(1 for x in dev if isinstance(x['timespent'],(int,float)) and x['timespent'])
-    return {'mes':ref,'total':len(crj),'descartados_qa':len(disc),'dev':len(dev),
+    return {'mes':fim,'total':len(crj),'descartados_qa':len(disc),'dev':len(dev),
         'cancelados_dev':len(canc_dev),
         'entregues':len(entregues),'fila':len(fila),'fila_det':fila_det,'fila_det_keys':dict(fila_det_keys),
         'pct_descarte':round(100*len(disc)/len(crj)) if crj else 0,
@@ -729,6 +810,12 @@ mkeys=sorted({x['c'].strftime('%Y-%m') for x in sweep_full if x['c']})
 ref=cur_m if cur_m in mkeys else max(mkeys)   # safra do mês corrente
 d['funil']=build_funil(ref)
 d['funil_por_mes']={m:build_funil(m) for m in mkeys}
+# view "Acumulado" do seletor Mês/Acumulado (funilPanel(), build_dash.py): do primeiro mês
+# disponível (mkeys[0]) até a safra selecionada, inclusive — mesma build_funil() acima, só com
+# o intervalo aberto. Calculada ANTES do override ao vivo abaixo (funil_live.json só corrige o
+# mês corrente na view "Mês"; a view "Acumulado" fica com o dado do sweep em todos os meses,
+# inclusive o corrente, pra não misturar fonte ao vivo com fonte de snapshot dentro da mesma soma).
+d['funil_acumulado_por_mes']={m:build_funil(mkeys[0],m) for m in mkeys}
 # override AO VIVO do funil do mês corrente (contagens JQL do Jira de hoje) — ver funil_live.json / fetch_funil.py
 if os.path.exists('funil_live.json'):
     fl=json.load(open('funil_live.json'))
