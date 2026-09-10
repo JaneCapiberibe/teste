@@ -1,0 +1,97 @@
+name: "[TEMP] Validação Carga real de trabalho (Tendência dos módulos)"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  valida:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Puxar do Jira
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: python fetch_jira.py
+
+      - name: Rodar pipeline (1ª vez — cache carga_modulo_cache.json não existe ainda)
+        run: |
+          python gen_data.py
+          python build_dash.py
+          cp carga_modulo_cache.json /tmp/cache_run1.json
+          cp status_changelog.json /tmp/status_changelog_run1.json
+
+      - name: Amostra do cache (2-3 módulos, meses fechados)
+        run: |
+          python3 -c "
+          import json
+          c=json.load(open('carga_modulo_cache.json'))
+          alvo=['Orçamento','Bases de Preço','Cadastro/Administrar Empresa']
+          for mod in alvo:
+              if mod in c:
+                  itens=sorted(c[mod].items())[-6:]
+                  print(mod, '->', dict(itens))
+          print()
+          print('total de módulos no cache:', len(c))
+          "
+
+      - name: Amostra do gráfico (Carga por mês, 3 módulos do backtest)
+        run: |
+          python3 -c "
+          import json
+          d=json.load(open('dash_data.json'))
+          ma=d['mod_ano_a_ano']
+          print('mes_corrente_ym:', ma['mes_corrente_ym'], '| pequenos (baixo volume):', ma['pequenos'])
+          for mod in ['Orçamento','Bases de Preço','Cadastro/Administrar Empresa']:
+              if mod not in ma['por_modulo']:
+                  print(mod, '-> não está em ordem (sem dado suficiente)'); continue
+              print()
+              print(mod)
+              print('  2025:', ma['por_modulo'][mod]['2025'])
+              print('  2026:', ma['por_modulo'][mod]['2026'], '  (último valor = mês corrente, ESTIMATIVA run-rate)')
+          "
+
+      - name: 'PROVA de não-recálculo: apaga status_changelog.json e roda o pipeline de novo'
+        run: |
+          echo "Removendo status_changelog.json (simula changelog indisponível) e rodando gen_data.py de novo,"
+          echo "reaproveitando o MESMO sweep.json e o MESMO carga_modulo_cache.json do primeiro run."
+          echo "Se o cache dos meses já FECHADOS for reutilizado (não recalculado), o arquivo final tem"
+          echo "que sair IDÊNTICO ao do primeiro run, mesmo sem o changelog disponível pra recalcular nada."
+          rm -f status_changelog.json
+          python gen_data.py
+          echo ""
+          echo "=== DIFF carga_modulo_cache.json (run 1 vs run 2, sem status_changelog.json) ==="
+          if diff -q /tmp/cache_run1.json carga_modulo_cache.json; then
+            echo ">>> IDÊNTICO — nenhum mês fechado foi recalculado no 2º run (cache reutilizado 100%)."
+          else
+            echo ">>> DIFERENTE — ver diff completo abaixo:"
+            diff /tmp/cache_run1.json carga_modulo_cache.json || true
+          fi
+
+      - name: Restaurar status_changelog.json e gerar o dashboard final pra inspeção visual
+        run: |
+          cp /tmp/status_changelog_run1.json status_changelog.json
+          python gen_data.py
+          python build_dash.py
+
+      - name: Upload dashboard_setor.html + dash_data.json + cache
+        uses: actions/upload-artifact@v4
+        with:
+          name: valida-carga-resultado
+          path: |
+            dashboard_setor.html
+            dash_data.json
+            carga_modulo_cache.json
+          retention-days: 7
