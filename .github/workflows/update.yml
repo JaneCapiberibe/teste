@@ -1,8 +1,8 @@
-name: Atualizar dashboard (diário)
+name: Atualizar dashboard (2x/dia)
 
 on:
   schedule:
-    - cron: '0 9 * * *'      # 09:00 UTC = 06:00 (horário de Brasília). Ajuste se quiser.
+    - cron: '0 12,18 * * *'   # 12:00 e 18:00 UTC = 09:00 e 15:00 (horário de Brasília). Ajuste se quiser.
   workflow_dispatch:          # permite rodar manualmente pelo botão "Run workflow"
 
 permissions:
