@@ -585,10 +585,16 @@ function sobraChart(){
 const TREND_PAL=['#005FE8','#eb6834','#1e9e5a','#f0a500','#e87ba4','#e2384d','#7c5cff','#12a4b8','#b5651d','#8a8fa3','#c026d3','#0891b2'];
 function trendColor(m){const i=DATA.mod_history.ordem.indexOf(m);return TREND_PAL[(i<0?0:i)%TREND_PAL.length];}
 window.__trendMods=null;
+// __trendAllMode: true SÓ quando a seleção atual veio do botão "Selecionar todos" — não é
+// só "todos os módulos acabaram selecionados" (poderia acontecer clicando chip por chip).
+// Liga a visão agregada dos 3 cartões (moduleSummaryCards); qualquer toque manual num chip
+// ou "Limpar seleção" desliga, mesmo que o resultado ainda tenha todos marcados — DECISÃO DE
+// 17/09/2026, a pedido da Jane: a visão geral é uma ação explícita, não um estado incidental.
+window.__trendAllMode=false;
 function trendMods(){if(!window.__trendMods)window.__trendMods=new Set(DATA.mod_ano_a_ano.ordem.filter(m=>m!=='Não classificado').slice(0,6));return window.__trendMods;}
-function trendToggle(m){const s=trendMods();if(s.has(m))s.delete(m);else s.add(m);document.getElementById('trendwrap').innerHTML=moduleTrendChart();}
-function trendSelectAll(){window.__trendMods=new Set(DATA.mod_ano_a_ano.ordem);document.getElementById('trendwrap').innerHTML=moduleTrendChart();}
-function trendClearAll(){window.__trendMods=new Set();document.getElementById('trendwrap').innerHTML=moduleTrendChart();}
+function trendToggle(m){window.__trendAllMode=false;const s=trendMods();if(s.has(m))s.delete(m);else s.add(m);document.getElementById('trendwrap').innerHTML=moduleTrendChart();}
+function trendSelectAll(){window.__trendMods=new Set(DATA.mod_ano_a_ano.ordem);window.__trendAllMode=true;document.getElementById('trendwrap').innerHTML=moduleTrendChart();}
+function trendClearAll(){window.__trendMods=new Set();window.__trendAllMode=false;document.getElementById('trendwrap').innerHTML=moduleTrendChart();}
 function moduleTrendChart(){
   const MA=DATA.mod_ano_a_ano; if(!MA||!MA.ordem||!MA.ordem.length) return '<div class="note">Sem dados de histórico por módulo.</div>';
   const meses=MA.meses, n=meses.length, sel=trendMods(), curIdx=MA.mes_corrente_idx, curAno=MA.ano_corrente;
@@ -667,17 +673,24 @@ function moduleTrendChart(){
     });
   });
   return `<div class="trend-chips">${util}${chips}</div>
-    ${moduleSummaryCards(selMods)}
+    ${moduleSummaryCards(selMods,window.__trendAllMode)}
     <svg viewBox="0 0 ${W} ${H}" width="100%">${curBand}${grid}${xl}${bars}${overlay}</svg>
     <div class="note" style="margin-top:8px">Métrica: <b>Carga real de trabalho</b> = criados no mês + sobra (não entregue) do mês anterior — não só criados. Dentro de cada mês, os módulos selecionados ficam lado a lado (mesma cor do chip); barra clara = <b>2025</b>, barra cheia = <b>2026</b>. O <b>círculo vazado</b> em <b>${meses[curIdx]}/${curAno} *</b>, ligado por um traço tracejado, é a <b>ESTIMATIVA</b> do mês corrente: só os criados são projetados (run-rate simples, método vencedor de um backtest contra dado real — ver nota "Como ler"), a sobra do mês anterior já é exata. "!" ao lado do valor no chip = módulo de baixo volume, projeção pouco confiável. Quanto mais módulos selecionados, mais finas ficam as barras.</div>`;
 }
-// Resumo da safra corrente — 3 cartões acima do gráfico, só quando EXATAMENTE 1 módulo está
-// selecionado (com 2+ selecionados os cartões ficariam ilegíveis empilhados/lado a lado —
-// DECISÃO DE 17/09/2026: mostra uma nota pedindo pra reduzir a seleção em vez de tentar
-// encaixar todo mundo). Dados prontos em DATA.mod_ano_a_ano.resumo_atual (gen_data.py) — só
-// formatação aqui, nenhum cálculo novo no front-end.
-function moduleSummaryCards(selMods){
-  if(selMods.length>1) return `<div class="note" style="margin:10px 0">Selecione um único módulo (nos chips acima) para ver o resumo detalhado da safra corrente — com ${selMods.length} selecionados os cartões ficariam ilegíveis.</div>`;
+// Resumo da safra corrente — 3 cartões acima do gráfico.
+//   - EXATAMENTE 1 módulo selecionado: resumo detalhado daquele módulo.
+//   - 2+ selecionados À MÃO (chip por chip): cartões ficam ilegíveis empilhados/lado a lado —
+//     DECISÃO DE 17/09/2026: mostra nota pedindo pra reduzir a seleção.
+//   - "Selecionar todos" (allMode=true, ver trendSelectAll acima): os 3 cartões viram uma
+//     ANÁLISE GERAL agregada (soma de todos os módulos) — DECISÃO DE 17/09/2026, a pedido da
+//     Jane. Cada módulo já calculou sua própria taxa histórica de entrega (gen_data.py); aqui
+//     só SOMA os resultados prontos de cada um (não recalcula uma taxa geral única, e a
+//     variação vs. ano anterior é a variação da SOMA, não a média das variações — média das
+//     variações individuais distorceria o resultado quando os módulos têm portes diferentes).
+// Dados prontos em DATA.mod_ano_a_ano.resumo_atual (gen_data.py) — só formatação/soma aqui.
+function moduleSummaryCards(selMods,allMode){
+  if(allMode) return moduleSummaryCardsAll();
+  if(selMods.length>1) return `<div class="note" style="margin:10px 0">Selecione um único módulo (nos chips acima) para ver o resumo detalhado da safra corrente — com ${selMods.length} selecionados os cartões ficariam ilegíveis. Ou clique em "Selecionar todos" para ver a análise geral agregada.</div>`;
   if(selMods.length<1) return '';
   const MA=DATA.mod_ano_a_ano, mod=selMods[0], r=(MA.resumo_atual||{})[mod];
   if(!r) return '';
@@ -702,6 +715,41 @@ function moduleSummaryCards(selMods){
       <div class="mh-kpi-lbl">Vs. ${r.mes_ano_anterior_lbl}${selo} <span class="info" data-tip="Aumento de carga nem sempre é ruim (ex.: módulo em expansão) — use como contexto, não veredito.">i</span></div>
       <div class="mh-kpi-num" style="color:${vpColor}">${vpTxt}</div>
       <div class="mh-kpi-sub">${r.carga_ano_anterior!=null?`${r.mes_ano_anterior_lbl} fechou com ${r.carga_ano_anterior}`:'sem dado do ano anterior'}</div>
+    </div>
+  </div>`;
+}
+function moduleSummaryCardsAll(){
+  const MA=DATA.mod_ano_a_ano, resumo=MA.resumo_atual||{}, mods=MA.ordem||[];
+  let sCarga=0,sCriados=0,sSobraAnt=0,sSobraEsp=0,sCargaAnoAnt=0,mesAnt='',mesSeg='',mesAnoAnt='';
+  mods.forEach(m=>{
+    const r=resumo[m]; if(!r) return;
+    sCarga+=r.carga_projetada||0;
+    sCriados+=r.criados_projetado||0;
+    sSobraAnt+=r.sobra_anterior||0;
+    sSobraEsp+=(r.sobra_esperada!=null?r.sobra_esperada:0);
+    sCargaAnoAnt+=(r.carga_ano_anterior!=null?r.carga_ano_anterior:0);
+    mesAnt=r.mes_anterior_lbl; mesSeg=r.mes_seguinte_lbl; mesAnoAnt=r.mes_ano_anterior_lbl;
+  });
+  const sobraPct=sCarga>0?Math.round(sSobraEsp/sCarga*100):null;
+  const vp=sCargaAnoAnt>0?Math.round((sCarga-sCargaAnoAnt)/sCargaAnoAnt*100):null;
+  const vpNeutro=vp==null||Math.abs(vp)<=5;
+  const vpColor=vp==null?'var(--text-3)':(vpNeutro?'var(--text-3)':(vp>0?'var(--bad)':'var(--good)'));
+  const vpTxt=vp==null?'N/D':`${vp>0?'+':''}${vp}%`;
+  return `<div class="mh-kpis" style="margin-top:4px">
+    <div class="mh-kpi">
+      <div class="mh-kpi-lbl">Estimativa de fechamento — todos os módulos</div>
+      <div class="mh-kpi-num">${Math.round(sCarga)}</div>
+      <div class="mh-kpi-sub">${Math.round(sCriados)} novos + ${Math.round(sSobraAnt)} herdados de ${mesAnt}</div>
+    </div>
+    <div class="mh-kpi">
+      <div class="mh-kpi-lbl">Deve sobrar p/ ${mesSeg} — todos os módulos</div>
+      <div class="mh-kpi-num">${Math.round(sSobraEsp)}</div>
+      <div class="mh-kpi-sub">${sobraPct!=null?`${sobraPct}% da carga projetada`:'sem histórico suficiente'}</div>
+    </div>
+    <div class="mh-kpi">
+      <div class="mh-kpi-lbl">Vs. ${mesAnoAnt} — todos os módulos <span class="info" data-tip="Aumento de carga nem sempre é ruim (ex.: setor em expansão) — use como contexto, não veredito. Soma da carga projetada de todos os módulos vs. soma da carga real do mesmo mês no ano anterior — não é a média das variações individuais.">i</span></div>
+      <div class="mh-kpi-num" style="color:${vpColor}">${vpTxt}</div>
+      <div class="mh-kpi-sub">${sCargaAnoAnt>0?`${mesAnoAnt} fechou com ${Math.round(sCargaAnoAnt)}`:'sem dado do ano anterior'}</div>
     </div>
   </div>`;
 }
@@ -1073,7 +1121,7 @@ function render(){
    <div class="panel"><div id="mtwrap">${moduleTable()}</div></div>
    <h2>${si('chart-line')}Tendência dos módulos — comparativo ano a ano <span class="info" data-tip="Métrica: Carga real de trabalho (criados no mês + sobra/não entregue do mês anterior), não só criados. Barras agrupadas por mês: dentro de cada mês, os módulos selecionados ficam lado a lado, cada um com seu par 2025 (clara) x 2026 (cheia) na mesma cor do chip. Eixo X fixo Jan-Dez. Selecione quantos módulos quiser via chips, 'Selecionar todos' ou 'Limpar seleção'. Com exatamente 1 módulo selecionado, aparecem 3 cartões de resumo da safra corrente acima do gráfico. O mês corrente de 2026 é uma ESTIMATIVA — círculo vazado ligado por traço tracejado, marcado com * — só os criados são projetados por run-rate simples (método vencedor de um backtest contra dado real do Jira); a sobra do mês anterior já é exata.">i</span></h2>
    <div class="panel"><div id="trendwrap">${moduleTrendChart()}</div>
-     <details class="note-c"><summary>Como ler</summary><div class="note-body"><b>Métrica — Carga real de trabalho:</b> Carga(módulo, mês) = criados no módulo naquele mês + sobra (cards do mês anterior ainda não entregues, status reconstruído via changelog no último dia daquele mês). Não é só volume de criados — é o que realmente ficou de trabalho pro módulo naquele mês, incluindo o que sobrou do mês anterior. <b>Como ler:</b> clique nos <b>chips</b> pra ligar/desligar cada módulo, ou use <b>"Selecionar todos"/"Limpar seleção"</b>. Dentro de cada <b>mês</b>, os módulos selecionados ficam <b>lado a lado</b> (mesma cor do chip): clara = <b>2025</b>, cheia = <b>2026</b>. Eixo X fixo <b>Janeiro a Dezembro</b>. O <b>círculo vazado</b> no mês marcado com <b>*</b>, ligado às barras anteriores por um <b>traço tracejado</b>, é a <b>ESTIMATIVA</b> do mês corrente: só os criados deste mês são projetados — por <b>run-rate simples</b> (criados até agora ÷ dias úteis decorridos × dias úteis do mês) — a sobra do mês anterior já é um valor exato e fechado, não precisa de projeção. Esse método foi escolhido depois de um backtest contra 15 meses de dado real e fechado do Jira, comparando run-rate contra regressão linear: run-rate venceu em erro médio (MAE) e erro percentual (MAPE), nos 3 módulos testados e nos 3 pontos do mês testados, sem exceção (erro 37,5% menor no total) — por isso só ele é usado aqui, sem regressão nem combinação entre os dois métodos. Módulos com "!" no chip têm volume baixo — o mesmo backtest mostrou que a projeção fica bem menos confiável nesses casos (erro percentual de até ~98%). A sobra de cada mês fechado é calculada uma única vez e congelada (não muda mais depois, mesmo rodando o pipeline de novo). Meses de 2026 que ainda não chegaram simplesmente não aparecem. Quanto mais módulos selecionados, mais finas ficam as barras. Fonte dos criados: mesma régua de "Bug por módulo" — bugs criados por mês, excluindo só Cancelado QA.<br><br><b>Os 3 cartões</b> (só aparecem com 1 módulo selecionado): <b>Estimativa de fechamento</b> = a própria Carga projetada do mês corrente, aberta em criados projetados + sobra herdada do mês anterior (já exata). <b>Deve sobrar p/ o mês seguinte</b> = aplica sobre essa Carga projetada a taxa histórica de NÃO-entrega no mês do módulo (média dos últimos 6 meses fechados: quanto da Carga de cada mês ficou sem entregar até o fim dele). <b>Vs. o mesmo mês do ano anterior</b> = variação % entre a Carga projetada agora e a Carga já fechada do mesmo mês em 2025 — vermelho quando sobe mais de 5%, verde quando cai mais de 5%, neutro entre os dois (aumento não é sempre ruim, ver o ícone de informação no cartão). Módulos de baixo volume ganham o mesmo selo "!" dos chips nos 3 cartões.</div></details></div>
+     <details class="note-c"><summary>Como ler</summary><div class="note-body"><b>Métrica — Carga real de trabalho:</b> Carga(módulo, mês) = criados no módulo naquele mês + sobra (cards do mês anterior ainda não entregues, status reconstruído via changelog no último dia daquele mês). Não é só volume de criados — é o que realmente ficou de trabalho pro módulo naquele mês, incluindo o que sobrou do mês anterior. <b>Como ler:</b> clique nos <b>chips</b> pra ligar/desligar cada módulo, ou use <b>"Selecionar todos"/"Limpar seleção"</b>. Dentro de cada <b>mês</b>, os módulos selecionados ficam <b>lado a lado</b> (mesma cor do chip): clara = <b>2025</b>, cheia = <b>2026</b>. Eixo X fixo <b>Janeiro a Dezembro</b>. O <b>círculo vazado</b> no mês marcado com <b>*</b>, ligado às barras anteriores por um <b>traço tracejado</b>, é a <b>ESTIMATIVA</b> do mês corrente: só os criados deste mês são projetados — por <b>run-rate simples</b> (criados até agora ÷ dias úteis decorridos × dias úteis do mês) — a sobra do mês anterior já é um valor exato e fechado, não precisa de projeção. Esse método foi escolhido depois de um backtest contra 15 meses de dado real e fechado do Jira, comparando run-rate contra regressão linear: run-rate venceu em erro médio (MAE) e erro percentual (MAPE), nos 3 módulos testados e nos 3 pontos do mês testados, sem exceção (erro 37,5% menor no total) — por isso só ele é usado aqui, sem regressão nem combinação entre os dois métodos. Módulos com "!" no chip têm volume baixo — o mesmo backtest mostrou que a projeção fica bem menos confiável nesses casos (erro percentual de até ~98%). A sobra de cada mês fechado é calculada uma única vez e congelada (não muda mais depois, mesmo rodando o pipeline de novo). Meses de 2026 que ainda não chegaram simplesmente não aparecem. Quanto mais módulos selecionados, mais finas ficam as barras. Fonte dos criados: mesma régua de "Bug por módulo" — bugs criados por mês, excluindo só Cancelado QA.<br><br><b>Os 3 cartões</b> (com 1 módulo selecionado): <b>Estimativa de fechamento</b> = a própria Carga projetada do mês corrente, aberta em criados projetados + sobra herdada do mês anterior (já exata). <b>Deve sobrar p/ o mês seguinte</b> = aplica sobre essa Carga projetada a taxa histórica de NÃO-entrega no mês do módulo (média dos últimos 6 meses fechados: quanto da Carga de cada mês ficou sem entregar até o fim dele). <b>Vs. o mesmo mês do ano anterior</b> = variação % entre a Carga projetada agora e a Carga já fechada do mesmo mês em 2025 — vermelho quando sobe mais de 5%, verde quando cai mais de 5%, neutro entre os dois (aumento não é sempre ruim, ver o ícone de informação no cartão). Módulos de baixo volume ganham o mesmo selo "!" dos chips nos 3 cartões. Com 2+ módulos escolhidos à mão, os cartões somem (ficariam ilegíveis) e aparece uma nota pedindo pra reduzir a seleção. <b>Clicando em "Selecionar todos"</b>, os cartões viram uma <b>análise geral</b> — soma de todos os módulos: Estimativa e Sobra somam o resultado já calculado de cada módulo (cada um com sua própria taxa histórica; não recalcula uma taxa única geral); a comparação com o ano anterior é a variação da <b>soma</b> das cargas, não a média das variações individuais (média distorceria o resultado entre módulos de porte muito diferente). Nesse modo o selo de amostra pequena não aparece — a soma de todos os módulos já tem volume suficiente por natureza.</div></details></div>
    <h2>${si('triangle-exclamation')}Prioridade &amp; SLA</h2>${slaSection()}
    <h2>${si('users')}Carga por squad — folha × contrato</h2>${squadSection()}
    <h2>${si('coins')}Esforço e alocação — bugs</h2>
