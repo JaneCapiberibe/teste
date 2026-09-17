@@ -62,31 +62,16 @@ h2 .info{margin-left:8px}
   --good:#46c98a; --warn:#ffcb5c; --bad:#ff6b78;
 }
 :root[data-theme="dark"] .safra-bar{background:linear-gradient(90deg,rgba(111,168,255,.06),rgba(111,168,255,.10))}
-:root[data-theme="dark"] .icon-btn.avatar{background:var(--brand-blue);color:#0e1017}
 :root[data-theme="dark"] .sec-ico{background:rgba(111,168,255,.16)}
-:root[data-theme="dark"] header{box-shadow:0 1px 0 rgba(255,255,255,.03)}
 /* fundo claro fixo por padrão; modo escuro só pelo botão "alternar tema" */
 *{box-sizing:border-box}
 body{margin:0;background:var(--surface-0);color:var(--text-1);
   font-family:'Pathway Extreme',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.45}
-header{padding:18px 28px;border-bottom:3px solid var(--brand-blue);background:var(--surface-1);display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:18px}
-.brand{display:flex;align-items:center;gap:20px}
-.brand img{height:120px;width:auto;display:block}
-.brand img.logo-dark{display:none}
-:root[data-theme="dark"] .brand img.logo-light{display:none}
-:root[data-theme="dark"] .brand img.logo-dark{display:block}
-.brand .divider{width:1px;height:88px;background:var(--line)}
-h1{font-size:20px;margin:0;color:var(--text-1);font-weight:700;letter-spacing:-.2px}
-.sub{color:#454a63;font-size:12.5px;margin-top:3px}
-main{max-width:1180px;margin:0 auto;padding:22px 18px 60px}
+main{max-width:1180px;margin:0 auto;padding:28px 22px 60px}
 .toggle{border:1px solid var(--line);background:var(--surface-2);color:var(--text-2);border-radius:8px;padding:7px 12px;cursor:pointer;font-size:12px;font-family:inherit}
-.hdr-actions{display:flex;align-items:center;gap:10px}
-.icon-btn{position:relative;width:40px;height:40px;border:1px solid var(--line);background:var(--surface-2);color:var(--text-1);border-radius:50%;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:16px;transition:background .15s,border-color .15s}
+.icon-btn{position:relative;width:38px;height:38px;border:1px solid var(--line);background:var(--surface-2);color:var(--text-1);border-radius:50%;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:16px;transition:background .15s,border-color .15s;flex:none}
 .icon-btn:hover{background:rgba(0,95,232,.10);border-color:var(--brand-blue);color:var(--brand-blue)}
 .icon-btn .badge{position:absolute;top:-3px;right:-3px;min-width:16px;height:16px;padding:0 4px;border-radius:9px;background:var(--danger,#e34948);color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid var(--surface-2);font-family:inherit;line-height:1}
-.icon-btn.avatar{background:var(--brand-navy);color:#fff;font-weight:700;font-size:14px}
-.icon-btn.avatar:hover{background:var(--brand-blue)}
-.hdr-sep{width:1px;height:26px;background:var(--line);margin:0 2px}
 .safra-bar{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;margin-bottom:16px;padding:14px 18px;border-radius:12px;background:linear-gradient(90deg,rgba(4,4,58,.04),rgba(0,95,232,.06));border:1px solid var(--line);border-left:5px solid var(--brand-blue)}
 .safra-left{display:flex;align-items:center;gap:13px}
 .safra-ico{width:40px;height:40px;flex:0 0 40px;border-radius:10px;background:var(--brand-blue);color:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;box-shadow:0 4px 12px rgba(0,95,232,.28)}
@@ -231,24 +216,82 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .bar-fill{height:100%;border-radius:5px}
 .bar-val{font-size:12px;color:var(--text-2);width:66px;font-variant-numeric:tabular-nums}
 footer{max-width:1180px;margin:0 auto;padding:10px 18px 40px;color:var(--text-3);font-size:11.5px}
+/* --- casca de navegação: menu lateral colapsável (SPA de múltiplos módulos) --- */
+.app-shell{display:flex;align-items:stretch;min-height:100vh}
+.sidebar{width:236px;flex:0 0 236px;background:var(--surface-1);border-right:1px solid var(--line);display:flex;flex-direction:column;transition:flex-basis .18s ease,width .18s ease;overflow:hidden;position:sticky;top:0;align-self:flex-start;height:100vh}
+.sidebar.collapsed{width:68px;flex-basis:68px}
+.sidebar-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:18px 14px 4px}
+.sidebar.collapsed .sidebar-top{flex-direction:column;align-items:center;justify-content:flex-start}
+.sidebar-brand{display:flex;flex-direction:column;gap:6px;min-width:0;overflow:hidden}
+.sidebar-brand img{height:52px;width:auto;display:block}
+.sidebar-brand img.logo-dark{display:none}
+:root[data-theme="dark"] .sidebar-brand img.logo-light{display:none}
+:root[data-theme="dark"] .sidebar-brand img.logo-dark{display:block}
+.sidebar-brand-sub{font-size:10.5px;font-weight:600;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.2px}
+.sidebar.collapsed .sidebar-brand{display:none}
+.sidebar-toggle{border:1px solid var(--line);background:var(--surface-2);color:var(--text-2);border-radius:8px;width:32px;height:32px;flex:none;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+.sidebar-toggle:hover{background:rgba(0,95,232,.10);border-color:var(--brand-blue);color:var(--brand-blue)}
+.sidebar-toggle .ic{width:16px;height:16px}
+.sidebar-icons{display:flex;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.sidebar.collapsed .sidebar-icons{flex-direction:column;align-items:center}
+.sidebar-nav{display:flex;flex-direction:column;gap:3px;padding:10px 12px;flex:1;overflow-y:auto}
+.side-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;border:1px solid transparent;background:none;color:var(--text-2);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;text-align:left;white-space:nowrap;width:100%}
+.side-item:hover{background:var(--surface-2);color:var(--text-1)}
+.side-item.on{background:rgba(0,95,232,.12);border-color:rgba(0,95,232,.30);color:var(--brand-blue)}
+:root[data-theme="dark"] .side-item.on{background:rgba(111,168,255,.16);border-color:rgba(111,168,255,.35)}
+.side-item .ic{width:17px;height:17px;flex:none}
+.side-item .lbl{overflow:hidden;text-overflow:ellipsis}
+.sidebar.collapsed .side-item{justify-content:center;padding:10px 0}
+.sidebar.collapsed .side-item .lbl,.sidebar.collapsed .sidebar-profile-info{display:none}
+.sidebar.collapsed .sidebar-profile{flex-direction:column;justify-content:center;gap:8px;padding:12px 8px}
+.sidebar-profile{border-top:1px solid var(--line);padding:14px;display:flex;align-items:center;gap:10px}
+.sidebar-profile-avatar{width:32px;height:32px;border-radius:50%;background:var(--brand-navy);color:#fff;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;flex:none;position:relative}
+.sidebar-profile-avatar .dot{position:absolute;bottom:-1px;right:-1px;width:9px;height:9px;border-radius:50%;background:var(--good);border:2px solid var(--surface-1)}
+.sidebar-profile-avatar .badge{position:absolute;top:-4px;right:-4px;min-width:14px;height:14px;padding:0 3px;border-radius:8px;color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;border:2px solid var(--surface-1);font-family:inherit;line-height:1}
+.sidebar-profile-info{flex:1;min-width:0}
+.sidebar-profile-name{font-size:12.5px;font-weight:700;color:var(--text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sidebar-profile-sub{font-size:10.5px;color:var(--text-3)}
+.sidebar-logout{border:1px solid var(--line);background:var(--surface-2);color:var(--text-2);border-radius:8px;width:30px;height:30px;flex:none;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+.sidebar-logout:hover{background:rgba(226,56,77,.10);border-color:var(--bad);color:var(--bad)}
+.sidebar-logout .ic{width:15px;height:15px}
+.main-col{flex:1;min-width:0;display:flex;flex-direction:column}
+.module-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;padding:110px 20px;color:var(--text-3)}
+.module-placeholder .ic-big{width:52px;height:52px;border-radius:14px;background:var(--surface-2);color:var(--text-3);display:flex;align-items:center;justify-content:center}
+.module-placeholder .ic-big .ic{width:24px;height:24px}
+.module-placeholder h2{margin:0;font-size:15px;color:var(--text-2);letter-spacing:0;display:block}
+.module-placeholder p{margin:0;font-size:12.5px;color:var(--text-3);max-width:380px}
+@media(max-width:820px){.sidebar{width:68px;flex-basis:68px}.sidebar .lbl,.sidebar .sidebar-profile-info{display:none}.sidebar .side-item{justify-content:center;padding:10px 0}.sidebar .sidebar-profile{justify-content:center}}
 </style></head>
 <body>
-<header>
-  <div class="brand">
-    <img class="logo-light" src="__LOGO__" alt="OrçaFascio"/>
-    <img class="logo-dark" src="__LOGO_DARK__" alt="OrçaFascio"/>
-    <div class="divider"></div>
-    <div><h1>Dashboard do Setor de Desenvolvimento</h1></div>
+<div class="app-shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-top">
+      <div class="sidebar-brand">
+        <img class="logo-light" src="__LOGO__" alt="OrçaFascio"/>
+        <img class="logo-dark" src="__LOGO_DARK__" alt="OrçaFascio"/>
+        <div class="sidebar-brand-sub">Setor de Desenvolvimento</div>
+      </div>
+      <button class="sidebar-toggle" onclick="toggleSidebar()" title="Encolher/expandir menu" aria-label="Encolher/expandir menu"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/></svg></button>
+    </div>
+    <div class="sidebar-icons">
+      <button class="icon-btn" title="Notificações" aria-label="Notificações"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="badge">3</span></button>
+      <button class="icon-btn" id="themeBtn" onclick="tgl()" title="Alternar tema (claro/escuro)" aria-label="Alternar tema"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M4.93 4.93l1.41 1.41"/><path d="M17.66 17.66l1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M6.34 17.66l-1.41 1.41"/><path d="M19.07 4.93l-1.41 1.41"/></svg></button>
+    </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
+    <div class="sidebar-profile">
+      <div class="sidebar-profile-avatar"><span>JC</span><span class="dot"></span><span class="badge" style="background:#f5a623;border-color:var(--surface-1)">!</span></div>
+      <div class="sidebar-profile-info">
+        <div class="sidebar-profile-name">Jane</div>
+        <div class="sidebar-profile-sub">Sessão ativa</div>
+      </div>
+      <button class="sidebar-logout" onclick="logout()" title="Sair" aria-label="Sair"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg></button>
+    </div>
+  </aside>
+  <div class="main-col">
+    <main id="app"></main>
+    <footer id="ft"></footer>
   </div>
-  <div class="hdr-actions">
-    <button class="icon-btn" title="Notificações" aria-label="Notificações"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="badge">3</span></button>
-    <button class="icon-btn avatar" title="Perfil — Jane" aria-label="Perfil"><span>JC</span><span class="badge" style="background:#f5a623;border-color:var(--surface-2)">!</span></button>
-    <div class="hdr-sep"></div>
-    <button class="icon-btn" id="themeBtn" onclick="tgl()" title="Alternar tema (claro/escuro)" aria-label="Alternar tema"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M4.93 4.93l1.41 1.41"/><path d="M17.66 17.66l1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M6.34 17.66l-1.41 1.41"/><path d="M19.07 4.93l-1.41 1.41"/></svg></button>
-  </div>
-</header>
-<main id="app"></main>
-<footer id="ft"></footer>
+</div>
 <div class="tt" id="tt"></div>
 
 <script>
@@ -293,10 +336,55 @@ const ICONS={
  'gauge-high':'<path d="M4 18a9 9 0 1 1 16 0"/><path d="M12 14l4-3"/><circle cx="12" cy="14" r="1.1"/>',
  'hourglass-half':'<path d="M6 2h12"/><path d="M6 22h12"/><path d="M6 2c0 5 6 5 6 10 0-5 6-5 6-10"/><path d="M6 22c0-5 6-5 6-10 0 5 6 5 6 10"/>',
  'layer-group':'<path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/><path d="M3 17l9 5 9-5"/>',
- 'users':'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'
+ 'users':'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+ 'bug':'<rect x="8" y="6" width="8" height="12" rx="4"/><path d="M12 6V3"/><path d="M8 10H3"/><path d="M8 14H3"/><path d="M21 10h-5"/><path d="M21 14h-5"/><path d="M9 19l-2 2"/><path d="M15 19l2 2"/>',
+ 'code':'<path d="M16 18l6-6-6-6"/><path d="M8 6l-6 6 6 6"/>',
+ 'menu':'<path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/>',
+ 'log-out':'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>'
 };
 function svg(n,cls,st){return '<svg class="ic'+(cls?(' '+cls):'')+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"'+(st?(' style="'+st+'"'):'')+'>'+(ICONS[n]||'')+'</svg>';}
 function si(n){return '<span class="sec-ico">'+svg(n)+'</span>';}
+/* ===== Menu lateral / navegação entre módulos (SPA de uma página só) ===== */
+const MODULES=[
+ {key:'produtos',label:'Produtos e Melhoria',icon:'cube'},
+ {key:'bugs',label:'Bugs',icon:'bug'},
+ {key:'sustentacao',label:'Sustentação',icon:'headset'},
+ {key:'equipe',label:'Equipe',icon:'users'},
+ {key:'devs',label:'Desenvolvedores',icon:'code'}
+];
+window.__activeModule='bugs';
+window.__sidebarCollapsed=false;
+function renderSidebarNav(){
+  document.getElementById('sidebarNav').innerHTML=MODULES.map(m=>
+    `<button class="side-item${m.key===window.__activeModule?' on':''}" onclick="setModule('${m.key}')" title="${m.label}">${svg(m.icon)}<span class="lbl">${m.label}</span></button>`
+  ).join('');
+}
+function setModule(key){
+  if(window.__activeModule===key) return;
+  window.__activeModule=key;
+  renderSidebarNav();
+  renderModule();
+}
+function toggleSidebar(){
+  window.__sidebarCollapsed=!window.__sidebarCollapsed;
+  document.getElementById('sidebar').classList.toggle('collapsed',window.__sidebarCollapsed);
+}
+function logout(){
+  try{sessionStorage.removeItem('of_dash_auth');localStorage.removeItem('of_dash_auth');}catch(e){}
+  location.replace('login.html');
+}
+function renderPlaceholderModule(key){
+  const m=MODULES.find(x=>x.key===key)||{};
+  document.getElementById('app').innerHTML=`<div class="module-placeholder">
+    <div class="ic-big">${svg(m.icon||'cube')}</div>
+    <h2>${m.label||''}</h2>
+    <p>Em construção — esse módulo ainda não tem conteúdo.</p>
+  </div>`;
+}
+function renderModule(){
+  if(window.__activeModule==='bugs') render();
+  else renderPlaceholderModule(window.__activeModule);
+}
 window.__safra=null;
 function curSafra(){return window.__safra || DATA.funil_default;}
 function setSafra(v){window.__safra=v;render();}
@@ -1138,7 +1226,8 @@ function render(){
   collapsibleNotes();
 }
 document.getElementById('ft').innerHTML='Gerado a partir de "Resumo bugs" (export Jira). Métricas marcadas N/D não têm dado de origem — ver notas. Custo sempre rotulado como estimativa distribuída. Substitua o objeto DATA no topo do arquivo para atualizar.';
-render();
+renderSidebarNav();
+renderModule();
 </script>
 </body></html>'''
 
