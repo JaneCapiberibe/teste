@@ -346,10 +346,9 @@ function svg(n,cls,st){return '<svg class="ic'+(cls?(' '+cls):'')+'" viewBox="0 
 function si(n){return '<span class="sec-ico">'+svg(n)+'</span>';}
 /* ===== Menu lateral / navegação entre módulos (SPA de uma página só) ===== */
 const MODULES=[
- {key:'produtos',label:'Produtos e Melhoria',icon:'cube'},
  {key:'bugs',label:'Bugs',icon:'bug'},
+ {key:'produtos',label:'Produtos e Melhoria',icon:'cube'},
  {key:'sustentacao',label:'Sustentação',icon:'headset'},
- {key:'equipe',label:'Equipe',icon:'users'},
  {key:'devs',label:'Desenvolvedores',icon:'code'}
 ];
 window.__activeModule='bugs';
