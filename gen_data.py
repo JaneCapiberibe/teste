@@ -992,10 +992,67 @@ for mod in ordem_aa:
 if _carga_cache_changed:
     json.dump(_carga_cache,open(CARGA_CACHE_PATH,'w'),ensure_ascii=False,indent=1)
 
+# ---- RESUMO DA SAFRA CORRENTE por módulo — os 3 cartões acima do gráfico "Tendência dos
+# módulos" (moduleTrendChart(), build_dash.py), DECISÃO DE 17/09/2026. Reaproveita a MESMA
+# Carga (cargaaa) e o MESMO cache de Sobra (_sobra_cache) calculados acima — só a taxa
+# histórica de entrega no mês é um cálculo novo, usado só aqui.
+#   1) Estimativa de fechamento .... a própria Carga projetada do mês corrente, aberta em
+#      criados projetados (run-rate) + sobra herdada do mês anterior (já exata).
+#   2) Deve sobrar p/ o mês seguinte ... aplica sobre a Carga projetada a taxa histórica de
+#      NÃO-entrega no mês: para os últimos 6 meses FECHADOS (mesma janela padrão já usada em
+#      JANELAS_TENDENCIA/_trend_por_janela — calendário, não filtrada por atividade do
+#      módulo), taxa_entrega(mês) = (Carga do mês − Sobra do mês) ÷ Carga do mês (mês com
+#      Carga=0 fica de fora da média, não vira 0%). sobra_esperada = (1−média) × Carga
+#      projetada.
+#   3) Vs. mesmo mês do ano anterior .... Carga projetada (corrente) vs. Carga REAL já
+#      fechada do mesmo mês em 2025 — mesmos valores de cargaaa, sem cálculo novo.
+_mes_ant_corrente=_mes_anterior(cur_ym)
+_ano_ant_aa=str(int(_cur_ano_aa)-1)
+_mes_seg_idx=0 if _cur_mes_idx_aa==11 else _cur_mes_idx_aa+1
+_mes_seguinte_lbl=MESES_LBL_AA[_mes_seg_idx]
+_mes_anterior_lbl=MESES_LBL_AA[int(_mes_ant_corrente.split('-')[1])-1]
+_closed_months_aa=[m for m in meses if m<cur_ym]
+_ult6_fechados_aa=_closed_months_aa[-6:]
+def _carga_modulo_mes(mod,ym):
+    """Carga(mod,ym) pra qualquer mês fechado — mesma fórmula de cargaaa acima, reaproveitando
+    cria_mod/_sobra_cache já existentes (útil pros últimos 6 meses fechados, que podem cair
+    fora do range 2025/2026 exibido no gráfico)."""
+    return cria_mod[mod].get(ym,0)+_sobra_cache(mod,_mes_anterior(ym))
+resumo_aa={}
+for mod in ordem_aa:
+    carga_proj=cargaaa[mod][_cur_ano_aa][_cur_mes_idx_aa]
+    criados_ate_agora=cria_mod[mod].get(cur_ym,0)
+    criados_proj=round(criados_ate_agora/DIAS_UTEIS_DECORRIDOS*DIAS_UTEIS_TOTAIS_MES,1) if DIAS_UTEIS_DECORRIDOS>0 else criados_ate_agora
+    sobra_ant=_sobra_cache(mod,_mes_ant_corrente)
+    taxas=[]
+    for ymh in _ult6_fechados_aa:
+        carga_h=_carga_modulo_mes(mod,ymh)
+        if carga_h<=0: continue
+        taxas.append((carga_h-_sobra_cache(mod,ymh))/carga_h)
+    taxa_media=statistics.mean(taxas) if taxas else None
+    sobra_pct=round((1-taxa_media)*100) if taxa_media is not None else None
+    sobra_esperada=round((1-taxa_media)*carga_proj,1) if taxa_media is not None else None
+    carga_ano_ant=(cargaaa[mod].get(_ano_ant_aa) or [None]*12)[_cur_mes_idx_aa]
+    var_pct=round((carga_proj-carga_ano_ant)/carga_ano_ant*100) if carga_ano_ant else None
+    resumo_aa[mod]={
+        'carga_projetada':carga_proj,
+        'criados_projetado':criados_proj,
+        'sobra_anterior':sobra_ant,
+        'mes_anterior_lbl':_mes_anterior_lbl,
+        'sobra_esperada':sobra_esperada,
+        'sobra_esperada_pct':sobra_pct,
+        'mes_seguinte_lbl':_mes_seguinte_lbl,
+        'carga_ano_anterior':carga_ano_ant,
+        'var_pct_ano_anterior':var_pct,
+        'mes_ano_anterior_lbl':f'{MESES_LBL_AA[_cur_mes_idx_aa]}/{_ano_ant_aa[2:]}',
+        'small':mods.get(mod,{'bugs':0})['bugs']<PISO_AMOSTRA_PEQUENA,
+    }
+
 d['mod_ano_a_ano']={'meses':MESES_LBL_AA,'anos':list(ANOS_AA),'ordem':ordem_aa,
                     'por_modulo':{mod:cargaaa[mod] for mod in ordem_aa},
                     'total_geral':dict(totaa),
                     'pequenos':[m for m in ordem_aa if mods.get(m,{'bugs':0})['bugs']<PISO_AMOSTRA_PEQUENA],
+                    'resumo_atual':resumo_aa,
                     'ano_corrente':_cur_ano_aa,'mes_corrente_idx':_cur_mes_idx_aa,
                     'mes_corrente_ym':cur_ym}
 
