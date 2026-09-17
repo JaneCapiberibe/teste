@@ -232,7 +232,7 @@ footer{max-width:1180px;margin:0 auto;padding:10px 18px 40px;color:var(--text-3)
 .sidebar-toggle{border:1px solid var(--line);background:var(--surface-2);color:var(--text-2);border-radius:8px;width:32px;height:32px;flex:none;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
 .sidebar-toggle:hover{background:rgba(0,95,232,.10);border-color:var(--brand-blue);color:var(--brand-blue)}
 .sidebar-toggle .ic{width:16px;height:16px}
-.sidebar-icons{display:flex;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.sidebar-icons{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--line)}
 .sidebar.collapsed .sidebar-icons{flex-direction:column;align-items:center}
 .sidebar-nav{display:flex;flex-direction:column;gap:3px;padding:10px 12px;flex:1;overflow-y:auto}
 .side-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;border:1px solid transparent;background:none;color:var(--text-2);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;text-align:left;white-space:nowrap;width:100%}
@@ -273,11 +273,11 @@ footer{max-width:1180px;margin:0 auto;padding:10px 18px 40px;color:var(--text-3)
       </div>
       <button class="sidebar-toggle" onclick="toggleSidebar()" title="Encolher/expandir menu" aria-label="Encolher/expandir menu"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/></svg></button>
     </div>
+    <nav class="sidebar-nav" id="sidebarNav"></nav>
     <div class="sidebar-icons">
       <button class="icon-btn" title="Notificações" aria-label="Notificações"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="badge">3</span></button>
       <button class="icon-btn" id="themeBtn" onclick="tgl()" title="Alternar tema (claro/escuro)" aria-label="Alternar tema"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M4.93 4.93l1.41 1.41"/><path d="M17.66 17.66l1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M6.34 17.66l-1.41 1.41"/><path d="M19.07 4.93l-1.41 1.41"/></svg></button>
     </div>
-    <nav class="sidebar-nav" id="sidebarNav"></nav>
     <div class="sidebar-profile">
       <div class="sidebar-profile-avatar"><span>JC</span><span class="dot"></span><span class="badge" style="background:#f5a623;border-color:var(--surface-1)">!</span></div>
       <div class="sidebar-profile-info">
