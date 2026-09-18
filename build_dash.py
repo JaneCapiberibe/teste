@@ -1129,7 +1129,7 @@ function devSel(){
   if(!window.__devSel||!ativos.includes(window.__devSel)) window.__devSel=ativos[0]||null;
   return window.__devSel;
 }
-function setDevSel(name){window.__devSel=name;renderModule();}
+function setDevSel(name){window.__devSel=name;window.__cvOpen=false;window.__cvStatus=null;renderModule();}
 function devGrid(){
   const D=DATA.devs, sel=devSel(), cur=curSafra(), ativos=devsAtivosNaSafra();
   if(!ativos.length) return `<div class="note">Nenhum desenvolvedor com movimentação em ${mesLbl(cur)}.</div>`;
@@ -1176,11 +1176,98 @@ function devKpiCards(dev){
       <div class="mh-kpi-num">${mj.em_dev_agora}</div>
       <div class="mh-kpi-sub">clique para ver no Jira</div>
     </div>
+    ${cicloVidaCard(dev)}
+  </div>
+  ${window.__cvOpen?cicloVidaExpandido(dev):''}`;
+}
+// ==================== CICLO DE VIDA (5º card do painel de detalhe, NOVO 18/09/2026) ====================
+// Nº de cards DISTINTOS com assignee ATUAL == pessoa que tiveram QUALQUER mudança de status
+// dentro do mês selecionado (não segue o alternador Mês/Acumulado — sempre o mês, ver tooltip
+// do painel). Ao clicar, expande em 3 partes: chips de status (universo completo do Kanban,
+// DATA.devs.status_kanban_ordem — reaproveita o padrão visual .emchip/.emchiprow já usado em
+// "Tendência dos módulos"/emChips(), só que seleção única em vez de múltipla), gráfico de
+// barras (mesmo padrão visual de sobraChart(), filtrado pra 1 pessoa) e lista de cards com
+// resumo do histórico do mês + observações de repasse.
+window.__cvOpen=false;
+window.__cvStatus=null;
+function toggleCicloVida(){window.__cvOpen=!window.__cvOpen;renderModule();}
+function cicloVidaCard(dev){
+  const D=DATA.devs, mj=D.pessoas[dev].metrics_jira, cur=curSafra();
+  const cv=(mj.ciclo_vida||{})[cur]||{n:0,keys:[]};
+  return `<div class="mh-kpi clickable" onclick="toggleCicloVida()" title="Clique para ${window.__cvOpen?'recolher':'expandir'}">
+    <div class="mh-kpi-lbl">Ciclo de vida</div>
+    <div class="mh-kpi-num">${cv.n}</div>
+    <div class="mh-kpi-sub">cards c/ atividade em ${mesLbl(cur)} · clique p/ detalhar</div>
   </div>`;
 }
-// Bugs concluídos por mês (mês de CONCLUSÃO via changelog — régua oficial de "Bug por
-// módulo"/evol_modulo, não a régua do KPI "Concluídos" acima, que é por mês de CRIAÇÃO —
-// mesma distinção explicada na nota "Como ler" de Bug por módulo/funil). Barra clara = mês
+function cvDefaultStatus(dev){
+  const D=DATA.devs, ss=D.pessoas[dev].metrics_jira.status_series;
+  if(ss) for(const s of D.status_kanban_ordem) if(ss.por_status[s]) return s;
+  return D.status_kanban_ordem[0];
+}
+function cvActiveStatus(dev){return window.__cvStatus||cvDefaultStatus(dev);}
+function cvSetStatus(s){window.__cvStatus=s;renderModule();}
+function cvChips(dev){
+  const D=DATA.devs, active=cvActiveStatus(dev);
+  const chips=D.status_kanban_ordem.map(s=>{
+    const on=s===active;
+    return `<button class="emchip${on?' on':''}" onclick="cvSetStatus('${s.replace(/'/g,"\\'")}')"><i></i>${s}</button>`;
+  }).join('');
+  return `<div class="emchiprow">${chips}</div>`;
+}
+function cvStatusChart(dev,status){
+  const D=DATA.devs, mj=D.pessoas[dev].metrics_jira, meses=D.meses, cur=DATA.mes_corrente;
+  const ss=mj.status_series||{por_status:{},por_status_keys:{}};
+  const vals=ss.por_status[status]||meses.map(()=>0);
+  const keys=ss.por_status_keys[status]||meses.map(()=>[]);
+  const n=meses.length, W=1080,H=220,P=44;
+  const maxY=Math.max(4,...vals)*1.15;
+  const bw=(W-2*P)/n*0.62;
+  const xs=(i)=>P+(i+0.5)*(W-2*P)/n;
+  const ys=(v)=>H-P-(v/maxY)*(H-2*P);
+  const step=Math.max(1,Math.ceil(maxY/4));
+  let grid='';for(let g=0;g<=Math.ceil(maxY/step);g++){const val=g*step;const yy=ys(val);grid+=`<line x1="${P}" y1="${yy}" x2="${W-P}" y2="${yy}" stroke="${col('--line')}"/><text x="${P-6}" y="${yy+4}" text-anchor="end" fill="${col('--text-3')}" font-size="10">${val}</text>`;}
+  let xl='';meses.forEach((m,i)=>{if(i%2===0||i===n-1)xl+=`<text x="${xs(i)}" y="${H-P+16}" text-anchor="middle" fill="${col('--text-3')}" font-size="9">${m.slice(2)}</text>`;});
+  let bars='';meses.forEach((m,i)=>{
+    const v=vals[i]; const y=ys(v); const parc=m===cur; const kk=(keys[i]||[]).join(',');
+    if(v>0) bars+=`<rect x="${(xs(i)-bw/2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-y).toFixed(1)}" fill="${col('--s1')}" ${parc?'opacity="0.45"':''} rx="2" style="cursor:pointer" data-keys="${kk}" onclick="abrirCardsBar(this)"><title>${m}: ${v} card(s) de ${dev} em "${status}" · clique p/ ver no Jira</title></rect>`;
+    bars+=`<text x="${xs(i).toFixed(1)}" y="${(y-4).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="${col('--text-1')}">${v||''}</text>`;
+  });
+  const tot=vals.reduce((a,b)=>a+b,0);
+  const band=safraBand((i)=>xs(i),(W-2*P)/n,P,H);
+  return `<div style="font-size:12px;color:var(--text-2);margin:2px 0 8px">Cards de <b>${dev}</b> atualmente em <b>${status}</b>, por mês de <b>criação</b> — total de <b>${tot}</b> (mostra a "idade" do trabalho parado nesse status). Barra clara = mês corrente; faixa azul = safra em foco. Clique numa barra p/ ver os cards no Jira.</div>
+    <svg viewBox="0 0 ${W} ${H}" width="100%">${band}${grid}${xl}${bars}</svg>`;
+}
+function cvLista(dev){
+  const D=DATA.devs, mj=D.pessoas[dev].metrics_jira, cur=curSafra();
+  const cv=(mj.ciclo_vida||{})[cur]||{cards:[],repasses:[]};
+  const tabela=!cv.cards.length?`<div class="note">Nenhum card de ${dev} com mudança de status em ${mesLbl(cur)}.</div>`
+    :`<table><thead><tr><th>Card</th><th>Módulo</th><th>Prioridade</th><th>Histórico do mês</th></tr></thead><tbody>${
+      cv.cards.map(c=>`<tr>
+        <td><a class="jira-link" href="${c.url}" target="_blank" rel="noopener">${c.key}</a></td>
+        <td>${c.modulo||'—'}</td>
+        <td>${prioBadge(c.prio)}</td>
+        <td style="font-size:12px;color:var(--text-2)">${c.historico}</td>
+      </tr>`).join('')}</tbody></table>`;
+  const repasses=!cv.repasses.length?'':`<div class="kpi-label" style="margin:16px 0 6px">Observações — repasses</div>
+    <div class="note">${cv.repasses.map(r=>r.nota).join('<br>')}</div>`;
+  return tabela+repasses;
+}
+function cicloVidaExpandido(dev){
+  const status=cvActiveStatus(dev);
+  return `<div class="panel" style="margin-top:10px;background:var(--surface-2)">
+    <div class="kpi-label" style="margin-bottom:10px">Ciclo de vida — ${dev}
+      <span class="info" data-tip="Nº de cards com assignee atual = ${dev} que tiveram QUALQUER mudança de status no changelog dentro do mês selecionado. Card repassado pra outra pessoa dentro do mês não conta aqui (assignee atual já não é mais ${dev}) — aparece em 'Observações — repasses' abaixo da lista. O gráfico de barras é independente do mês selecionado: mostra, pro status escolhido nos chips, todos os cards ATUAIS de ${dev} nesse status, por mês de criação (idade do trabalho).">i</span></div>
+    ${cvChips(dev)}
+    ${cvStatusChart(dev,status)}
+    <div class="kpi-label" style="margin:16px 0 6px">Cards com atividade em ${mesLbl(curSafra())}</div>
+    ${cvLista(dev)}
+  </div>`;
+}
+// Bugs concluídos por mês — MESMA régua oficial do KPI "Concluídos" acima (mês da 1ª entrada
+// em "Em produção" via changelog, régua de "Bug por módulo"/evol_modulo) — corrigido em
+// 18/09/2026 pra parar de ser a única régua correta das duas (o KPI usava coorte de criação
+// por engano; agora os dois contam pelo mesmo critério, sem distinção). Barra clara = mês
 // corrente (mesmo padrão visual de sobraChart/escapeChart) — ainda em andamento, não é
 // projetado (concluído é um evento passado, não dá pra rodar o run-rate usado em criados).
 function devEvolChart(dev){
@@ -1214,7 +1301,7 @@ function renderDevsModule(){
    <h2>${si('gauge-high')}Detalhe do desenvolvedor</h2>
    <div class="panel">
      <div class="kpi-label" style="margin-bottom:10px">${dev} — ${acum?`acumulado até ${mesLbl(curSafra())}`:`safra ${mesLbl(curSafra())}`}${acumToggle('devs')}
-       <span class="info" data-tip="Concluídos = bugs CRIADOS no período (mês ou acumulado) cujo status ATUAL já é de entrega (mesmo critério do funil 'Diagnóstico do mês') — diferente do gráfico de evolução abaixo, que conta pelo mês de conclusão via changelog (régua de 'Bug por módulo'). Esforço (h) exclui cards parados em Impedimento Dev/Produto e Cancelado Dev (mesma régua de 'Esforço por módulo'). MTTR pessoal = dias úteis entre criação e 1ª entrada em Em produção (changelog), comparado com a mediana do time inteiro no mesmo período. 'Em desenvolvimento agora' é sempre o estado atual, não muda com a safra selecionada.">i</span></div>
+       <span class="info" data-tip="Concluídos = bugs cujo assignee é a pessoa selecionada e cuja 1ª transição para 'Em produção' (changelog) aconteceu dentro do período selecionado — mesma régua oficial de 'Bug por módulo'/Evolução por módulo: mês de CONCLUSÃO, não de criação (um bug criado em agosto e entregue em setembro conta como concluído de setembro da pessoa que entregou). O gráfico de evolução abaixo usa exatamente essa mesma régua. Esforço (h) e MTTR pessoal continuam sobre cards CRIADOS no período (Esforço exclui Impedimento Dev/Produto e Cancelado Dev, mesma régua de 'Esforço por módulo'; MTTR = dias úteis entre criação e 1ª entrada em Em produção, comparado com a mediana do time no mesmo período). 'Em desenvolvimento agora' é sempre o estado atual. 'Ciclo de vida' sempre usa o mês selecionado (não segue o alternador Mês/Acumulado) — veja o card para detalhe.">i</span></div>
      ${devKpiCards(dev)}
      <div class="kpi-label" style="margin:18px 0 6px">Evolução mês a mês — bugs concluídos</div>
      ${devEvolChart(dev)}
@@ -1316,6 +1403,7 @@ function collapsibleNotes(){
     if(/^Como ler/i.test(txt)) label='Como ler';
     else if(/^Fonte e método/i.test(txt)) label='Fonte e método';
     else if(/^Custo distribuído/i.test(txt)) label='Nota de custo';
+    else if(/repassado/i.test(txt)) label='Repasses';
     const d=document.createElement('details'); d.className='note-c';
     const s=document.createElement('summary'); s.textContent=label;
     const body=document.createElement('div'); body.className='note-body'; body.innerHTML=n.innerHTML;
