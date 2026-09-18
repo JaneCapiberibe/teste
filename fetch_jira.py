@@ -310,7 +310,7 @@ def modclean(m):
 
 def build_outputs(recs):
     # 1) sweep.json (formato do gen_data)
-    sweep = [{k: r[k] for k in ('key', 'status', 'prio', 'itype', 'res', 'created', 'resolved', 'timespent',
+    sweep = [{k: r[k] for k in ('key', 'status', 'prio', 'itype', 'res', 'created', 'resolved', 'updated', 'timespent',
               'modulo', 'assignee', 'assignee_avatar', 'concluido_mes', 'em_dev_data', 'entrega_data',
               'nao_iniciado_data', 'producao_data', 'done_pos_producao_data',
               'card_revisado')} for r in recs]
