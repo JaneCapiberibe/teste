@@ -400,7 +400,9 @@ function renderModule(){
 }
 window.__safra=null;
 function curSafra(){return window.__safra || DATA.funil_default;}
-function setSafra(v){window.__safra=v;render();}
+// chama renderModule() (não render() direto) — mesmo motivo de tgl()/setModoAcum(): o
+// seletor de safra também é reaproveitado fora de Bugs (ex.: Desenvolvedores).
+function setSafra(v){window.__safra=v;renderModule();}
 // Seletor "Mês / Acumulado" — DECISÃO DE 10/09/2026, mesmo padrão visual em todos os painéis
 // por safra (reaproveita .win-toggle/.win-btn já usados no seletor de janela da Tendência de
 // Qualidade por módulo). Cada painel tem sua própria chave de estado (independente dos outros)
@@ -1114,15 +1116,26 @@ function devsEmDesenvolvimento(filtroResp){
 // Mês/Acumulado do resto do dashboard (chave 'devs', ver setModoAcum/acumToggle acima).
 window.__devSel=null;
 window.__devShowList=false;
+// Só entra na grade quem teve alguma movimentação EFETIVA (campo `updated` do Jira — muda a
+// cada transição/edição em qualquer card da pessoa) na safra selecionada. DECISÃO DE
+// 18/09/2026, a pedido da Jane: gente sem atividade recente (ex.: já saiu do time) ficava
+// "fantasma" aparecendo em qualquer mês, inclusive o atual, mesmo sem ter se mexido — agora só
+// aparece na safra em que de fato teve a última movimentação.
+function devsAtivosNaSafra(){
+  const D=DATA.devs, cur=curSafra();
+  return D.ordem.filter(dev=>D.pessoas[dev].metrics_jira.ultima_movimentacao_mes===cur);
+}
 function devSel(){
-  if(!window.__devSel){const ord=(DATA.devs&&DATA.devs.ordem)||[];window.__devSel=ord[0]||null;}
+  const ativos=devsAtivosNaSafra();
+  if(!window.__devSel||!ativos.includes(window.__devSel)) window.__devSel=ativos[0]||null;
   return window.__devSel;
 }
 function setDevSel(name){window.__devSel=name;window.__devShowList=false;renderModule();}
 function toggleDevList(){window.__devShowList=!window.__devShowList;renderModule();}
 function devGrid(){
-  const D=DATA.devs, sel=devSel(), cur=curSafra();
-  return `<div class="dev-grid">${D.ordem.map(dev=>{
+  const D=DATA.devs, sel=devSel(), cur=curSafra(), ativos=devsAtivosNaSafra();
+  if(!ativos.length) return `<div class="note">Nenhum desenvolvedor com movimentação em ${mesLbl(cur)}.</div>`;
+  return `<div class="dev-grid">${ativos.map(dev=>{
     const mj=D.pessoas[dev].metrics_jira, k=(mj.kpi_por_mes||{})[cur]||{concluidos:0};
     const on=dev===sel;
     return `<button class="dev-card${on?' on':''}" onclick="setDevSel('${dev.replace(/'/g,"\\'")}')">
@@ -1197,9 +1210,7 @@ function renderDevsModule(){
     return;
   }
   const dev=devSel(), acum=modoAcum('devs');
-  document.getElementById('app').innerHTML=`
-   <h2>${si('code')}Desenvolvedores</h2>
-   <div class="panel">${devGrid()}</div>
+  const detalhe=dev?`
    <h2>${si('gauge-high')}Detalhe do desenvolvedor</h2>
    <div class="panel">
      <div class="kpi-label" style="margin-bottom:10px">${dev} — ${acum?`acumulado até ${mesLbl(curSafra())}`:`safra ${mesLbl(curSafra())}`}${acumToggle('devs')}
@@ -1208,7 +1219,12 @@ function renderDevsModule(){
      ${window.__devShowList?devsEmDesenvolvimento(dev):''}
      <div class="kpi-label" style="margin:18px 0 6px">Evolução mês a mês — bugs concluídos</div>
      ${devEvolChart(dev)}
-   </div>`;
+   </div>`:'';
+  document.getElementById('app').innerHTML=`
+   ${safraSelector()}
+   <h2>${si('code')}Desenvolvedores</h2>
+   <div class="panel">${devGrid()}</div>
+   ${detalhe}`;
   collapsibleNotes();
 }
 function funilPanel(){

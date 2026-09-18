@@ -20,6 +20,7 @@ SLA={'Highest':8,'High':12,'Medium':16,'Low':24,'Lowest':40}
 
 for x in sweep:
     x['c']=pdt(x['created']); x['r']=pdt(x['resolved']); x['m']=mn(x['modulo'])
+    x['u']=pdt(x.get('updated'))
 # REGRA: o módulo "Chat de Suporte" (Almai) foi aberto como bug, mas é MELHORIA — não conta como bug.
 # Remove de toda a análise (dashboard, funil, evolução, etc.). Deveria estar no lado Build/PEM.
 EXCLUI_MOD={'Chat de Suporte'}
@@ -884,6 +885,19 @@ for x in sweep:
     a=x.get('assignee')
     if a and a not in devs_avatar: devs_avatar[a]=x.get('assignee_avatar')
 devs_em_dev_count=collections.Counter(r['resp'] for r in d['em_dev_devs'])
+# Última movimentação EFETIVA de cada pessoa — campo `updated` do Jira (atualizado a cada
+# transição de status/edição em qualquer card dela), MAX entre todos os cards atribuídos, sem
+# recorte de período. Usado só pra decidir em qual safra o card da pessoa aparece na grade do
+# módulo Desenvolvedores (devGrid(), build_dash.py) — quem não tem NENHUMA movimentação na
+# safra selecionada não aparece; alguém sem atividade há meses só reaparece se você voltar pra
+# safra em que ele de fato se mexeu pela última vez, em vez de ficar "fantasma" em todo mês.
+_devs_ultima_mov={}
+for x in sweep:
+    a=x.get('assignee')
+    if not a or not x.get('u'): continue
+    if a not in _devs_ultima_mov or x['u']>_devs_ultima_mov[a]:
+        _devs_ultima_mov[a]=x['u']
+devs_ultima_mov_mes={dev:(_devs_ultima_mov[dev].strftime('%Y-%m') if dev in _devs_ultima_mov else None) for dev in devs_ordem}
 
 _primeiro_mes=meses[0] if meses else None
 _time_mttr_por_mes={m:_time_mttr_dias(m) for m in meses}
@@ -907,6 +921,7 @@ for dev in devs_ordem:
     pessoas[dev]={'metrics_jira':{
         'avatar':devs_avatar.get(dev),
         'em_dev_agora':devs_em_dev_count.get(dev,0),
+        'ultima_movimentacao_mes':devs_ultima_mov_mes.get(dev),
         'kpi_por_mes':kpi_mes,
         'kpi_acumulado_por_mes':kpi_acum,
     }}
