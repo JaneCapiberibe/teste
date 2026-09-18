@@ -1094,11 +1094,11 @@ function funilPanel(){
   const fSrc=acum?DATA.funil_acumulado_por_mes:DATA.funil_por_mes;
   const f=(fSrc&&fSrc[curSafra()])||DATA.funil; if(!f) return '';
   const isCorrente=f.mes===DATA.mes_corrente;
-  const step=(val,lbl,sub,c)=>`<div style="flex:1;min-width:120px;text-align:center">
-     <div style="font-size:34px;font-weight:800;color:${c};letter-spacing:-1px">${val}</div>
-     <div style="font-size:12.5px;color:var(--text-1);font-weight:600;margin-top:2px">${lbl}</div>
-     <div style="font-size:11px;color:var(--text-3);margin-top:2px">${sub}</div></div>`;
-  const arrow=(t)=>`<div style="align-self:center;text-align:center;color:var(--text-3);padding:0 4px"><div style="font-size:20px;line-height:1">→</div><div style="font-size:10px;white-space:nowrap">${t}</div></div>`;
+  const step=(val,lbl,sub,c)=>`<div style="flex:1;min-width:96px;text-align:center">
+     <div style="font-size:28px;font-weight:800;color:${c};letter-spacing:-1px">${val}</div>
+     <div style="font-size:11.5px;color:var(--text-1);font-weight:600;margin-top:2px">${lbl}</div>
+     <div style="font-size:10px;color:var(--text-3);margin-top:2px">${sub}</div></div>`;
+  const arrow=(t)=>`<div style="align-self:center;text-align:center;color:var(--text-3);padding:0;flex:0 0 32px;width:32px"><div style="font-size:12px;line-height:1">→</div><div style="font-size:7.5px;line-height:1.1">${t}</div></div>`;
   const sevTxt=f.sev.map(s=>`${s.nivel} ${s.n}`).join(' · ');
   const modTxt=f.mod_top.map(m=>`${m[0]} ${m[1]}`).join(' · ');
   const filaTxt=f.fila_det.length?f.fila_det.map(x=>`${x[1]} ${x[0].toLowerCase()}`).join(', '):'—';
@@ -1107,7 +1107,7 @@ function funilPanel(){
   return `<div class="panel" style="border-left:5px solid var(--s1)">
     <div class="kpi-label" style="margin-bottom:14px;font-size:13px">Carga real que chegou ao desenvolvimento — ${periodoLbl}${acumToggle('funil')}
       <span class="info" data-tip="O funil mostra a carga REAL do desenvolvimento no período. Parte do total de bugs criados (sem exclusão nesta etapa) e remove os que o QA descartou (Cancelado QA — não eram defeito de produto), mostrado logo em seguida como sua própria caixa. 'Chegaram ao dev' já sai LÍQUIDO dos dois cancelamentos (Cancelado QA e Cancelado Dev) — mesmo critério de exclusão da régua oficial (Bug por módulo/evolucao_bugs.py), pra bater com aquele painel no mesmo mês. A caixa 'Cancelados dev' aparece DEPOIS de 'chegaram ao dev' só pra dar visibilidade ao número (resolution 'Cancelado Dev', cancelamento real fora do fluxo) — ele já foi descontado antes, não é uma nova subtração a partir dos 'chegaram ao dev'. 'Entregues' = status atual em Em produção/Em Produção/Done/Concluído/Concluido (regra só deste painel — diferente do resto do dashboard, que conta só 'Em produção' como entregue) e 'na fila' = o resto do que chegou ao dev (Backlog + status ativos); os dois juntos sempre somam 'chegaram ao dev'. Em Acumulado, cada número soma o intervalo inteiro (do primeiro mês disponível até a safra selecionada), recalculado do zero sobre a união dos cards — não é a soma dos números já prontos de cada mês. É a leitura honesta de capacidade: mede o dev pelo que ele recebeu de verdade, não pelo volume bruto inflado por triagem ou por cancelamentos.">i</span></div>
-    <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:stretch">
+    <div style="display:flex;flex-wrap:wrap;gap:2px;align-items:stretch">
       ${step(f.total,'bugs criados','entraram como bug',col('--text-2'))}
       ${arrow(f.pct_descarte+'%')}
       ${step(f.descartados_qa,'cancelados QA','descartado pelo QA, não é defeito',col('--text-3'))}
