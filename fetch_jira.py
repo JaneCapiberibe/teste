@@ -57,7 +57,7 @@ def fetch_changelogs(issue_ids):
     pipeline segue rodando sem essa régua (fica None/False pra todo mundo) em vez de derrubar o
     update inteiro.
 
-    Devolve (out, iniciais):
+    Devolve (out, iniciais, assignee_out):
       out[issueId] ....... lista [(epoch_segundos, status_destino), ...] ordenada — mesma forma
                             de sempre, consumida por _first_to_epoch/_first_to em norm().
       iniciais[issueId] .. status ANTES da 1ª transição registrada (fromString da 1ª mudança de
@@ -65,12 +65,20 @@ def fetch_changelogs(issue_ids):
                             em datas anteriores à sua primeira transição. Ausente (dict sem a
                             chave) quando o card nunca mudou de status: nesse caso o status
                             ATUAL do card (campo 'status', sweep.json) É o inicial — quem
-                            reconstrói (gen_data.py) já faz esse fallback."""
+                            reconstrói (gen_data.py) já faz esse fallback.
+      assignee_out[issueId] .. lista [(epoch_segundos, fromString, toString), ...] ordenada —
+                            histórico de reatribuição de responsável (field 'assignee' no
+                            changelog, mesmo lote já buscado pro status, sem chamada extra ao
+                            Jira). Usado pelo card "Ciclo de vida" do módulo Desenvolvedores
+                            (gen_data.py) pra detectar repasse (card que era de uma pessoa e foi
+                            reatribuído pra outra) — fromString/toString já vêm como
+                            displayName, mesmo formato usado em sweep.json (campo 'assignee')."""
     HEAD = _auth_headers()
     url = f'{BASE}/rest/api/3/changelog/bulkfetch'
     ids = [i for i in issue_ids if i]
     out = {}
     iniciais = {}
+    assignee_out = {}
     try:
         BATCH = 200
         for i in range(0, len(ids), BATCH):
@@ -89,23 +97,29 @@ def fetch_changelogs(issue_ids):
                     iid = ic.get('issueId')
                     hist = ic.get('changeHistories') or ic.get('histories') or []
                     changes_full = []
+                    assignee_full = []
                     for h in hist:
                         ep = _to_epoch(h.get('created'))
                         for item in h.get('items', []):
                             if item.get('field') == 'status':
                                 changes_full.append((ep, item.get('fromString'), item.get('toString')))
+                            elif item.get('field') == 'assignee':
+                                assignee_full.append((ep, item.get('fromString'), item.get('toString')))
                     changes_full.sort(key=lambda x: x[0] if x[0] is not None else 0)
+                    assignee_full.sort(key=lambda x: x[0] if x[0] is not None else 0)
                     out[iid] = [(ep, to) for ep, frm, to in changes_full]
                     if changes_full:
                         iniciais[iid] = changes_full[0][1]
+                    if assignee_full:
+                        assignee_out[iid] = assignee_full
                 token = data.get('nextPageToken')
                 if not token:
                     break
     except Exception as e:
         print(f'aviso: falha ao buscar changelog em lote ({e}) — seguindo sem concluido_mes '
               f'(a Evolução por módulo fica sem dado de concluídos até o próximo run).')
-        return {}, {}
-    return out, iniciais
+        return {}, {}, {}
+    return out, iniciais, assignee_out
 
 def fetch_all_com_retentativa(tentativas=3, espera_s=15):
     """Chama fetch_all() com retentativas. O projeto BUG tem centenas de issues — uma resposta
@@ -365,15 +379,17 @@ def build_outputs(recs):
     print(f'  issues: {len(recs)} | sweep: {len(sweep)} | backlog meses: {len(jb)} | '
           f'impedimentos: {len(imp)} | NI: {len(ni)}')
 
-def build_status_changelog(issues, changelogs, iniciais, recs_all):
+def build_status_changelog(issues, changelogs, iniciais, recs_all, assignee_changelogs):
     """status_changelog.json — histórico de status por card (key -> {'inicial':..., 'mudancas':
-    [[iso, status], ...]}), pra gen_data.py reconstruir "em que status o card estava numa data
-    X" (usado pela Carga real de trabalho/Sobra, DECISÃO DE 10/09/2026 — congelada por mês
-    fechado em carga_modulo_cache.json, ver gen_data.py). Gerado pra TODOS os issues puxados
-    (antes do filtro de BUG_TYPES) — sem custo real (é só serialização do changelog já buscado
-    em fetch_changelogs, nenhuma chamada extra ao Jira) e evita qualquer desalinhamento entre
-    `issues` e `recs` se o filtro mudar no futuro; gen_data.py só olha as chaves que existem em
-    sweep.json de qualquer forma."""
+    [[iso, status], ...], 'assignee_mudancas': [[iso, fromString, toString], ...]}), pra
+    gen_data.py reconstruir "em que status o card estava numa data X" (usado pela Carga real de
+    trabalho/Sobra, DECISÃO DE 10/09/2026 — congelada por mês fechado em
+    carga_modulo_cache.json, ver gen_data.py) e detectar repasse de responsável (card "Ciclo de
+    vida" do módulo Desenvolvedores, DECISÃO DE 18/09/2026 — assignee_mudancas). Gerado pra
+    TODOS os issues puxados (antes do filtro de BUG_TYPES) — sem custo real (é só serialização
+    do changelog já buscado em fetch_changelogs, nenhuma chamada extra ao Jira) e evita qualquer
+    desalinhamento entre `issues` e `recs` se o filtro mudar no futuro; gen_data.py só olha as
+    chaves que existem em sweep.json de qualquer forma."""
     out = {}
     for i, r in zip(issues, recs_all):
         iid = i.get('id')
@@ -382,7 +398,8 @@ def build_status_changelog(issues, changelogs, iniciais, recs_all):
         inicial = iniciais.get(iid)
         if inicial is None and not mudancas:
             inicial = r['status']  # nunca mudou de status — o status atual É o inicial
-        out[r['key']] = {'inicial': inicial, 'mudancas': mudancas}
+        amud = [[_epoch_iso(ep), frm, to] for ep, frm, to in (assignee_changelogs.get(iid) or []) if ep is not None]
+        out[r['key']] = {'inicial': inicial, 'mudancas': mudancas, 'assignee_mudancas': amud}
     json.dump(out, open('status_changelog.json', 'w'), ensure_ascii=False)
     return out
 
@@ -398,9 +415,9 @@ if __name__ == '__main__':
             'BUG. Confira os segredos em Settings > Secrets and variables > Actions.'
         )
     print('Puxando changelog (histórico de status) em lote...')
-    changelogs, iniciais = fetch_changelogs([i.get('id') for i in issues])
+    changelogs, iniciais, assignee_changelogs = fetch_changelogs([i.get('id') for i in issues])
     recs_all = [norm(i, changelogs.get(i.get('id'))) for i in issues]
-    build_status_changelog(issues, changelogs, iniciais, recs_all)
+    build_status_changelog(issues, changelogs, iniciais, recs_all, assignee_changelogs)
     fora_do_tipo = sum(1 for r in recs_all if r['itype'] not in BUG_TYPES)
     if fora_do_tipo:
         print(f'  aviso: {fora_do_tipo} issue(s) do painel BUG fora de BUG_TYPES '

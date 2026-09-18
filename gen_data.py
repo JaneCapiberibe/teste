@@ -1,4 +1,4 @@
-import json, re, datetime, statistics, collections, openpyxl, calendar, urllib.parse
+import json, re, datetime, statistics, collections, openpyxl, calendar, urllib.parse, os
 TODAY=datetime.date.today()
 TZ_BR=datetime.timezone(datetime.timedelta(hours=-3))
 AGORA_BR=datetime.datetime.now(tz=TZ_BR)
@@ -31,6 +31,13 @@ sweep=[x for x in sweep if x['m'] not in EXCLUI_MOD]
 sweep_full=sweep
 cancelado_total=sum(1 for x in sweep_full if x['res']=='Cancelado QA')
 sweep=[x for x in sweep_full if x['res']!='Cancelado QA']
+# Histórico de status (+ desde 18/09/2026, de assignee) por card, gerado por
+# fetch_jira.py/build_status_changelog — key -> {'inicial':status,'mudancas':[[iso,status],...],
+# 'assignee_mudancas':[[iso,fromString,toString],...]}. Carregado cedo (usado pela Carga real de
+# trabalho/Sobra mais abaixo E pelo módulo Desenvolvedores/Ciclo de vida). Ausente (dict vazio)
+# só se fetch_jira.py não gerou o arquivo (ex.: rodando gen_data.py sozinho sem o fetch antes) —
+# tudo que depende dele degrada de forma explícita (sem changelog, sem exceção).
+_status_changelog=json.load(open('status_changelog.json')) if os.path.exists('status_changelog.json') else {}
 d={}
 d['meta']={'total_bugs_base_atual':len(sweep),'total_com_descartados':len(sweep_full),'descartados_qa':cancelado_total,'chat_removidos':chat_removidos,'periodo':min(x['c'] for x in sweep).strftime('%Y-%m')+' a '+max(x['c'] for x in sweep).strftime('%Y-%m'),'snapshot':str(TODAY)}
 # Data/hora em que o pipeline rodou de verdade (fetch_jira.py + gen_data.py rodam no mesmo job,
@@ -842,13 +849,14 @@ if os.path.exists('impedimentos_live.json'):
 # Grade de avatares + painel de detalhe por pessoa (dados só, sem gestão de pessoas — 1:1,
 # feedback, plano de carreira ficam engavetados, aguardando decisão de arquitetura futura).
 #
-# Escopo dos 4 KPIs (Concluídos/Esforço/MTTR/Em desenvolvimento): sweep (base líquida), MESMA
-# régua de "Qualidade por módulo"/"Carga por squad" — não a régua mais estrita de evol_modulo
-# (essa só entra no gráfico "Evolução mês a mês" abaixo, a pedido explícito, pra reproduzir
-# exatamente o padrão de "Bug por módulo"). "Concluídos" aqui = MESMO critério do funil
-# (Diagnóstico do mês): bugs CRIADOS no período com status ATUAL em ST_ENTREGUE_FUNIL — não o
-# "concluído mês" (changelog) do gráfico; os dois medem coortes diferentes de propósito (ver
-# nota "Como ler" de Bug por módulo/funil — a mesma distinção se aplica aqui).
+# Escopo de Esforço/MTTR pessoal: sweep (base líquida), MESMA régua de "Qualidade por
+# módulo"/"Carga por squad" — cards CRIADOS no período. "Concluídos" (CORRIGIDO EM 18/09/2026,
+# a pedido da Jane — antes usava coorte de criação por engano, igual ao gráfico "Evolução mês a
+# mês" já corrigia) usa a RÉGUA OFICIAL de evol_modulo/_elegivel_evol/_mes_concluido: conta pelo
+# mês da 1ª transição pra "Em produção" (changelog), não pelo mês de criação do card — um bug
+# criado em agosto e entregue em setembro conta como "concluído de setembro" de quem entregou,
+# nunca como concluído do mês em que foi criado. "Em desenvolvimento agora" é sempre o estado
+# atual (sem recorte de mês).
 #
 # Estrutura pensada pra abrir espaço no futuro sem reestruturar: cada pessoa é um objeto com
 # uma seção 'metrics_jira' — outras seções (gestão de pessoas, hoje engavetada) podem ser
@@ -856,10 +864,6 @@ if os.path.exists('impedimentos_live.json'):
 def _dev_cards(assignee,ini,fim=None):
     if fim is None: fim=ini
     return [x for x in sweep if x['c'] and x.get('assignee')==assignee and ini<=x['c'].strftime('%Y-%m')<=fim]
-def _dev_concluidos_keys(cards):
-    return [x['key'] for x in cards if x['status'] in ST_ENTREGUE_FUNIL]
-def _dev_concluidos_n(cards):
-    return len(_dev_concluidos_keys(cards))
 def _dev_esforco_h(cards):
     seg=sum(x['timespent'] for x in cards if isinstance(x['timespent'],(int,float))
             and x['status'] not in STATUS_EXCLUI_ESFORCO and x['res']!='Cancelado Dev')
@@ -877,9 +881,32 @@ def _ano_ant(ym):
 def _dev_periodo(dev,ini,fim=None):
     cards=_dev_cards(dev,ini,fim)
     mttr,mttr_n=_dev_mttr_dias(cards)
-    conc_keys=_dev_concluidos_keys(cards)
-    return {'concluidos':len(conc_keys),'concluidos_keys':conc_keys,'esforco_h':_dev_esforco_h(cards),
-            'mttr':mttr,'mttr_n':mttr_n,'n_periodo':len(cards)}
+    return {'esforco_h':_dev_esforco_h(cards),'mttr':mttr,'mttr_n':mttr_n,'n_periodo':len(cards)}
+
+# "Concluídos" (KPI + comparação "vs mesmo período do ano anterior") e "Evolução mês a mês" —
+# MESMA régua OFICIAL de evol_modulo (_elegivel_evol/_mes_concluido: mês da 1ª entrada em "Em
+# produção" via changelog, não importa quando o card foi criado), agrupada por assignee em vez
+# de módulo. sweep_full porque _elegivel_evol já faz a própria exclusão de Cancelado QA/Dev e
+# status atual Impedimento Produto/Backlog.
+_edev_e=collections.defaultdict(lambda:collections.Counter())
+_edev_ek=collections.defaultdict(lambda:collections.defaultdict(list))
+for x in sweep_full:
+    if not _elegivel_evol(x): continue
+    a=x.get('assignee')
+    if not a: continue
+    mc=_mes_concluido(x)
+    if mc:
+        _edev_e[a][mc]+=1
+        _edev_ek[a][mc].append(x['key'])
+def _edev_sum(dev,ini,fim=None):
+    """Concluídos (régua oficial) de `dev` no intervalo [ini,fim] de meses 'YYYY-MM' — soma dos
+    meses fechados no calendário `meses`, não do changelog cru, pra nunca contar mês fora do
+    período conhecido do dashboard."""
+    if fim is None: fim=ini
+    ms=[m for m in meses if ini<=m<=fim]
+    n=sum(_edev_e[dev].get(m,0) for m in ms)
+    keys=[k for m in ms for k in _edev_ek[dev].get(m,[])]
+    return n,keys
 
 devs_total=collections.Counter(x.get('assignee') for x in sweep if x.get('assignee'))
 devs_ordem=[nm for nm,_ in devs_total.most_common()]   # "por volume" — exclui não-atribuídos
@@ -911,13 +938,17 @@ for dev in devs_ordem:
     kpi_mes={}; kpi_acum={}
     for m in meses:
         base=_dev_periodo(dev,m)
+        conc_n,conc_keys=_edev_sum(dev,m)
+        base['concluidos']=conc_n; base['concluidos_keys']=conc_keys
         ano_ant_ym=_ano_ant(m)
-        base['concluidos_ano_anterior']=_dev_concluidos_n(_dev_cards(dev,ano_ant_ym)) if ano_ant_ym in meses else None
+        base['concluidos_ano_anterior']=_edev_sum(dev,ano_ant_ym)[0] if ano_ant_ym in meses else None
         base['mttr_time']=_time_mttr_por_mes.get(m)
         kpi_mes[m]=base
         baseA=_dev_periodo(dev,_primeiro_mes,m)
+        conc_n_a,conc_keys_a=_edev_sum(dev,_primeiro_mes,m)
+        baseA['concluidos']=conc_n_a; baseA['concluidos_keys']=conc_keys_a
         primeiro_ant=_ano_ant(_primeiro_mes); m_ant=_ano_ant(m)
-        baseA['concluidos_ano_anterior']=(_dev_concluidos_n(_dev_cards(dev,primeiro_ant,m_ant))
+        baseA['concluidos_ano_anterior']=(_edev_sum(dev,primeiro_ant,m_ant)[0]
                                           if primeiro_ant in meses and m_ant in meses and primeiro_ant<=m_ant else None)
         baseA['mttr_time']=_time_mttr_acum_por_mes.get(m)
         kpi_acum[m]=baseA
@@ -927,28 +958,154 @@ for dev in devs_ordem:
         'ultima_movimentacao_mes':devs_ultima_mov_mes.get(dev),
         'kpi_por_mes':kpi_mes,
         'kpi_acumulado_por_mes':kpi_acum,
+        'evolucao':{
+            'concluidos':[_edev_e[dev].get(m,0) for m in meses],
+            'concluidos_keys':[_edev_ek[dev].get(m,[]) for m in meses],
+        },
     }}
 
-# Evolução mês a mês (régua OFICIAL de evol_modulo/_elegivel_evol — mês de CONCLUSÃO via
-# changelog, não importa quando o card foi criado — agrupada por assignee em vez de módulo).
-# Só concluídos, é o que o gráfico "Evolução mês a mês" do módulo Desenvolvedores mostra.
-_edev_e=collections.defaultdict(lambda:collections.Counter())
-_edev_ek=collections.defaultdict(lambda:collections.defaultdict(list))
-for x in sweep_full:
-    if not _elegivel_evol(x): continue
-    a=x.get('assignee')
-    if not a: continue
-    mc=_mes_concluido(x)
-    if mc:
-        _edev_e[a][mc]+=1
-        _edev_ek[a][mc].append(x['key'])
-for dev in devs_ordem:
-    pessoas[dev]['metrics_jira']['evolucao']={
-        'concluidos':[_edev_e[dev].get(m,0) for m in meses],
-        'concluidos_keys':[_edev_ek[dev].get(m,[]) for m in meses],
-    }
+# ==================== CICLO DE VIDA (card 5, painel de detalhe do Desenvolvedores) ====================
+# NOVO EM 18/09/2026, a pedido da Jane. 3 peças de dado:
+#   1) status_kanban_ordem .... TODOS os status já vistos no changelog do projeto BUG (não só os
+#      5 curados de "Sobra por status" — STATUS_ORDER acima) — universo tirado de
+#      status_changelog.json, gerado por fetch_jira.py pra TODOS os issues do projeto (antes do
+#      filtro de BUG_TYPES), então cobre status que hoje não tem nenhum card líquido nele.
+#      Ordenado por quem tem mais cards ATUALMENTE nesse status (sweep); resto (status sem
+#      nenhum card hoje) em ordem alfabética no final.
+#   2) status_series (por pessoa) .... cards da pessoa (assignee ATUAL) em cada status, por mês
+#      de CRIAÇÃO — mesmo padrão de d['status_series'] acima (Sobra por status), só que por
+#      pessoa em vez de agregado, e cobrindo o universo completo do Kanban (item 1), não só os 5.
+#      Só entram no JSON os status em que a pessoa tem pelo menos 1 card (economia de espaço); a
+#      UI usa status_kanban_ordem pra listar os chips mesmo assim — clicar num status sem dado
+#      pra essa pessoa só mostra o gráfico vazio.
+#   3) ciclo_vida (por pessoa, por mês) .... nº de cards DISTINTOS com assignee ATUAL == pessoa
+#      que tiveram QUALQUER mudança de status registrada no changelog DENTRO do mês, + lista de
+#      cards (módulo/prioridade/resumo do histórico do mês) + repasses detectados (card que
+#      TINHA a pessoa como assignee e foi reatribuído pra outra dentro do mês, via changelog do
+#      campo assignee — fetch_jira.py/assignee_mudancas). Repasse NÃO conta nas métricas nem na
+#      lista de quem repassou (o assignee atual já não é mais ele) — aparece à parte, como
+#      observação. SEMPRE pelo mês selecionado (não tem variante acumulada — não pedido).
+_todos_status=set()
+for _sc in _status_changelog.values():
+    if _sc.get('inicial'): _todos_status.add(_sc['inicial'])
+    for _,_to in (_sc.get('mudancas') or []): _todos_status.add(_to)
+for x in sweep:
+    if x['status']: _todos_status.add(x['status'])
+_status_count_atual=collections.Counter(x['status'] for x in sweep if x['status'])
+status_kanban_ordem=sorted(_todos_status,key=lambda s:(-_status_count_atual.get(s,0),s))
 
-d['devs']={'ordem':devs_ordem,'meses':meses,'pessoas':pessoas,'piso_amostra':PISO_AMOSTRA_SLA}
+_cards_por_dev=collections.defaultdict(list)
+for x in sweep:
+    a=x.get('assignee')
+    if a: _cards_por_dev[a].append(x)
+
+_ds_cnt=collections.defaultdict(collections.Counter)
+_ds_keys=collections.defaultdict(lambda:collections.defaultdict(list))
+for x in sweep:
+    a=x.get('assignee')
+    if not a or not x['c']: continue
+    ym=x['c'].strftime('%Y-%m')
+    _ds_cnt[(a,x['status'])][ym]+=1
+    _ds_keys[(a,x['status'])][ym].append(x['key'])
+dev_status_series={}
+for dev in devs_ordem:
+    por_status={}; por_status_keys={}
+    for s in status_kanban_ordem:
+        cnt=_ds_cnt.get((dev,s))
+        if cnt:
+            por_status[s]=[cnt.get(m,0) for m in meses]
+            por_status_keys[s]=[_ds_keys[(dev,s)].get(m,[]) for m in meses]
+    if por_status:
+        dev_status_series[dev]={'por_status':por_status,'por_status_keys':por_status_keys}
+
+def _fmt_dm(iso): return pdt(iso).strftime('%d/%m')
+def _fmt_dmy(iso): return pdt(iso).strftime('%d/%m/%Y')
+
+def _historico_mes(sc,status_atual,ini_ep,fim_ep):
+    """Resumo textual das mudanças de status DENTRO do mês (changelog), formato 'DD/MM Status A
+    → DD/MM Status B → Status atual (atual)'. None se não teve nenhuma mudança no mês (card
+    parado, sem atividade — não entra no Ciclo de vida)."""
+    mud=sc.get('mudancas') or []
+    dentro=sorted((( pdt(iso).timestamp(),iso,to) for iso,to in mud if ini_ep<=pdt(iso).timestamp()<=fim_ep),
+                  key=lambda t:t[0])
+    if not dentro: return None
+    partes=[f'{_fmt_dm(iso)} {to}' for _,iso,to in dentro]
+    if dentro[-1][2]!=status_atual:
+        partes.append(f'{status_atual} (atual)')
+    else:
+        partes[-1]=partes[-1]+' (atual)'
+    return ' → '.join(partes)
+
+# Deduplica assignee_mudancas ANTES de detectar repasse — a base real do Jira tem casos de
+# transição idêntica (mesmo instante, mesmo de/para) registrada mais de uma vez no changelog
+# (achado com dado ao vivo em 18/09/2026: BUG-1215 tinha a mesma reatribuição 6x seguidas),
+# provavelmente automação/bulk-edit tocando o campo repetidamente sem mudar o valor final —
+# sem isso, a mesma observação de repasse aparecia repetida N vezes na UI.
+_cards_com_amud=[]
+for x in sweep:
+    amud=(_status_changelog.get(x['key']) or {}).get('assignee_mudancas')
+    if not amud: continue
+    _seen=set(); _dedup=[]
+    for _ent in amud:
+        _k=tuple(_ent)
+        if _k in _seen: continue
+        _seen.add(_k); _dedup.append(_ent)
+    _status_changelog[x['key']]['assignee_mudancas']=_dedup
+    _cards_com_amud.append(x)
+
+def _ciclo_vida_mes(dev,ym):
+    ini,fim=_mes_bounds(ym)
+    ini_ep=datetime.datetime.combine(ini,datetime.time(0,0,0),tzinfo=TZ_BR).timestamp()
+    fim_ep=datetime.datetime.combine(fim,datetime.time(23,59,59),tzinfo=TZ_BR).timestamp()
+    cards=[]
+    for x in _cards_por_dev.get(dev,[]):
+        sc=_status_changelog.get(x['key'])
+        if not sc: continue
+        hist=_historico_mes(sc,x['status'],ini_ep,fim_ep)
+        if hist is None: continue
+        cards.append({'key':x['key'],'url':f"{d['jira_base']}/browse/{x['key']}",
+                      'modulo':x['m'],'prio':x['prio'],'historico':hist})
+    return cards,ini_ep,fim_ep
+
+def _repasses_mes(dev,ini_ep,fim_ep):
+    """Cards que ERAM do `dev` e foram reatribuídos pra outra pessoa DENTRO do mês (changelog do
+    campo assignee) — não contam no Ciclo de vida do `dev` (assignee atual já não é mais ele),
+    mostrados à parte como observação. Só entram cards cujo assignee ATUAL de fato não é mais
+    `dev` (card real do Jira mostrou "flapping": reatribuído de um lado pro outro várias vezes
+    no mesmo dia — quem voltou pro `dev` no fim do mês não é repasse nenhum) — e no máximo 1
+    observação por card, a partir da ÚLTIMA saída de `dev` no mês (não uma por evento; a mesma
+    base real também mostrou o campo assignee tocado repetidamente sem o de/para final mudar)."""
+    out=[]
+    for x in _cards_com_amud:
+        if x.get('assignee')==dev: continue
+        amud=_status_changelog[x['key']]['assignee_mudancas']
+        saidas=[(pdt(iso).timestamp(),iso,to) for iso,frm,to in amud if frm==dev and to and to!=dev]
+        saidas=[s for s in saidas if ini_ep<=s[0]<=fim_ep]
+        if not saidas: continue
+        ep,iso,to=max(saidas,key=lambda s:s[0])
+        idx=next(i for i,(iso2,frm2,to2) in enumerate(amud) if iso2==iso and frm2==dev and to2==to)
+        inicio_iso=None
+        for iso2,frm2,to2 in reversed(amud[:idx]):
+            if to2==dev: inicio_iso=iso2; break
+        if inicio_iso is None: inicio_iso=x['created']
+        out.append({'key':x['key'],'de':dev,'para':to,
+            'nota':f"{x['key']} foi iniciado por {dev} em {_fmt_dmy(inicio_iso)} e repassado "
+                   f"para {to} em {_fmt_dmy(iso)}. Não conta nas métricas dele — mantido "
+                   f"aqui como observação."})
+    return out
+
+for dev in devs_ordem:
+    cv_por_mes={}
+    for m in meses:
+        cards,ini_ep,fim_ep=_ciclo_vida_mes(dev,m)
+        repasses=_repasses_mes(dev,ini_ep,fim_ep)
+        cv_por_mes[m]={'n':len(cards),'keys':[c['key'] for c in cards],'cards':cards,'repasses':repasses}
+    pessoas[dev]['metrics_jira']['ciclo_vida']=cv_por_mes
+    if dev in dev_status_series:
+        pessoas[dev]['metrics_jira']['status_series']=dev_status_series[dev]
+
+d['devs']={'ordem':devs_ordem,'meses':meses,'pessoas':pessoas,'piso_amostra':PISO_AMOSTRA_SLA,
+           'status_kanban_ordem':status_kanban_ordem}
 
 # ---- HISTÓRICO POR MÓDULO (criados bruto por módulo por mês) ----
 cellh=collections.defaultdict(lambda:collections.Counter()); toth=collections.Counter()
@@ -1048,7 +1205,6 @@ for x in sweep:
 ordem_aa=[m for m,_ in totaa.most_common()]
 
 ST_ENTREGUE=('Em produção','Em Produção','Done','Concluído','Concluido')
-_status_changelog=json.load(open('status_changelog.json')) if os.path.exists('status_changelog.json') else {}
 CARGA_CACHE_PATH='carga_modulo_cache.json'
 _carga_cache=json.load(open(CARGA_CACHE_PATH)) if os.path.exists(CARGA_CACHE_PATH) else {}
 _carga_cache_changed=False
