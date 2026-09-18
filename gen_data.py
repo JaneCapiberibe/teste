@@ -1070,22 +1070,28 @@ def _ciclo_vida_mes(dev,ym):
 def _repasses_mes(dev,ini_ep,fim_ep):
     """Cards que ERAM do `dev` e foram reatribuídos pra outra pessoa DENTRO do mês (changelog do
     campo assignee) — não contam no Ciclo de vida do `dev` (assignee atual já não é mais ele),
-    mostrados à parte como observação."""
+    mostrados à parte como observação. Só entram cards cujo assignee ATUAL de fato não é mais
+    `dev` (card real do Jira mostrou "flapping": reatribuído de um lado pro outro várias vezes
+    no mesmo dia — quem voltou pro `dev` no fim do mês não é repasse nenhum) — e no máximo 1
+    observação por card, a partir da ÚLTIMA saída de `dev` no mês (não uma por evento; a mesma
+    base real também mostrou o campo assignee tocado repetidamente sem o de/para final mudar)."""
     out=[]
     for x in _cards_com_amud:
+        if x.get('assignee')==dev: continue
         amud=_status_changelog[x['key']]['assignee_mudancas']
-        for idx,(iso,frm,to) in enumerate(amud):
-            ep=pdt(iso).timestamp()
-            if not (ini_ep<=ep<=fim_ep): continue
-            if frm!=dev or not to or to==dev: continue
-            inicio_iso=None
-            for iso2,frm2,to2 in reversed(amud[:idx]):
-                if to2==dev: inicio_iso=iso2; break
-            if inicio_iso is None: inicio_iso=x['created']
-            out.append({'key':x['key'],'de':dev,'para':to,
-                'nota':f"{x['key']} foi iniciado por {dev} em {_fmt_dmy(inicio_iso)} e repassado "
-                       f"para {to} em {_fmt_dmy(iso)}. Não conta nas métricas dele — mantido "
-                       f"aqui como observação."})
+        saidas=[(pdt(iso).timestamp(),iso,to) for iso,frm,to in amud if frm==dev and to and to!=dev]
+        saidas=[s for s in saidas if ini_ep<=s[0]<=fim_ep]
+        if not saidas: continue
+        ep,iso,to=max(saidas,key=lambda s:s[0])
+        idx=next(i for i,(iso2,frm2,to2) in enumerate(amud) if iso2==iso and frm2==dev and to2==to)
+        inicio_iso=None
+        for iso2,frm2,to2 in reversed(amud[:idx]):
+            if to2==dev: inicio_iso=iso2; break
+        if inicio_iso is None: inicio_iso=x['created']
+        out.append({'key':x['key'],'de':dev,'para':to,
+            'nota':f"{x['key']} foi iniciado por {dev} em {_fmt_dmy(inicio_iso)} e repassado "
+                   f"para {to} em {_fmt_dmy(iso)}. Não conta nas métricas dele — mantido "
+                   f"aqui como observação."})
     return out
 
 for dev in devs_ordem:
