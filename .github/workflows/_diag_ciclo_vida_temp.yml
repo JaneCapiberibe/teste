@@ -1,0 +1,69 @@
+name: "[TEMP] Diagnóstico: Ciclo de vida (repasse real) + Concluídos (régua de conclusão)"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Puxar do Jira
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: python fetch_jira.py
+
+      - name: Rodar pipeline
+        run: python gen_data.py
+
+      - name: Procurar repasse real + exemplo real da correção de Concluídos
+        run: |
+          python3 -c "
+          import json
+          d=json.load(open('dash_data.json'))
+          sweep_by_key={x['key']:x for x in json.load(open('sweep.json'))}
+          DV=d['devs']
+          cur=d['mes_corrente']
+          print('mes_corrente:', cur)
+          print('devs:', DV['ordem'])
+          print()
+          print('=== REPASSES DETECTADOS (todos os meses/pessoas) ===')
+          achou=False
+          for dev in DV['ordem']:
+              cv=DV['pessoas'][dev]['metrics_jira'].get('ciclo_vida',{})
+              for m in sorted(cv):
+                  for r in cv[m].get('repasses',[]):
+                      achou=True
+                      print(f'[{m}]', r['nota'])
+          if not achou:
+              print('nenhum repasse detectado em nenhum mes/pessoa.')
+          print()
+          print('=== EXEMPLO REAL: bug criado num mes e concluido em outro (régua corrigida) ===')
+          achou2=False
+          for dev in DV['ordem']:
+              kpm=DV['pessoas'][dev]['metrics_jira']['kpi_por_mes']
+              for m,k in kpm.items():
+                  for key in k.get('concluidos_keys',[]):
+                      x=sweep_by_key.get(key)
+                      if x and x['created'][:7]!=m:
+                          achou2=True
+                          print(f'dev={dev} mes_selecionado={m} card={key} criado={x[\"created\"][:7]} concluido_mes={x.get(\"concluido_mes\")}')
+          if not achou2:
+              print('nenhum exemplo encontrado (toda a base atual teria criado==concluido no mesmo mes).')
+          print()
+          print('=== status_kanban_ordem (universo completo do Kanban usado nos chips) ===')
+          print(DV.get('status_kanban_ordem'))
+          "
