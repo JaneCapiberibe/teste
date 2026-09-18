@@ -856,8 +856,10 @@ if os.path.exists('impedimentos_live.json'):
 def _dev_cards(assignee,ini,fim=None):
     if fim is None: fim=ini
     return [x for x in sweep if x['c'] and x.get('assignee')==assignee and ini<=x['c'].strftime('%Y-%m')<=fim]
+def _dev_concluidos_keys(cards):
+    return [x['key'] for x in cards if x['status'] in ST_ENTREGUE_FUNIL]
 def _dev_concluidos_n(cards):
-    return sum(1 for x in cards if x['status'] in ST_ENTREGUE_FUNIL)
+    return len(_dev_concluidos_keys(cards))
 def _dev_esforco_h(cards):
     seg=sum(x['timespent'] for x in cards if isinstance(x['timespent'],(int,float))
             and x['status'] not in STATUS_EXCLUI_ESFORCO and x['res']!='Cancelado Dev')
@@ -875,7 +877,8 @@ def _ano_ant(ym):
 def _dev_periodo(dev,ini,fim=None):
     cards=_dev_cards(dev,ini,fim)
     mttr,mttr_n=_dev_mttr_dias(cards)
-    return {'concluidos':_dev_concluidos_n(cards),'esforco_h':_dev_esforco_h(cards),
+    conc_keys=_dev_concluidos_keys(cards)
+    return {'concluidos':len(conc_keys),'concluidos_keys':conc_keys,'esforco_h':_dev_esforco_h(cards),
             'mttr':mttr,'mttr_n':mttr_n,'n_periodo':len(cards)}
 
 devs_total=collections.Counter(x.get('assignee') for x in sweep if x.get('assignee'))

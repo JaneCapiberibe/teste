@@ -1115,7 +1115,6 @@ function devsEmDesenvolvimento(filtroResp){
 // selecionada (padrão: DATA.devs.ordem[0], a de maior volume). Reaproveita o MESMO seletor
 // Mês/Acumulado do resto do dashboard (chave 'devs', ver setModoAcum/acumToggle acima).
 window.__devSel=null;
-window.__devShowList=false;
 // Só entra na grade quem teve alguma movimentação EFETIVA (campo `updated` do Jira — muda a
 // cada transição/edição em qualquer card da pessoa) na safra selecionada. DECISÃO DE
 // 18/09/2026, a pedido da Jane: gente sem atividade recente (ex.: já saiu do time) ficava
@@ -1130,8 +1129,7 @@ function devSel(){
   if(!window.__devSel||!ativos.includes(window.__devSel)) window.__devSel=ativos[0]||null;
   return window.__devSel;
 }
-function setDevSel(name){window.__devSel=name;window.__devShowList=false;renderModule();}
-function toggleDevList(){window.__devShowList=!window.__devShowList;renderModule();}
+function setDevSel(name){window.__devSel=name;renderModule();}
 function devGrid(){
   const D=DATA.devs, sel=devSel(), cur=curSafra(), ativos=devsAtivosNaSafra();
   if(!ativos.length) return `<div class="note">Nenhum desenvolvedor com movimentação em ${mesLbl(cur)}.</div>`;
@@ -1155,8 +1153,10 @@ function devKpiCards(dev){
   const seloMttr=k.mttr_n<piso?`<span class="selo-amostra" title="Amostra pequena — menos de ${piso} bugs de ${dev} com MTTR medido (1ª entrada em Em produção) neste período.">!</span>`:'';
   const periodoAnoTxt=acum?'no mesmo acumulado do ano passado':'no mesmo mês do ano passado';
   const anoTxt=k.concluidos_ano_anterior!=null?`vs ${k.concluidos_ano_anterior} ${periodoAnoTxt}`:'sem dado do ano anterior';
+  const concKeys=(k.concluidos_keys||[]).join(',');
+  const emDevKeys=(DATA.em_dev_devs||[]).filter(r=>r.resp===dev).map(r=>r.key).join(',');
   return `<div class="mh-kpis" style="margin-top:4px">
-    <div class="mh-kpi">
+    <div class="mh-kpi clickable" data-keys="${concKeys}" onclick="abrirCardsBar(this)" title="Clique para ver os cards no Jira">
       <div class="mh-kpi-lbl">Concluídos${seloAno}</div>
       <div class="mh-kpi-num">${k.concluidos}</div>
       <div class="mh-kpi-sub">${anoTxt}</div>
@@ -1171,10 +1171,10 @@ function devKpiCards(dev){
       <div class="mh-kpi-num">${k.mttr!=null?k.mttr:'N/D'}</div>
       <div class="mh-kpi-sub">dias úteis${k.mttr_time!=null?` · média do time: ${k.mttr_time} dias`:' · sem média do time no período'}</div>
     </div>
-    <div class="mh-kpi clickable" onclick="toggleDevList()" title="Clique para ver os cards no Jira">
+    <div class="mh-kpi clickable" data-keys="${emDevKeys}" onclick="abrirCardsBar(this)" title="Clique para ver os cards no Jira">
       <div class="mh-kpi-lbl">Em desenvolvimento agora</div>
       <div class="mh-kpi-num">${mj.em_dev_agora}</div>
-      <div class="mh-kpi-sub">clique para ver os cards</div>
+      <div class="mh-kpi-sub">clique para ver no Jira</div>
     </div>
   </div>`;
 }
@@ -1216,7 +1216,6 @@ function renderDevsModule(){
      <div class="kpi-label" style="margin-bottom:10px">${dev} — ${acum?`acumulado até ${mesLbl(curSafra())}`:`safra ${mesLbl(curSafra())}`}${acumToggle('devs')}
        <span class="info" data-tip="Concluídos = bugs CRIADOS no período (mês ou acumulado) cujo status ATUAL já é de entrega (mesmo critério do funil 'Diagnóstico do mês') — diferente do gráfico de evolução abaixo, que conta pelo mês de conclusão via changelog (régua de 'Bug por módulo'). Esforço (h) exclui cards parados em Impedimento Dev/Produto e Cancelado Dev (mesma régua de 'Esforço por módulo'). MTTR pessoal = dias úteis entre criação e 1ª entrada em Em produção (changelog), comparado com a mediana do time inteiro no mesmo período. 'Em desenvolvimento agora' é sempre o estado atual, não muda com a safra selecionada.">i</span></div>
      ${devKpiCards(dev)}
-     ${window.__devShowList?devsEmDesenvolvimento(dev):''}
      <div class="kpi-label" style="margin:18px 0 6px">Evolução mês a mês — bugs concluídos</div>
      ${devEvolChart(dev)}
    </div>`:'';
