@@ -260,6 +260,19 @@ footer{max-width:1180px;margin:0 auto;padding:10px 18px 40px;color:var(--text-3)
 .module-placeholder .ic-big .ic{width:24px;height:24px}
 .module-placeholder h2{margin:0;font-size:15px;color:var(--text-2);letter-spacing:0;display:block}
 .module-placeholder p{margin:0;font-size:12.5px;color:var(--text-3);max-width:380px}
+/* --- módulo Desenvolvedores: grade de avatares --- */
+.dev-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:10px}
+.dev-card{display:flex;flex-direction:column;align-items:center;gap:6px;background:var(--surface-1);border:1px solid var(--line);border-radius:12px;padding:14px 10px;cursor:pointer;font-family:inherit;text-align:center;transition:border-color .15s,background .15s}
+.dev-card:hover{border-color:var(--brand-blue)}
+.dev-card.on{border-color:var(--brand-blue);background:rgba(0,95,232,.08)}
+:root[data-theme="dark"] .dev-card.on{background:rgba(111,168,255,.14)}
+.dev-card .dev-avatar-wrap,.dev-card .dev-avatar,.dev-card .dev-avatar-fallback{width:44px;height:44px;font-size:16px}
+.dev-card-name{font-size:12.5px;font-weight:700;color:var(--text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.dev-card-num{font-size:22px;font-weight:800;color:var(--brand-blue);line-height:1}
+.dev-card-sub{font-size:10px;color:var(--text-3)}
+.mh-kpi.clickable{cursor:pointer;transition:border-color .15s}
+.mh-kpi.clickable:hover{border-color:var(--brand-blue)}
+.mh-kpi.clickable .mh-kpi-num{color:var(--brand-blue);text-decoration:underline;text-underline-offset:3px}
 @media(max-width:820px){.sidebar{width:68px;flex-basis:68px}.sidebar .lbl,.sidebar .sidebar-profile-info{display:none}.sidebar .side-item{justify-content:center;padding:10px 0}.sidebar .sidebar-profile{justify-content:center}}
 </style></head>
 <body>
@@ -308,7 +321,7 @@ const DATA = __DATA__;
 const tt=document.getElementById('tt');
 function showTT(e,html){tt.innerHTML=html;tt.style.opacity=1;tt.style.left=(e.clientX+12)+'px';tt.style.top=(e.clientY+12)+'px';}
 function hideTT(){tt.style.opacity=0;}
-function tgl(){const r=document.documentElement;const cur=r.getAttribute('data-theme');const dark=cur? cur==='dark' : matchMedia('(prefers-color-scheme:dark)').matches;const nd=!dark;r.setAttribute('data-theme',nd?'dark':'light');const b=document.getElementById('themeBtn');if(b)b.innerHTML=svg(nd?'moon':'sun');render();}
+function tgl(){const r=document.documentElement;const cur=r.getAttribute('data-theme');const dark=cur? cur==='dark' : matchMedia('(prefers-color-scheme:dark)').matches;const nd=!dark;r.setAttribute('data-theme',nd?'dark':'light');const b=document.getElementById('themeBtn');if(b)b.innerHTML=svg(nd?'moon':'sun');renderModule();}
 const cs=()=>getComputedStyle(document.documentElement);
 function col(v){return cs().getPropertyValue(v).trim();}
 
@@ -382,6 +395,7 @@ function renderPlaceholderModule(key){
 }
 function renderModule(){
   if(window.__activeModule==='bugs') render();
+  else if(window.__activeModule==='devs') renderDevsModule();
   else renderPlaceholderModule(window.__activeModule);
 }
 window.__safra=null;
@@ -398,7 +412,9 @@ function setSafra(v){window.__safra=v;render();}
 // (DATA.tot_series[0].mes) até a safra selecionada, inclusive.
 window.__modoAcum={qual:'acum'};
 function modoAcum(key){return window.__modoAcum[key]==='acum';}
-function setModoAcum(key,v){window.__modoAcum[key]=v;render();}
+// chama renderModule() (não render() direto) pra funcionar tanto dentro de Bugs quanto de
+// outros módulos que reaproveitem este mesmo seletor (ex.: Desenvolvedores, chave 'devs').
+function setModoAcum(key,v){window.__modoAcum[key]=v;renderModule();}
 function acumRange(){return mesLbl(DATA.tot_series[0].mes)+'–'+mesLbl(curSafra());}
 function acumToggle(key){
   const on=modoAcum(key);
@@ -1070,8 +1086,12 @@ function prioBadge(p){
   const [bg,fg]=map[p]||['var(--surface-2)','var(--text-3)'];
   return `<span class="badge" style="background:${bg};color:${fg}">${p||'—'}</span>`;
 }
-function devsEmDesenvolvimento(){
-  const rows=DATA.em_dev_devs||[]; if(!rows.length) return '';
+// filtroResp opcional (usado pelo módulo Desenvolvedores, clique em "Em desenvolvimento
+// agora" — reaproveita esta mesma lista/lógica, só filtrando as linhas, sem recriar nada).
+function devsEmDesenvolvimento(filtroResp){
+  let rows=DATA.em_dev_devs||[];
+  if(filtroResp) rows=rows.filter(r=>r.resp===filtroResp);
+  if(!rows.length) return filtroResp?`<div class="note" style="margin-top:10px">${filtroResp} não tem cards em desenvolvimento agora.</div>`:'';
   const body=rows.map(r=>`<tr>
      <td><div class="dev-row">${devAvatar(r.resp,r.avatar)}<span>${r.resp}</span></div></td>
      <td><a class="jira-link" href="${r.url}" target="_blank" rel="noopener">${r.key}</a></td>
@@ -1079,10 +1099,117 @@ function devsEmDesenvolvimento(){
      <td>${r.mod}</td>
      <td class="num">${r.data_entrada||'—'}</td>
      <td class="num">${r.dias!=null?`<span class="pill">${r.dias} dias úteis</span>`:'—'}</td></tr>`).join('');
-  return `<div class="kpi-label" style="margin:16px 0 6px">Cards em desenvolvimento por desenvolvedor <span class="tag-per" title="todos os cards em Em Desenvolvimento hoje, sem filtro de safra">atual · todos os meses</span>
+  const titulo=filtroResp?`Cards em desenvolvimento — ${filtroResp}`:'Cards em desenvolvimento por desenvolvedor';
+  return `<div class="kpi-label" style="margin:16px 0 6px">${titulo} <span class="tag-per" title="todos os cards em Em Desenvolvimento hoje, sem filtro de safra">atual · todos os meses</span>
     <span class="info" data-tip="Todos os cards com status ATUAL em 'Em Desenvolvimento', independente de quando foram criados — visão operacional do trabalho ativo agora (mesmo espírito do Alerta operacional de Não Iniciado, que também não é por safra). 'Parado há' = dias úteis desde a 1ª entrada em Em Desenvolvimento (via changelog do Jira) até hoje. Ordenado do mais parado pro mais recente.">i</span></div>
     <table><thead><tr><th>Desenvolvedor</th><th>Card</th><th>Prioridade</th><th>Módulo</th><th class="num">Entrou em Em Dev.</th><th class="num">Parado há</th></tr></thead>
     <tbody>${body}</tbody></table>`;
+}
+
+// ==================== MÓDULO DESENVOLVEDORES ====================
+// Grade de avatares (DATA.devs.ordem, "por volume") + painel de detalhe da pessoa selecionada.
+// Dados vêm só de DATA.devs (gen_data.py) — 100% Jira, nenhuma UI de gestão de pessoas aqui
+// (1:1, feedback, plano de carreira ficam engavetados). window.__devSel guarda a pessoa
+// selecionada (padrão: DATA.devs.ordem[0], a de maior volume). Reaproveita o MESMO seletor
+// Mês/Acumulado do resto do dashboard (chave 'devs', ver setModoAcum/acumToggle acima).
+window.__devSel=null;
+window.__devShowList=false;
+function devSel(){
+  if(!window.__devSel){const ord=(DATA.devs&&DATA.devs.ordem)||[];window.__devSel=ord[0]||null;}
+  return window.__devSel;
+}
+function setDevSel(name){window.__devSel=name;window.__devShowList=false;renderModule();}
+function toggleDevList(){window.__devShowList=!window.__devShowList;renderModule();}
+function devGrid(){
+  const D=DATA.devs, sel=devSel(), cur=curSafra();
+  return `<div class="dev-grid">${D.ordem.map(dev=>{
+    const mj=D.pessoas[dev].metrics_jira, k=(mj.kpi_por_mes||{})[cur]||{concluidos:0};
+    const on=dev===sel;
+    return `<button class="dev-card${on?' on':''}" onclick="setDevSel('${dev.replace(/'/g,"\\'")}')">
+      ${devAvatar(dev,mj.avatar)}
+      <div class="dev-card-name">${dev}</div>
+      <div class="dev-card-num">${k.concluidos}</div>
+      <div class="dev-card-sub">concluídos em ${mesLbl(cur)}</div>
+    </button>`;
+  }).join('')}</div>`;
+}
+function devKpiCards(dev){
+  const D=DATA.devs, acum=modoAcum('devs'), piso=D.piso_amostra;
+  const mj=D.pessoas[dev].metrics_jira;
+  const k=(acum?mj.kpi_acumulado_por_mes:mj.kpi_por_mes)[curSafra()];
+  if(!k) return '';
+  const seloAno=k.n_periodo<piso?`<span class="selo-amostra" title="Amostra pequena — menos de ${piso} bugs criados por ${dev} neste período. A comparação com o ano anterior pode não ser confiável.">!</span>`:'';
+  const seloMttr=k.mttr_n<piso?`<span class="selo-amostra" title="Amostra pequena — menos de ${piso} bugs de ${dev} com MTTR medido (1ª entrada em Em produção) neste período.">!</span>`:'';
+  const periodoAnoTxt=acum?'no mesmo acumulado do ano passado':'no mesmo mês do ano passado';
+  const anoTxt=k.concluidos_ano_anterior!=null?`vs ${k.concluidos_ano_anterior} ${periodoAnoTxt}`:'sem dado do ano anterior';
+  return `<div class="mh-kpis" style="margin-top:4px">
+    <div class="mh-kpi">
+      <div class="mh-kpi-lbl">Concluídos${seloAno}</div>
+      <div class="mh-kpi-num">${k.concluidos}</div>
+      <div class="mh-kpi-sub">${anoTxt}</div>
+    </div>
+    <div class="mh-kpi">
+      <div class="mh-kpi-lbl">Esforço (h)</div>
+      <div class="mh-kpi-num">${k.esforco_h}</div>
+      <div class="mh-kpi-sub">horas apontadas, cards ativos</div>
+    </div>
+    <div class="mh-kpi">
+      <div class="mh-kpi-lbl">MTTR pessoal${seloMttr}</div>
+      <div class="mh-kpi-num">${k.mttr!=null?k.mttr:'N/D'}</div>
+      <div class="mh-kpi-sub">dias úteis${k.mttr_time!=null?` · média do time: ${k.mttr_time} dias`:' · sem média do time no período'}</div>
+    </div>
+    <div class="mh-kpi clickable" onclick="toggleDevList()" title="Clique para ver os cards no Jira">
+      <div class="mh-kpi-lbl">Em desenvolvimento agora</div>
+      <div class="mh-kpi-num">${mj.em_dev_agora}</div>
+      <div class="mh-kpi-sub">clique para ver os cards</div>
+    </div>
+  </div>`;
+}
+// Bugs concluídos por mês (mês de CONCLUSÃO via changelog — régua oficial de "Bug por
+// módulo"/evol_modulo, não a régua do KPI "Concluídos" acima, que é por mês de CRIAÇÃO —
+// mesma distinção explicada na nota "Como ler" de Bug por módulo/funil). Barra clara = mês
+// corrente (mesmo padrão visual de sobraChart/escapeChart) — ainda em andamento, não é
+// projetado (concluído é um evento passado, não dá pra rodar o run-rate usado em criados).
+function devEvolChart(dev){
+  const D=DATA.devs, meses=D.meses, ev=D.pessoas[dev].metrics_jira.evolucao, cur=DATA.mes_corrente;
+  const vals=ev.concluidos, n=meses.length;
+  const W=1080,H=250,P=44;
+  const maxY=Math.max(4,...vals)*1.15;
+  const bw=(W-2*P)/n*0.62;
+  const xs=(i)=>P+(i+0.5)*(W-2*P)/n;
+  const ys=(v)=>H-P-(v/maxY)*(H-2*P);
+  const step=Math.max(1,Math.ceil(maxY/4));
+  let grid='';for(let g=0;g<=Math.ceil(maxY/step);g++){const val=g*step;const yy=ys(val);grid+=`<line x1="${P}" y1="${yy}" x2="${W-P}" y2="${yy}" stroke="${col('--line')}"/><text x="${P-6}" y="${yy+4}" text-anchor="end" fill="${col('--text-3')}" font-size="10">${val}</text>`;}
+  let xl='';meses.forEach((m,i)=>{if(i%2===0||i===n-1)xl+=`<text x="${xs(i)}" y="${H-P+16}" text-anchor="middle" fill="${col('--text-3')}" font-size="9">${m.slice(2)}</text>`;});
+  let bars='';meses.forEach((m,i)=>{
+    const v=vals[i]; const y=ys(v); const parc=m===cur; const kk=((ev.concluidos_keys||[])[i]||[]).join(',');
+    if(v>0) bars+=`<rect x="${(xs(i)-bw/2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-y).toFixed(1)}" fill="${col('--s3')}" ${parc?'opacity="0.45"':''} rx="2" style="cursor:pointer" data-keys="${kk}" onclick="abrirCardsBar(this)"><title>${m}: ${v} concluído(s)${parc?' — mês corrente, ainda em andamento':''} · clique p/ ver os cards no Jira</title></rect>`;
+    bars+=`<text x="${xs(i).toFixed(1)}" y="${(y-4).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="${col('--text-1')}">${v||''}</text>`;
+  });
+  const band=safraBand((i)=>xs(i),(W-2*P)/n,P,H);
+  return `<div style="font-size:12px;color:var(--text-2);margin:2px 0 8px">Bugs concluídos por mês (mês de <b>conclusão</b> via changelog — mesma régua de "Bug por módulo"). Barra clara = mês corrente, ainda em andamento; faixa azul = safra em foco. Clique numa barra p/ ver os cards no Jira.</div>
+    <svg viewBox="0 0 ${W} ${H}" width="100%">${band}${grid}${xl}${bars}</svg>`;
+}
+function renderDevsModule(){
+  const D=DATA.devs;
+  if(!D||!D.ordem||!D.ordem.length){
+    document.getElementById('app').innerHTML=`<div class="module-placeholder"><div class="ic-big">${svg('code')}</div><h2>Desenvolvedores</h2><p>Nenhum bug com responsável atribuído encontrado no Jira.</p></div>`;
+    return;
+  }
+  const dev=devSel(), acum=modoAcum('devs');
+  document.getElementById('app').innerHTML=`
+   <h2>${si('code')}Desenvolvedores</h2>
+   <div class="panel">${devGrid()}</div>
+   <h2>${si('gauge-high')}Detalhe do desenvolvedor</h2>
+   <div class="panel">
+     <div class="kpi-label" style="margin-bottom:10px">${dev} — ${acum?`acumulado até ${mesLbl(curSafra())}`:`safra ${mesLbl(curSafra())}`}${acumToggle('devs')}
+       <span class="info" data-tip="Concluídos = bugs CRIADOS no período (mês ou acumulado) cujo status ATUAL já é de entrega (mesmo critério do funil 'Diagnóstico do mês') — diferente do gráfico de evolução abaixo, que conta pelo mês de conclusão via changelog (régua de 'Bug por módulo'). Esforço (h) exclui cards parados em Impedimento Dev/Produto e Cancelado Dev (mesma régua de 'Esforço por módulo'). MTTR pessoal = dias úteis entre criação e 1ª entrada em Em produção (changelog), comparado com a mediana do time inteiro no mesmo período. 'Em desenvolvimento agora' é sempre o estado atual, não muda com a safra selecionada.">i</span></div>
+     ${devKpiCards(dev)}
+     ${window.__devShowList?devsEmDesenvolvimento(dev):''}
+     <div class="kpi-label" style="margin:18px 0 6px">Evolução mês a mês — bugs concluídos</div>
+     ${devEvolChart(dev)}
+   </div>`;
+  collapsibleNotes();
 }
 function funilPanel(){
   // "Diagnóstico do mês — funil de entrega do dev" — COM seletor Mês/Acumulado (chave 'funil',

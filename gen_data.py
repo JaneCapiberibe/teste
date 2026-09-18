@@ -837,6 +837,101 @@ d['funil_default']=ref; d['mes_corrente']=cur_m
 if os.path.exists('impedimentos_live.json'):
     d['impedimentos']=json.load(open('impedimentos_live.json'))
 
+# ==================== MÓDULO DESENVOLVEDORES (SPA, build_dash.py — devsModule()) ====================
+# Grade de avatares + painel de detalhe por pessoa (dados só, sem gestão de pessoas — 1:1,
+# feedback, plano de carreira ficam engavetados, aguardando decisão de arquitetura futura).
+#
+# Escopo dos 4 KPIs (Concluídos/Esforço/MTTR/Em desenvolvimento): sweep (base líquida), MESMA
+# régua de "Qualidade por módulo"/"Carga por squad" — não a régua mais estrita de evol_modulo
+# (essa só entra no gráfico "Evolução mês a mês" abaixo, a pedido explícito, pra reproduzir
+# exatamente o padrão de "Bug por módulo"). "Concluídos" aqui = MESMO critério do funil
+# (Diagnóstico do mês): bugs CRIADOS no período com status ATUAL em ST_ENTREGUE_FUNIL — não o
+# "concluído mês" (changelog) do gráfico; os dois medem coortes diferentes de propósito (ver
+# nota "Como ler" de Bug por módulo/funil — a mesma distinção se aplica aqui).
+#
+# Estrutura pensada pra abrir espaço no futuro sem reestruturar: cada pessoa é um objeto com
+# uma seção 'metrics_jira' — outras seções (gestão de pessoas, hoje engavetada) podem ser
+# acrescentadas ao lado dela depois. Nenhum campo futuro é criado agora.
+def _dev_cards(assignee,ini,fim=None):
+    if fim is None: fim=ini
+    return [x for x in sweep if x['c'] and x.get('assignee')==assignee and ini<=x['c'].strftime('%Y-%m')<=fim]
+def _dev_concluidos_n(cards):
+    return sum(1 for x in cards if x['status'] in ST_ENTREGUE_FUNIL)
+def _dev_esforco_h(cards):
+    seg=sum(x['timespent'] for x in cards if isinstance(x['timespent'],(int,float))
+            and x['status'] not in STATUS_EXCLUI_ESFORCO and x['res']!='Cancelado Dev')
+    return round(seg/3600,1)
+def _dev_mttr_dias(cards):
+    vals=[busdays(x['c'].date(),pdt(x['entrega_data']).date()) for x in cards if pdt(x.get('entrega_data'))]
+    return (round(statistics.median(vals),1) if vals else None),len(vals)
+def _time_mttr_dias(ini,fim=None):
+    if fim is None: fim=ini
+    vals=[busdays(x['c'].date(),pdt(x['entrega_data']).date()) for x in sweep
+          if x['c'] and ini<=x['c'].strftime('%Y-%m')<=fim and pdt(x.get('entrega_data'))]
+    return round(statistics.median(vals),1) if vals else None
+def _ano_ant(ym):
+    a,mo=ym.split('-'); return f'{int(a)-1}-{mo}'
+def _dev_periodo(dev,ini,fim=None):
+    cards=_dev_cards(dev,ini,fim)
+    mttr,mttr_n=_dev_mttr_dias(cards)
+    return {'concluidos':_dev_concluidos_n(cards),'esforco_h':_dev_esforco_h(cards),
+            'mttr':mttr,'mttr_n':mttr_n,'n_periodo':len(cards)}
+
+devs_total=collections.Counter(x.get('assignee') for x in sweep if x.get('assignee'))
+devs_ordem=[nm for nm,_ in devs_total.most_common()]   # "por volume" — exclui não-atribuídos
+devs_avatar={}
+for x in sweep:
+    a=x.get('assignee')
+    if a and a not in devs_avatar: devs_avatar[a]=x.get('assignee_avatar')
+devs_em_dev_count=collections.Counter(r['resp'] for r in d['em_dev_devs'])
+
+_primeiro_mes=meses[0] if meses else None
+_time_mttr_por_mes={m:_time_mttr_dias(m) for m in meses}
+_time_mttr_acum_por_mes={m:_time_mttr_dias(_primeiro_mes,m) for m in meses} if _primeiro_mes else {}
+
+pessoas={}
+for dev in devs_ordem:
+    kpi_mes={}; kpi_acum={}
+    for m in meses:
+        base=_dev_periodo(dev,m)
+        ano_ant_ym=_ano_ant(m)
+        base['concluidos_ano_anterior']=_dev_concluidos_n(_dev_cards(dev,ano_ant_ym)) if ano_ant_ym in meses else None
+        base['mttr_time']=_time_mttr_por_mes.get(m)
+        kpi_mes[m]=base
+        baseA=_dev_periodo(dev,_primeiro_mes,m)
+        primeiro_ant=_ano_ant(_primeiro_mes); m_ant=_ano_ant(m)
+        baseA['concluidos_ano_anterior']=(_dev_concluidos_n(_dev_cards(dev,primeiro_ant,m_ant))
+                                          if primeiro_ant in meses and m_ant in meses and primeiro_ant<=m_ant else None)
+        baseA['mttr_time']=_time_mttr_acum_por_mes.get(m)
+        kpi_acum[m]=baseA
+    pessoas[dev]={'metrics_jira':{
+        'avatar':devs_avatar.get(dev),
+        'em_dev_agora':devs_em_dev_count.get(dev,0),
+        'kpi_por_mes':kpi_mes,
+        'kpi_acumulado_por_mes':kpi_acum,
+    }}
+
+# Evolução mês a mês (régua OFICIAL de evol_modulo/_elegivel_evol — mês de CONCLUSÃO via
+# changelog, não importa quando o card foi criado — agrupada por assignee em vez de módulo).
+# Só concluídos, é o que o gráfico "Evolução mês a mês" do módulo Desenvolvedores mostra.
+_edev_e=collections.defaultdict(lambda:collections.Counter())
+_edev_ek=collections.defaultdict(lambda:collections.defaultdict(list))
+for x in sweep_full:
+    if not _elegivel_evol(x): continue
+    a=x.get('assignee')
+    if not a: continue
+    mc=_mes_concluido(x)
+    if mc:
+        _edev_e[a][mc]+=1
+        _edev_ek[a][mc].append(x['key'])
+for dev in devs_ordem:
+    pessoas[dev]['metrics_jira']['evolucao']={
+        'concluidos':[_edev_e[dev].get(m,0) for m in meses],
+        'concluidos_keys':[_edev_ek[dev].get(m,[]) for m in meses],
+    }
+
+d['devs']={'ordem':devs_ordem,'meses':meses,'pessoas':pessoas,'piso_amostra':PISO_AMOSTRA_SLA}
+
 # ---- HISTÓRICO POR MÓDULO (criados bruto por módulo por mês) ----
 cellh=collections.defaultdict(lambda:collections.Counter()); toth=collections.Counter()
 for x in sweep:
