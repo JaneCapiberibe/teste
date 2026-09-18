@@ -1036,7 +1036,22 @@ def _historico_mes(sc,status_atual,ini_ep,fim_ep):
         partes[-1]=partes[-1]+' (atual)'
     return ' → '.join(partes)
 
-_cards_com_amud=[x for x in sweep if (_status_changelog.get(x['key']) or {}).get('assignee_mudancas')]
+# Deduplica assignee_mudancas ANTES de detectar repasse — a base real do Jira tem casos de
+# transição idêntica (mesmo instante, mesmo de/para) registrada mais de uma vez no changelog
+# (achado com dado ao vivo em 18/09/2026: BUG-1215 tinha a mesma reatribuição 6x seguidas),
+# provavelmente automação/bulk-edit tocando o campo repetidamente sem mudar o valor final —
+# sem isso, a mesma observação de repasse aparecia repetida N vezes na UI.
+_cards_com_amud=[]
+for x in sweep:
+    amud=(_status_changelog.get(x['key']) or {}).get('assignee_mudancas')
+    if not amud: continue
+    _seen=set(); _dedup=[]
+    for _ent in amud:
+        _k=tuple(_ent)
+        if _k in _seen: continue
+        _seen.add(_k); _dedup.append(_ent)
+    _status_changelog[x['key']]['assignee_mudancas']=_dedup
+    _cards_com_amud.append(x)
 
 def _ciclo_vida_mes(dev,ym):
     ini,fim=_mes_bounds(ym)
