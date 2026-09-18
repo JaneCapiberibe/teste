@@ -1,0 +1,54 @@
+name: "[TEMP] Diagnóstico: navegação de safra no módulo Desenvolvedores"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Puxar do Jira
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: python fetch_jira.py
+
+      - name: Rodar pipeline
+        run: python gen_data.py
+
+      - name: Inspecionar ultima_movimentacao_mes e ativos por safra
+        run: |
+          python3 -c "
+          import json, collections
+          d=json.load(open('dash_data.json'))
+          DV=d['devs']
+          cur=d['mes_corrente']
+          print('mes_corrente:', cur)
+          print('meses (D.meses):', DV['meses'])
+          print()
+          umm=collections.Counter()
+          for dev in DV['ordem']:
+              m=DV['pessoas'][dev]['metrics_jira'].get('ultima_movimentacao_mes')
+              umm[m]+=1
+          print('=== distribuicao de ultima_movimentacao_mes entre os', len(DV['ordem']), 'devs ===')
+          for m,n in sorted(umm.items(), key=lambda t:(t[0] is None, t[0])):
+              print(f'  {m}: {n} dev(s)')
+          print()
+          print('=== ativos por safra (quantos devs tem ultima_movimentacao_mes == aquele mes) ===')
+          for m in DV['meses']:
+              ativos=[dev for dev in DV['ordem'] if DV['pessoas'][dev]['metrics_jira'].get('ultima_movimentacao_mes')==m]
+              print(f'  {m}: {len(ativos)} ativo(s)' + (f' -> {ativos}' if len(ativos)<=5 else ''))
+          "
