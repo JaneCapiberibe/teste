@@ -29,36 +29,23 @@ jobs:
       - name: Rodar pipeline
         run: python gen_data.py
 
-      - name: Conferir última ocorrência de cada status (recência)
+      - name: Conferir status_kanban_ordem e coluna Status atual
         run: |
           python3 -c "
-          import json, collections, datetime
-          sweep=json.load(open('sweep.json'))
-          sc_all=json.load(open('status_changelog.json'))
-          sweep_keys={x['key'] for x in sweep}
-          last_seen={}
-          cur_count=collections.Counter()
-          def upd(s, iso_or_none):
-              if not s: return
-              if iso_or_none is None:
-                  last_seen.setdefault(s, None)
-                  return
-              dt=datetime.datetime.fromisoformat(iso_or_none)
-              if s not in last_seen or last_seen[s] is None or dt>last_seen[s]:
-                  last_seen[s]=dt
-          for x in sweep:
-              cur_count[x['status']]+=1
-          for k in sweep_keys:
-              sc=sc_all.get(k)
-              if not sc: continue
-              for iso,to in (sc.get('mudancas') or []):
-                  upd(to, iso)
-          for x in sweep:
-              # status atual conta como 'visto agora' -> usa 'updated' do card como proxy de recencia
-              if x.get('updated'):
-                  upd(x['status'], x['updated'])
-          print('=== status ordenado por ÚLTIMA ocorrência (mais recente primeiro) ===')
-          rows=sorted(last_seen.items(), key=lambda kv: (kv[1] is not None, kv[1]), reverse=True)
-          for s,dt in rows:
-              print(f'{s!r:35s} ultima_ocorrencia={dt} | cards_atuais_agora={cur_count.get(s,0)}')
+          import json
+          d=json.load(open('dash_data.json'))
+          DV=d['devs']
+          print('=== status_kanban_ordem (seletor de chips) ===')
+          print(DV['status_kanban_ordem'])
+          print()
+          cur=d['mes_corrente']
+          print('=== 3 cards reais com Status atual preenchido (mes', cur, ') ===')
+          n=0
+          for dev in DV['ordem']:
+              cv=DV['pessoas'][dev]['metrics_jira'].get('ciclo_vida',{}).get(cur,{})
+              for c in cv.get('cards',[]):
+                  print(f'dev={dev} key={c[\"key\"]} modulo={c[\"modulo\"]} prio={c[\"prio\"]} status={c[\"status\"]} historico={c[\"historico\"]}')
+                  n+=1
+                  if n>=6: break
+              if n>=6: break
           "
