@@ -966,23 +966,31 @@ for dev in devs_ordem:
 
 # ==================== CICLO DE VIDA (card 5, painel de detalhe do Desenvolvedores) ====================
 # NOVO EM 18/09/2026, a pedido da Jane. 3 peças de dado:
-#   1) status_kanban_ordem .... status que são o status ATUAL de pelo menos 1 card de BUG_TYPES
-#      (sweep) — não só os 5 curados de "Sobra por status", STATUS_ORDER acima, mas sem incluir
-#      "fantasmas" de um esquema antigo/geral do Jira. CORRIGIDO EM 19/09/2026: a 1ª tentativa
-#      (v1) tentou cobrir status "hoje sem nenhum card" varrendo o changelog INTEIRO de cada card
-#      de sweep (inicial + toda mudança já registrada) — conferido contra o Jira ao vivo, isso
-#      ainda vazava "Backlog"/"Done"/"In Progress"/"Selected for Development"/"To Do" pro
-#      seletor, porque bugs de verdade (não issues de outro tipo) têm essas transições NO PRÓPRIO
-#      changelog: o padrão nos dados (ex. "...→ Done → Concluído (atual)", os dois quase sempre
-#      colados no mesmo instante, em cards de meses bem diferentes) é de um RENOME de esquema de
-#      status feito uma vez no Jira faz tempo (Backlog→Não Iniciado, To Do/Selected for
-#      Development/In Progress→Em Desenvolvimento, Done→Concluído, etc.) — o Jira grava esse
-#      rename como uma transição sintética no changelog de todo card que já tinha aquele status
-#      na hora do rename, então o nome antigo fica pra sempre no histórico mesmo não sendo status
-#      de ninguém há muito tempo. Corrigido pra usar só o status ATUAL de cada card (nunca fica
-#      "sem nenhum card" de verdade — item removido) — ainda 100% derivado dos dados (reaproveita
-#      _status_count_atual abaixo), sem lista hardcoded de nomes pra excluir, então um "fantasma"
-#      novo (outro rename futuro) nunca mais aparece sozinho.
+#   1) status_kanban_ordem .... status com pelo menos 1 OCORRÊNCIA REAL (status atual de algum
+#      card de BUG_TYPES, ou destino de alguma transição no changelog) nos ÚLTIMOS 6 MESES —
+#      mesma janela "recente" já usada em outros pontos do dashboard (JANELAS_TENDENCIA/
+#      _ult6_fechados_aa). CORRIGIDO EM 19/09/2026, 2 rodadas, ambas batendo contra o Jira ao
+#      vivo:
+#        v1 (varrer o changelog INTEIRO de cada card de sweep, sem corte de tempo) ainda vazava
+#        "Backlog"/"Done"/"In Progress"/"Selected for Development"/"To Do" pro seletor — esses
+#        nomes aparecem no changelog de bugs de VERDADE (não é contaminação de outro issuetype),
+#        mas só como registro histórico de um RENOME de esquema de status feito uma vez no Jira,
+#        muito tempo atrás (Backlog→Não Iniciado, To Do/Selected for Development/In
+#        Progress→Em Desenvolvimento) ou de automação (Done, sempre gravado no mesmíssimo
+#        instante que a transição pra Concluído, nunca com nenhum card parado nele) — o nome
+#        antigo fica no histórico pra sempre, mesmo sem ser status de ninguém há mais de 1 ano.
+#        v2 (só status ATUAL, sem olhar changelog nenhum) resolveu isso mas quebrou o oposto:
+#        excluía status raros mas 100% reais e usados recentemente (ex. "Revert"/"Reprovado QA" —
+#        já rastreados em outros pontos do pipeline, STATUS_ORDER/ST_ENTREGUE_FUNIL) só por
+#        ninguém estar NELES no exato instante do snapshot.
+#      v3 (esta): pega a data da ÚLTIMA ocorrência de cada status (mudança no changelog OU status
+#      atual) e mantém só quem teve alguma nos últimos 6 meses — no Jira ao vivo isso separa
+#      limpo: todo status real (13, incl. Revert/Reprovado QA) teve ocorrência nos últimos 18
+#      dias; os 3 fantasmas confirmados (Impedimento/Selected for Development/In Progress) — e
+#      To Do, que só aparece como status inicial pré-changelog, sem nenhuma data — ficam de fora,
+#      o mais recente deles com 13 MESES de defasagem pro próximo real. 100% derivado dos dados
+#      (sem lista hardcoded de nomes), então um fantasma novo (outro rename futuro) só cai fora
+#      sozinho depois de ficar 6 meses sem nenhuma ocorrência.
 #      Ordem: mais cards ATUALMENTE no status primeiro (mesmo critério de sempre).
 #   2) status_series (por pessoa) .... cards da pessoa (assignee ATUAL) em cada status, por mês
 #      de CRIAÇÃO — mesmo padrão de d['status_series'] acima (Sobra por status), só que por
@@ -997,8 +1005,20 @@ for dev in devs_ordem:
 #      campo assignee — fetch_jira.py/assignee_mudancas). Repasse NÃO conta nas métricas nem na
 #      lista de quem repassou (o assignee atual já não é mais ele) — aparece à parte, como
 #      observação. SEMPRE pelo mês selecionado (não tem variante acumulada — não pedido).
+_STATUS_JANELA_RECENTE=datetime.timedelta(days=183)  # ~6 meses, mesma janela de JANELAS_TENDENCIA
+_status_last_seen={}
+def _status_seen(s,dt):
+    if not s or not dt: return
+    if s not in _status_last_seen or dt>_status_last_seen[s]: _status_last_seen[s]=dt
+for x in sweep:
+    _status_seen(x['status'],x['u'])
+    _sc=_status_changelog.get(x['key'])
+    if _sc:
+        for _iso,_to in (_sc.get('mudancas') or []): _status_seen(_to,pdt(_iso))
 _status_count_atual=collections.Counter(x['status'] for x in sweep if x['status'])
-status_kanban_ordem=sorted(_status_count_atual,key=lambda s:(-_status_count_atual[s],s))
+status_kanban_ordem=sorted(
+    (s for s,dt in _status_last_seen.items() if AGORA_BR-dt<=_STATUS_JANELA_RECENTE),
+    key=lambda s:(-_status_count_atual.get(s,0),s))
 
 _cards_por_dev=collections.defaultdict(list)
 for x in sweep:
