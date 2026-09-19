@@ -1,0 +1,51 @@
+name: "[TEMP] Diagnóstico: status do seletor + coluna Status atual (Ciclo de vida)"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Puxar do Jira
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: python fetch_jira.py
+
+      - name: Rodar pipeline
+        run: python gen_data.py
+
+      - name: Conferir status_kanban_ordem e coluna Status atual
+        run: |
+          python3 -c "
+          import json
+          d=json.load(open('dash_data.json'))
+          DV=d['devs']
+          print('=== status_kanban_ordem (seletor de chips) ===')
+          print(DV['status_kanban_ordem'])
+          print()
+          cur=d['mes_corrente']
+          print('=== 3 cards reais com Status atual preenchido (mes', cur, ') ===')
+          n=0
+          for dev in DV['ordem']:
+              cv=DV['pessoas'][dev]['metrics_jira'].get('ciclo_vida',{}).get(cur,{})
+              for c in cv.get('cards',[]):
+                  print(f'dev={dev} key={c[\"key\"]} modulo={c[\"modulo\"]} prio={c[\"prio\"]} status={c[\"status\"]} historico={c[\"historico\"]}')
+                  n+=1
+                  if n>=6: break
+              if n>=6: break
+          "
