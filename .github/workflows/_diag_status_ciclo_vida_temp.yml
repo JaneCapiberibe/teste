@@ -58,8 +58,7 @@ jobs:
               if x.get('updated'):
                   upd(x['status'], x['updated'])
           print('=== status ordenado por ÚLTIMA ocorrência (mais recente primeiro) ===')
-          rows=sorted(last_seen.items(), key=lambda t=None: None)
-          rows=sorted(last_seen.items(), key=lambda kv: (kv[1] is None, kv[1]), reverse=True)
+          rows=sorted(last_seen.items(), key=lambda kv: (kv[1] is not None, kv[1]), reverse=True)
           for s,dt in rows:
               print(f'{s!r:35s} ultima_ocorrencia={dt} | cards_atuais_agora={cur_count.get(s,0)}')
           "
