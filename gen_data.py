@@ -966,10 +966,17 @@ for dev in devs_ordem:
 
 # ==================== CICLO DE VIDA (card 5, painel de detalhe do Desenvolvedores) ====================
 # NOVO EM 18/09/2026, a pedido da Jane. 3 peças de dado:
-#   1) status_kanban_ordem .... TODOS os status já vistos no changelog do projeto BUG (não só os
-#      5 curados de "Sobra por status" — STATUS_ORDER acima) — universo tirado de
-#      status_changelog.json, gerado por fetch_jira.py pra TODOS os issues do projeto (antes do
-#      filtro de BUG_TYPES), então cobre status que hoje não tem nenhum card líquido nele.
+#   1) status_kanban_ordem .... TODOS os status já vistos no histórico real dos cards de BUG_TYPES
+#      (sweep — não só os 5 curados de "Sobra por status", STATUS_ORDER acima), então cobre
+#      status que hoje não tem nenhum card líquido nele, mas sem incluir "fantasmas" do esquema
+#      geral do Jira (CORRIGIDO EM 19/09/2026: status_changelog.json é gerado por fetch_jira.py
+#      pra TODOS os issues do projeto BUG, de QUALQUER issuetype — inclui, por exemplo, Sub-task/
+#      Task com um workflow genérico próprio, com status como "Backlog"/"Done"/"In Progress"/
+#      "Selected for Development" que nunca existiram num Bug de verdade; olhar
+#      status_changelog.json inteiro, sem filtrar por sweep, vazava esses nomes pro seletor de
+#      chips do Ciclo de vida). Escopo restrito às keys que estão em `sweep` (mesma base líquida
+#      do resto do módulo Desenvolvedores) — derivado dos dados, não de uma lista hardcoded de
+#      nomes pra excluir, então um "fantasma" novo nunca mais aparece sozinho.
 #      Ordenado por quem tem mais cards ATUALMENTE nesse status (sweep); resto (status sem
 #      nenhum card hoje) em ordem alfabética no final.
 #   2) status_series (por pessoa) .... cards da pessoa (assignee ATUAL) em cada status, por mês
@@ -986,10 +993,11 @@ for dev in devs_ordem:
 #      lista de quem repassou (o assignee atual já não é mais ele) — aparece à parte, como
 #      observação. SEMPRE pelo mês selecionado (não tem variante acumulada — não pedido).
 _todos_status=set()
-for _sc in _status_changelog.values():
-    if _sc.get('inicial'): _todos_status.add(_sc['inicial'])
-    for _,_to in (_sc.get('mudancas') or []): _todos_status.add(_to)
 for x in sweep:
+    _sc=_status_changelog.get(x['key'])
+    if _sc:
+        if _sc.get('inicial'): _todos_status.add(_sc['inicial'])
+        for _,_to in (_sc.get('mudancas') or []): _todos_status.add(_to)
     if x['status']: _todos_status.add(x['status'])
 _status_count_atual=collections.Counter(x['status'] for x in sweep if x['status'])
 status_kanban_ordem=sorted(_todos_status,key=lambda s:(-_status_count_atual.get(s,0),s))
@@ -1064,7 +1072,7 @@ def _ciclo_vida_mes(dev,ym):
         hist=_historico_mes(sc,x['status'],ini_ep,fim_ep)
         if hist is None: continue
         cards.append({'key':x['key'],'url':f"{d['jira_base']}/browse/{x['key']}",
-                      'modulo':x['m'],'prio':x['prio'],'historico':hist})
+                      'modulo':x['m'],'prio':x['prio'],'status':x['status'],'historico':hist})
     return cards,ini_ep,fim_ep
 
 def _repasses_mes(dev,ini_ep,fim_ep):
