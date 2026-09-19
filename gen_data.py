@@ -966,19 +966,24 @@ for dev in devs_ordem:
 
 # ==================== CICLO DE VIDA (card 5, painel de detalhe do Desenvolvedores) ====================
 # NOVO EM 18/09/2026, a pedido da Jane. 3 peças de dado:
-#   1) status_kanban_ordem .... TODOS os status já vistos no histórico real dos cards de BUG_TYPES
-#      (sweep — não só os 5 curados de "Sobra por status", STATUS_ORDER acima), então cobre
-#      status que hoje não tem nenhum card líquido nele, mas sem incluir "fantasmas" do esquema
-#      geral do Jira (CORRIGIDO EM 19/09/2026: status_changelog.json é gerado por fetch_jira.py
-#      pra TODOS os issues do projeto BUG, de QUALQUER issuetype — inclui, por exemplo, Sub-task/
-#      Task com um workflow genérico próprio, com status como "Backlog"/"Done"/"In Progress"/
-#      "Selected for Development" que nunca existiram num Bug de verdade; olhar
-#      status_changelog.json inteiro, sem filtrar por sweep, vazava esses nomes pro seletor de
-#      chips do Ciclo de vida). Escopo restrito às keys que estão em `sweep` (mesma base líquida
-#      do resto do módulo Desenvolvedores) — derivado dos dados, não de uma lista hardcoded de
-#      nomes pra excluir, então um "fantasma" novo nunca mais aparece sozinho.
-#      Ordenado por quem tem mais cards ATUALMENTE nesse status (sweep); resto (status sem
-#      nenhum card hoje) em ordem alfabética no final.
+#   1) status_kanban_ordem .... status que são o status ATUAL de pelo menos 1 card de BUG_TYPES
+#      (sweep) — não só os 5 curados de "Sobra por status", STATUS_ORDER acima, mas sem incluir
+#      "fantasmas" de um esquema antigo/geral do Jira. CORRIGIDO EM 19/09/2026: a 1ª tentativa
+#      (v1) tentou cobrir status "hoje sem nenhum card" varrendo o changelog INTEIRO de cada card
+#      de sweep (inicial + toda mudança já registrada) — conferido contra o Jira ao vivo, isso
+#      ainda vazava "Backlog"/"Done"/"In Progress"/"Selected for Development"/"To Do" pro
+#      seletor, porque bugs de verdade (não issues de outro tipo) têm essas transições NO PRÓPRIO
+#      changelog: o padrão nos dados (ex. "...→ Done → Concluído (atual)", os dois quase sempre
+#      colados no mesmo instante, em cards de meses bem diferentes) é de um RENOME de esquema de
+#      status feito uma vez no Jira faz tempo (Backlog→Não Iniciado, To Do/Selected for
+#      Development/In Progress→Em Desenvolvimento, Done→Concluído, etc.) — o Jira grava esse
+#      rename como uma transição sintética no changelog de todo card que já tinha aquele status
+#      na hora do rename, então o nome antigo fica pra sempre no histórico mesmo não sendo status
+#      de ninguém há muito tempo. Corrigido pra usar só o status ATUAL de cada card (nunca fica
+#      "sem nenhum card" de verdade — item removido) — ainda 100% derivado dos dados (reaproveita
+#      _status_count_atual abaixo), sem lista hardcoded de nomes pra excluir, então um "fantasma"
+#      novo (outro rename futuro) nunca mais aparece sozinho.
+#      Ordem: mais cards ATUALMENTE no status primeiro (mesmo critério de sempre).
 #   2) status_series (por pessoa) .... cards da pessoa (assignee ATUAL) em cada status, por mês
 #      de CRIAÇÃO — mesmo padrão de d['status_series'] acima (Sobra por status), só que por
 #      pessoa em vez de agregado, e cobrindo o universo completo do Kanban (item 1), não só os 5.
@@ -992,15 +997,8 @@ for dev in devs_ordem:
 #      campo assignee — fetch_jira.py/assignee_mudancas). Repasse NÃO conta nas métricas nem na
 #      lista de quem repassou (o assignee atual já não é mais ele) — aparece à parte, como
 #      observação. SEMPRE pelo mês selecionado (não tem variante acumulada — não pedido).
-_todos_status=set()
-for x in sweep:
-    _sc=_status_changelog.get(x['key'])
-    if _sc:
-        if _sc.get('inicial'): _todos_status.add(_sc['inicial'])
-        for _,_to in (_sc.get('mudancas') or []): _todos_status.add(_to)
-    if x['status']: _todos_status.add(x['status'])
 _status_count_atual=collections.Counter(x['status'] for x in sweep if x['status'])
-status_kanban_ordem=sorted(_todos_status,key=lambda s:(-_status_count_atual.get(s,0),s))
+status_kanban_ordem=sorted(_status_count_atual,key=lambda s:(-_status_count_atual[s],s))
 
 _cards_por_dev=collections.defaultdict(list)
 for x in sweep:
