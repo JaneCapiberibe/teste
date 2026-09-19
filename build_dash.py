@@ -1088,6 +1088,12 @@ function prioBadge(p){
   const [bg,fg]=map[p]||['var(--surface-2)','var(--text-3)'];
   return `<span class="badge" style="background:${bg};color:${fg}">${p||'—'}</span>`;
 }
+// Status atual do card (mesmo x['status'] usado em todo o resto do dashboard) — badge neutro
+// (o status não tem uma cor semântica já padronizada no dashboard, diferente de prioridade),
+// usado na lista de cards do card "Ciclo de vida" (Desenvolvedores).
+function statusBadge(s){
+  return `<span class="badge" style="background:var(--surface-2);color:var(--text-2)">${s||'—'}</span>`;
+}
 // filtroResp opcional (usado pelo módulo Desenvolvedores, clique em "Em desenvolvimento
 // agora" — reaproveita esta mesma lista/lógica, só filtrando as linhas, sem recriar nada).
 function devsEmDesenvolvimento(filtroResp){
@@ -1242,11 +1248,12 @@ function cvLista(dev){
   const D=DATA.devs, mj=D.pessoas[dev].metrics_jira, cur=curSafra();
   const cv=(mj.ciclo_vida||{})[cur]||{cards:[],repasses:[]};
   const tabela=!cv.cards.length?`<div class="note">Nenhum card de ${dev} com mudança de status em ${mesLbl(cur)}.</div>`
-    :`<table><thead><tr><th>Card</th><th>Módulo</th><th>Prioridade</th><th>Histórico do mês</th></tr></thead><tbody>${
+    :`<table><thead><tr><th>Card</th><th>Módulo</th><th>Prioridade</th><th>Status atual</th><th>Histórico do mês</th></tr></thead><tbody>${
       cv.cards.map(c=>`<tr>
         <td><a class="jira-link" href="${c.url}" target="_blank" rel="noopener">${c.key}</a></td>
         <td>${c.modulo||'—'}</td>
         <td>${prioBadge(c.prio)}</td>
+        <td>${statusBadge(c.status)}</td>
         <td style="font-size:12px;color:var(--text-2)">${c.historico}</td>
       </tr>`).join('')}</tbody></table>`;
   const repasses=!cv.repasses.length?'':`<div class="kpi-label" style="margin:16px 0 6px">Observações — repasses</div>
