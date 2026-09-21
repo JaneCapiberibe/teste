@@ -1,0 +1,120 @@
+name: "[TEMP] Investigação: schema do projeto BACKOFFICE"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  investigar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Investigar schema do projeto BACKOFFICE (sem alterar nenhum arquivo do pipeline)
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: |
+          python3 -c "
+          import sys, json, collections, requests
+          sys.path.insert(0, '.')
+          import fetch_jira as fj
+
+          HEAD = fj._auth_headers()
+          BASE = fj.BASE
+
+          def linha(t=''): print('\n' + '='*8 + ' ' + t + ' ' + '='*8)
+
+          # ---- 0) mapa customfield id -> nome legivel (pra interpretar campos de modulo/equipe) ----
+          linha('MAPA DE CAMPOS (id -> nome)')
+          r = requests.get(f'{BASE}/rest/api/3/field', headers=HEAD, timeout=30)
+          field_names = {f['id']: f['name'] for f in r.json()} if r.ok else {}
+          print('ok:', r.ok, '| total campos no site:', len(field_names))
+
+          # ---- 1) amostra com TODOS os campos, pra descobrir customfields usados no BACKOFFICE ----
+          linha('AMOSTRA COM TODOS OS CAMPOS (5 issues) — pra achar modulo/equipe/etc')
+          body = {'jql': 'project = BACKOFFICE ORDER BY created DESC', 'fields': ['*all'], 'maxResults': 5}
+          r = requests.post(f'{BASE}/rest/api/3/search/jql', headers=HEAD, data=json.dumps(body), timeout=30)
+          amostra = r.json().get('issues', []) if r.ok else []
+          print('ok:', r.ok, '| amostra:', len(amostra))
+          if amostra:
+              # campos customfield_* preenchidos (não-nulos) em pelo menos 1 issue da amostra
+              cf_preenchidos = set()
+              for i in amostra:
+                  for k, v in i.get('fields', {}).items():
+                      if k.startswith('customfield_') and v not in (None, [], ''):
+                          cf_preenchidos.add(k)
+              print('customfields preenchidos na amostra (id: nome: valor de exemplo):')
+              for cf in sorted(cf_preenchidos):
+                  exemplo = next((i['fields'][cf] for i in amostra if i['fields'].get(cf) not in (None, [], '')), None)
+                  print(f'  {cf} ({field_names.get(cf, \"?\")}): {json.dumps(exemplo, ensure_ascii=False)[:200]}')
+              print()
+              print('customfield_10073 (módulo no BUG) em BACKOFFICE:', [i['fields'].get('customfield_10073') for i in amostra])
+              print('primeiro issue key/itype/status pra referência:', amostra[0]['key'], amostra[0]['fields']['issuetype']['name'], amostra[0]['fields']['status']['name'])
+
+          # ---- 2) amostra grande (6 meses) com os MESMOS campos usados no pipeline do BUG ----
+          linha('AMOSTRA 6 MESES (mesmos campos do pipeline atual)')
+          issues = fj.fetch_all(jql='project = BACKOFFICE AND created >= -180d ORDER BY created DESC')
+          print('total issues (6 meses):', len(issues))
+          recs = [fj.norm(i, []) for i in issues]
+
+          itype_c = collections.Counter(r['itype'] for r in recs)
+          status_c = collections.Counter(r['status'] for r in recs)
+          res_c = collections.Counter(r['res'] for r in recs)
+          assignee_c = collections.Counter(r['assignee'] for r in recs)
+          ts_filled = sum(1 for r in recs if isinstance(r['timespent'], (int, float)) and r['timespent'])
+          avatar_filled = sum(1 for r in recs if r['assignee_avatar'])
+          mod_filled = sum(1 for r in recs if r['modulo'])
+
+          linha('1) TIPOS DE ISSUE')
+          for k, v in itype_c.most_common(): print(f'  {k!r}: {v}')
+
+          linha('2) STATUS')
+          for k, v in status_c.most_common(): print(f'  {k!r}: {v}')
+
+          linha('3) ASSIGNEE — preenchimento e nomes (BACKOFFICE)')
+          print(f'avatar preenchido: {avatar_filled}/{len(recs)}')
+          print(f'pessoas distintas ({len(assignee_c)}):')
+          for k, v in assignee_c.most_common(): print(f'  {k!r}: {v}')
+
+          linha('3b) ASSIGNEE — projeto BUG (6 meses, pra comparar nomes)')
+          issues_bug = fj.fetch_all(jql='project = BUG AND created >= -180d ORDER BY created DESC')
+          assignee_bug = collections.Counter(fj.norm(i, [])['assignee'] for i in issues_bug)
+          print(f'pessoas distintas no BUG (6 meses): {len(assignee_bug)}')
+          so_backoffice = set(assignee_c) - set(assignee_bug)
+          so_bug = set(assignee_bug) - set(assignee_c)
+          ambos = set(assignee_c) & set(assignee_bug)
+          print('EM AMBOS os projetos (nome exatamente igual):', sorted(ambos))
+          print('SÓ no BACKOFFICE:', sorted(so_backoffice))
+          print('SÓ no BUG (não aparecem no BACKOFFICE):', sorted(so_bug))
+
+          linha('4) RESOLUTION')
+          for k, v in res_c.most_common(): print(f'  {k!r}: {v}')
+
+          linha('5) TIMESPENT preenchido')
+          print(f'{ts_filled}/{len(recs)} ({round(100*ts_filled/len(recs)) if recs else 0}%)')
+
+          linha('7) MÓDULO (customfield_10073, mesmo campo do BUG)')
+          print(f'preenchido: {mod_filled}/{len(recs)}')
+          print('valores distintos:', collections.Counter(r['modulo'] for r in recs if r['modulo']).most_common())
+
+          # ---- 6) changelog: testa fetch_changelogs (mesma chamada de evolucao_bugs.py/fetch_jira.py) ----
+          linha('6) CHANGELOG (expand via /changelog/bulkfetch, mesma chamada do pipeline)')
+          amostra_ids = [i.get('id') for i in issues[:8]]
+          changelogs, iniciais = fj.fetch_changelogs(amostra_ids)
+          print(f'changelogs retornados: {len(changelogs)}/{len(amostra_ids)} ids pedidos')
+          for i in issues[:8]:
+              iid = i.get('id'); key = i.get('key')
+              muds = changelogs.get(iid, [])
+              print(f'  {key}: inicial={iniciais.get(iid)!r} | {len(muds)} mudanca(s) de status' + (f' | ex: {muds[:3]}' if muds else ''))
+          "
