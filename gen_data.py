@@ -1139,7 +1139,7 @@ def _ciclo_vida_mes(dev,ym):
     ini,fim=_mes_bounds(ym)
     ini_ep=datetime.datetime.combine(ini,datetime.time(0,0,0),tzinfo=TZ_BR).timestamp()
     fim_ep=datetime.datetime.combine(fim,datetime.time(23,59,59),tzinfo=TZ_BR).timestamp()
-    cards=[]
+    cards=[]; vistos=set()
     for x in _cards_por_dev.get(dev,[]):
         sc=_status_changelog.get(x['key'])
         if not sc: continue
@@ -1147,6 +1147,24 @@ def _ciclo_vida_mes(dev,ym):
         if hist is None: continue
         cards.append({'key':x['key'],'url':f"{d['jira_base']}/browse/{x['key']}",
                       'modulo':x['m'],'prio':x['prio'],'status':x['status'],'origem':x['origem'],'historico':hist})
+        vistos.add(x['key'])
+    if ym==cur_m:
+        # NOVO (a pedido da Jane, 21/09/2026): card ainda em "Em Desenvolvimento" conta no Ciclo
+        # de vida da safra ATUAL mesmo sem mudança de status neste mês — está sendo trabalhado
+        # agora, não faz sentido sumir da lista só porque a última transição de status foi num
+        # mês anterior (ex.: entrou em Em Desenvolvimento em julho, segue lá em setembro sem
+        # nenhuma atualização — antes ficava de fora do Ciclo de vida de setembro mesmo contando
+        # em "Em desenvolvimento agora", causando um "Em dev agora" bem maior que o Ciclo de
+        # vida). Só vale pra safra ATUAL (mês corrente real, `cur_m`) — "em desenvolvimento
+        # agora" é sempre um retrato AO VIVO, não faz sentido reaplicar isso a um mês passado já
+        # fechado (o card pode nem estar mais em Em Desenvolvimento hoje).
+        for x in _cards_por_dev.get(dev,[]):
+            if x['key'] in vistos or x['status']!='Em Desenvolvimento': continue
+            edt=x.get('em_dev_data')
+            hist=(f'sem mudança de status neste mês — em Em Desenvolvimento desde {_fmt_dmy(edt)} (atual)'
+                  if edt else 'Em Desenvolvimento (atual)')
+            cards.append({'key':x['key'],'url':f"{d['jira_base']}/browse/{x['key']}",
+                          'modulo':x['m'],'prio':x['prio'],'status':x['status'],'origem':x['origem'],'historico':hist})
     return cards,ini_ep,fim_ep
 
 def _repasses_mes(dev,ini_ep,fim_ep):
