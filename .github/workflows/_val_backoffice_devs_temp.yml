@@ -79,15 +79,3 @@ jobs:
                   if reps:
                       print('  repasses:', reps)
           "
-
-      - name: Dump cru completo de metrics_jira (Higor Melo / Mauricio Ribeiro) para conferência manual
-        if: always()
-        run: |
-          python3 -c "
-          import json, pprint
-          d = json.load(open('dash_data_DEPOIS.json'))
-          for pessoa in ('Higor Melo', 'Mauricio Ribeiro'):
-              print('===', pessoa, '(DEPOIS, completo) ===')
-              pprint.pprint(d['devs']['pessoas'].get(pessoa))
-              print()
-          "
