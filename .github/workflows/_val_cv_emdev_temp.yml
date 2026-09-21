@@ -1,0 +1,78 @@
+name: "[TEMP] Validação: Ciclo de vida conta Em Desenvolvimento na safra atual"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Puxar do Jira (BUG + BACKOFFICE)
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: python fetch_jira.py
+
+      - name: Gerar dash_data.json
+        run: python gen_data.py
+
+      - name: Comparar Concluidos + Em dev agora x Ciclo de vida (por status) — pós-fix
+        run: |
+          python3 -c "
+          import json, collections
+
+          d = json.load(open('dash_data.json'))
+          devs = d['devs']
+          ultimo = devs['meses'][-1]
+          print('safra em foco:', ultimo)
+          print()
+
+          linhas = []
+          for pessoa, p in devs['pessoas'].items():
+              mj = p['metrics_jira']
+              k = mj.get('kpi_por_mes', {}).get(ultimo, {})
+              conc = k.get('concluidos', 0) or 0
+              emdev = mj.get('em_dev_agora', 0) or 0
+              cv = mj.get('ciclo_vida', {}).get(ultimo, {})
+              n = cv.get('n', 0) or 0
+              cards = cv.get('cards', [])
+              status_count = collections.Counter(c['status'] for c in cards)
+              diff = n - (conc + emdev)
+              linhas.append((pessoa, conc, emdev, n, diff, dict(status_count)))
+
+          linhas.sort(key=lambda t: -abs(t[4]))
+          print(f'{\"pessoa\":<35} {\"conc\":>5} {\"emdev\":>6} {\"ciclo_n\":>8} {\"diff\":>5}')
+          for pessoa, conc, emdev, n, diff, sc in linhas:
+              print(f'{pessoa:<35} {conc:>5} {emdev:>6} {n:>8} {diff:>5}   status={sc}')
+          "
+
+      - name: Detalhe de Josue Cortes (caso que motivou a mudança)
+        run: |
+          python3 -c "
+          import json
+          d = json.load(open('dash_data.json'))
+          devs = d['devs']
+          ultimo = devs['meses'][-1]
+          p = devs['pessoas'].get('Josue Cortes')
+          if not p:
+              print('Josue Cortes nao encontrado'); raise SystemExit
+          mj = p['metrics_jira']
+          print('em_dev_agora:', mj.get('em_dev_agora'))
+          cv = mj.get('ciclo_vida', {}).get(ultimo, {})
+          print('ciclo_vida n:', cv.get('n'))
+          for c in cv.get('cards', []):
+              print('  -', c['key'], 'origem=', c.get('origem'), 'status=', c['status'], '| historico:', c['historico'])
+          "
