@@ -1,0 +1,93 @@
+name: "[TEMP] Validação: BACKOFFICE no módulo Desenvolvedores"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Puxar do Jira (BUG + BACKOFFICE)
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: python fetch_jira.py
+
+      - name: Gerar dash_data.json DEPOIS (BUG + BACKOFFICE)
+        run: python gen_data.py && cp dash_data.json dash_data_DEPOIS.json
+
+      - name: Gerar dash_data.json ANTES (só BUG, sem sweep_backoffice.json)
+        run: |
+          mv sweep_backoffice.json sweep_backoffice.json.bak
+          python gen_data.py
+          cp dash_data.json dash_data_ANTES.json
+          mv sweep_backoffice.json.bak sweep_backoffice.json
+          python gen_data.py
+
+      - name: Comparar ANTES x DEPOIS para Higor Melo e Mauricio Ribeiro
+        run: |
+          python3 -c "
+          import json
+
+          antes = json.load(open('dash_data_ANTES.json'))
+          depois = json.load(open('dash_data_DEPOIS.json'))
+
+          def linha(t=''): print('\n' + '='*10 + ' ' + t + ' ' + '='*10)
+
+          linha('AVATARES (devem ser idênticos ANTES/DEPOIS)')
+          print('ANTES  ordem:', antes['devs']['ordem'])
+          print('DEPOIS ordem:', depois['devs']['ordem'])
+          print('idênticos:', antes['devs']['ordem'] == depois['devs']['ordem'])
+          print('meses (DEPOIS):', depois['devs']['meses'])
+
+          for pessoa in ('Higor Melo', 'Mauricio Ribeiro'):
+              linha(f'PESSOA: {pessoa}')
+              for label, d in (('ANTES (só BUG)', antes), ('DEPOIS (BUG+BACKOFFICE)', depois)):
+                  p = d['devs']['pessoas'].get(pessoa)
+                  print(f'--- {label} ---')
+                  if not p:
+                      print('  NÃO APARECE NA GRADE'); continue
+                  mj = p['metrics_jira']
+                  meses = sorted(mj.get('kpi_por_mes', {}).keys())
+                  ultimo = meses[-1] if meses else None
+                  k = mj['kpi_por_mes'].get(ultimo, {}) if ultimo else {}
+                  print('  safra mais recente:', ultimo)
+                  print('  concluidos:', k.get('concluidos'), '| keys:', k.get('concluidos_keys'))
+                  print('  esforco_h:', k.get('esforco_h'))
+                  print('  mttr:', k.get('mttr'), '| mttr_n:', k.get('mttr_n'), '| n_periodo:', k.get('n_periodo'))
+                  print('  em_dev_agora:', mj.get('em_dev_agora'))
+                  print('  evolucao.concluidos (por mes, na ordem de devs.meses):', mj.get('evolucao', {}).get('concluidos'))
+                  cv = mj.get('ciclo_vida', {})
+                  cv_ultimo = cv.get(ultimo, {}) if ultimo else {}
+                  print(f'  ciclo_vida[{ultimo!r}]: n={cv_ultimo.get(\"n\")} keys={cv_ultimo.get(\"keys\")}')
+                  for c in cv_ultimo.get('cards', []):
+                      print(f'    - {c[\"key\"]} origem={c.get(\"origem\")} modulo={c.get(\"modulo\")} status={c.get(\"status\")}')
+                  reps = cv_ultimo.get('repasses', [])
+                  if reps:
+                      print('  repasses:', reps)
+          "
+
+      - name: Dump cru completo de metrics_jira (Higor Melo / Mauricio Ribeiro) para conferência manual
+        if: always()
+        run: |
+          python3 -c "
+          import json, pprint
+          d = json.load(open('dash_data_DEPOIS.json'))
+          for pessoa in ('Higor Melo', 'Mauricio Ribeiro'):
+              print('===', pessoa, '(DEPOIS, completo) ===')
+              pprint.pprint(d['devs']['pessoas'].get(pessoa))
+              print()
+          "
