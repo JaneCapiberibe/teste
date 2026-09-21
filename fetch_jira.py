@@ -3,6 +3,15 @@ fetch_jira.py — puxa TODOS os bugs do Jira (projeto BUG) via API REST e gera o
 arquivos que o pipeline consome: sweep.json + jira_backlog.json + impedimentos_live.json
 + sobra_live.json + ni_assignee.json + status_changelog.json.
 
+Desde 21/09/2026 também puxa o projeto BACKOFFICE (mesmo esquema de status/changelog do BUG,
+confirmado em levantamento de schema com a Jane) e gera sweep_backoffice.json — arquivo
+separado, só consumido pelo módulo Desenvolvedores (gen_data.py soma as duas fontes por
+pessoa); o módulo Bugs e o resto do pipeline continuam 100% sweep.json/project=BUG, sem
+BACKOFFICE. status_changelog.json passa a ter as duas fontes juntas (key já inclui o prefixo
+do projeto — BUG-123 vs MB-456 — sem colisão). BACKOFFICE é fonte SECUNDÁRIA: se a busca falhar
+(0 issues), só avisa e mantém sweep_backoffice.json como estava — não derruba o pipeline
+inteiro (diferente do BUG, onde 0 issues sempre aborta a atualização).
+
 Credenciais via variáveis de ambiente (segredos do GitHub Actions):
   JIRA_BASE_URL   ex.: https://orcafascio.atlassian.net
   JIRA_EMAIL      seu e-mail do Atlassian
@@ -121,17 +130,17 @@ def fetch_changelogs(issue_ids):
         return {}, {}, {}
     return out, iniciais, assignee_out
 
-def fetch_all_com_retentativa(tentativas=3, espera_s=15):
-    """Chama fetch_all() com retentativas. O projeto BUG tem centenas de issues — uma resposta
+def fetch_all_com_retentativa(jql='project = BUG ORDER BY created ASC', tentativas=3, espera_s=15):
+    """Chama fetch_all(jql) com retentativas. Os projetos têm centenas de issues — uma resposta
     200 com 0 issues é sinal de instabilidade transitória da API do Jira (ou credencial/permissão
     ruim), nunca de que o projeto ficou vazio de verdade. Sem isso, um blip momentâneo já derrubou
     o pipeline (gen_data.py crasha mais na frente com um ValueError sem contexto)."""
     issues = []
     for tentativa in range(1, tentativas + 1):
-        issues = fetch_all()
+        issues = fetch_all(jql)
         if issues:
             return issues
-        print(f'aviso: tentativa {tentativa}/{tentativas} do Jira voltou com 0 issues.')
+        print(f'aviso: tentativa {tentativa}/{tentativas} do Jira ({jql!r}) voltou com 0 issues.')
         if tentativa < tentativas:
             time.sleep(espera_s)
     return issues
@@ -380,16 +389,19 @@ def build_outputs(recs):
           f'impedimentos: {len(imp)} | NI: {len(ni)}')
 
 def build_status_changelog(issues, changelogs, iniciais, recs_all, assignee_changelogs):
-    """status_changelog.json — histórico de status por card (key -> {'inicial':..., 'mudancas':
-    [[iso, status], ...], 'assignee_mudancas': [[iso, fromString, toString], ...]}), pra
-    gen_data.py reconstruir "em que status o card estava numa data X" (usado pela Carga real de
-    trabalho/Sobra, DECISÃO DE 10/09/2026 — congelada por mês fechado em
-    carga_modulo_cache.json, ver gen_data.py) e detectar repasse de responsável (card "Ciclo de
-    vida" do módulo Desenvolvedores, DECISÃO DE 18/09/2026 — assignee_mudancas). Gerado pra
-    TODOS os issues puxados (antes do filtro de BUG_TYPES) — sem custo real (é só serialização
-    do changelog já buscado em fetch_changelogs, nenhuma chamada extra ao Jira) e evita qualquer
-    desalinhamento entre `issues` e `recs` se o filtro mudar no futuro; gen_data.py só olha as
-    chaves que existem em sweep.json de qualquer forma."""
+    """Monta (sem gravar arquivo — quem chama decide onde/quando gravar, pra dar pra juntar o
+    changelog de mais de um projeto no mesmo status_changelog.json) o histórico de status por
+    card (key -> {'inicial':..., 'mudancas': [[iso, status], ...], 'assignee_mudancas':
+    [[iso, fromString, toString], ...]}), pra gen_data.py reconstruir "em que status o card
+    estava numa data X" (usado pela Carga real de trabalho/Sobra, DECISÃO DE 10/09/2026 —
+    congelada por mês fechado em carga_modulo_cache.json, ver gen_data.py) e detectar repasse de
+    responsável (card "Ciclo de vida" do módulo Desenvolvedores, DECISÃO DE 18/09/2026 —
+    assignee_mudancas). Gerado pra TODOS os issues puxados (antes de qualquer filtro de tipo) —
+    sem custo real (é só serialização do changelog já buscado em fetch_changelogs, nenhuma
+    chamada extra ao Jira) e evita qualquer desalinhamento entre `issues` e `recs` se o filtro
+    mudar no futuro; gen_data.py só olha as chaves que existem em sweep*.json de qualquer forma.
+    `key` já inclui o prefixo do projeto (BUG-123, MB-456) — sem colisão entre projetos diferentes
+    no mesmo arquivo."""
     out = {}
     for i, r in zip(issues, recs_all):
         iid = i.get('id')
@@ -400,28 +412,60 @@ def build_status_changelog(issues, changelogs, iniciais, recs_all, assignee_chan
             inicial = r['status']  # nunca mudou de status — o status atual É o inicial
         amud = [[_epoch_iso(ep), frm, to] for ep, frm, to in (assignee_changelogs.get(iid) or []) if ep is not None]
         out[r['key']] = {'inicial': inicial, 'mudancas': mudancas, 'assignee_mudancas': amud}
-    json.dump(out, open('status_changelog.json', 'w'), ensure_ascii=False)
     return out
 
-if __name__ == '__main__':
-    print('Puxando do Jira...')
-    issues = fetch_all_com_retentativa()
+def puxar_projeto(jql, obrigatorio, label):
+    """Puxa issues + changelog (status e assignee) de um projeto via `jql`. `obrigatorio=True`
+    levanta RuntimeError se vier 0 issues após retentativas (mesmo comportamento histórico do
+    projeto BUG — 0 issues nunca é o estado real, é sinal de falha de credencial/permissão).
+    `obrigatorio=False` (ex.: BACKOFFICE, fonte secundária só pro módulo Desenvolvedores) só
+    avisa e devolve ([], {}) — não derruba o pipeline inteiro (Bugs e os outros módulos, que não
+    dependem desse projeto, continuam publicando normalmente)."""
+    issues = fetch_all_com_retentativa(jql=jql)
     if not issues:
-        raise RuntimeError(
-            'O Jira retornou 0 issues do projeto BUG mesmo após retentativas — isso não é '
-            'esperado (a base tem centenas de bugs). Abortando SEM sobrescrever sweep.json/'
-            'jira_backlog.json/etc. Prováveis causas: JIRA_BASE_URL, JIRA_EMAIL ou '
-            'JIRA_API_TOKEN inválidos/expirados, ou perda de permissão de acesso ao projeto '
-            'BUG. Confira os segredos em Settings > Secrets and variables > Actions.'
-        )
-    print('Puxando changelog (histórico de status) em lote...')
+        msg = (f'O Jira retornou 0 issues de {label!r} mesmo após retentativas. Prováveis causas: '
+               f'JIRA_BASE_URL/JIRA_EMAIL/JIRA_API_TOKEN inválidos, ou perda de permissão de acesso.')
+        if obrigatorio:
+            raise RuntimeError(msg + ' Abortando SEM sobrescrever sweep.json/jira_backlog.json/etc.')
+        print(f'aviso: {msg} sweep_backoffice.json NÃO será atualizado nesta rodada '
+              f'(módulo Desenvolvedores segue com o último dado válido do BACKOFFICE).')
+        return [], {}
+    print(f'Puxando changelog (histórico de status) em lote — {label}...')
     changelogs, iniciais, assignee_changelogs = fetch_changelogs([i.get('id') for i in issues])
     recs_all = [norm(i, changelogs.get(i.get('id'))) for i in issues]
-    build_status_changelog(issues, changelogs, iniciais, recs_all, assignee_changelogs)
+    status_changelog = build_status_changelog(issues, changelogs, iniciais, recs_all, assignee_changelogs)
+    return recs_all, status_changelog
+
+def build_sweep_backoffice(recs):
+    """sweep_backoffice.json — MESMO formato/campos de sweep.json (build_outputs acima), pro
+    projeto BACKOFFICE. Arquivo próprio (não mistura com sweep.json) — módulo Bugs continua só
+    project=BUG; só o módulo Desenvolvedores soma as duas fontes (gen_data.py). Sem filtro de
+    issuetype (diferente de BUG_TYPES no sweep.json principal) — os 3 tipos do projeto
+    (Sustentação BackOffice/Melhoria BackOffice/Nova função) contam todos, decisão confirmada
+    com a Jane em 21/09/2026 (levantamento de schema do projeto)."""
+    sweep_bo = [{k: r[k] for k in ('key', 'status', 'prio', 'itype', 'res', 'created', 'resolved', 'updated', 'timespent',
+                 'modulo', 'assignee', 'assignee_avatar', 'concluido_mes', 'em_dev_data', 'entrega_data',
+                 'nao_iniciado_data', 'producao_data', 'done_pos_producao_data',
+                 'card_revisado')} for r in recs]
+    json.dump(sweep_bo, open('sweep_backoffice.json', 'w'), ensure_ascii=False)
+    print(f'  sweep_backoffice: {len(sweep_bo)} issues')
+
+if __name__ == '__main__':
+    print('Puxando do Jira (BUG)...')
+    recs_all, status_changelog = puxar_projeto('project = BUG ORDER BY created ASC', obrigatorio=True, label='BUG')
     fora_do_tipo = sum(1 for r in recs_all if r['itype'] not in BUG_TYPES)
     if fora_do_tipo:
         print(f'  aviso: {fora_do_tipo} issue(s) do painel BUG fora de BUG_TYPES '
               f'(nem Bug Cliente/QA/Dev/Backoffice) — excluído(s) de sweep.json.')
     recs = [r for r in recs_all if r['itype'] in BUG_TYPES]
     build_outputs(recs)
+
+    print('Puxando do Jira (BACKOFFICE)...')
+    recs_all_bo, status_changelog_bo = puxar_projeto('project = BACKOFFICE ORDER BY created ASC',
+                                                       obrigatorio=False, label='BACKOFFICE')
+    status_changelog.update(status_changelog_bo)  # keys já vêm com o prefixo do projeto — sem colisão
+    if recs_all_bo:
+        build_sweep_backoffice(recs_all_bo)
+
+    json.dump(status_changelog, open('status_changelog.json', 'w'), ensure_ascii=False)
     print('OK — arquivos gerados.')

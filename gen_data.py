@@ -849,21 +849,57 @@ if os.path.exists('impedimentos_live.json'):
 # Grade de avatares + painel de detalhe por pessoa (dados só, sem gestão de pessoas — 1:1,
 # feedback, plano de carreira ficam engavetados, aguardando decisão de arquitetura futura).
 #
-# Escopo de Esforço/MTTR pessoal: sweep (base líquida), MESMA régua de "Qualidade por
-# módulo"/"Carga por squad" — cards CRIADOS no período. "Concluídos" (CORRIGIDO EM 18/09/2026,
-# a pedido da Jane — antes usava coorte de criação por engano, igual ao gráfico "Evolução mês a
-# mês" já corrigia) usa a RÉGUA OFICIAL de evol_modulo/_elegivel_evol/_mes_concluido: conta pelo
-# mês da 1ª transição pra "Em produção" (changelog), não pelo mês de criação do card — um bug
-# criado em agosto e entregue em setembro conta como "concluído de setembro" de quem entregou,
-# nunca como concluído do mês em que foi criado. "Em desenvolvimento agora" é sempre o estado
-# atual (sem recorte de mês).
+# FONTE COMBINADA (BUG + BACKOFFICE) — NOVO EM 21/09/2026, a pedido da Jane, só pra este
+# módulo (Bugs continua 100% sweep/project=BUG, sem BACKOFFICE — nenhuma mudança lá). Base
+# líquida do BACKOFFICE espelha a de sweep: `sweep` já exclui Cancelado QA de sweep_full;
+# aqui exclui resolution "Não Pode Reproduzir" de sweep_backoffice_full — EQUIVALÊNCIA
+# CONFIRMADA com a Jane no levantamento de schema (21/09/2026): "não é trabalho real", mesmo
+# espírito de Cancelado QA. "Itens concluídos" conta normalmente (é uma entrega). Não existe
+# "Cancelado Dev" nesse projeto — nenhuma lógica correspondente é aplicada a ele. Mesmo esquema
+# de status/changelog do BUG (confirmado no mesmo levantamento — nomes de status idênticos,
+# formato de changelog idêntico), então `_status_changelog` (já carregado acima, com as DUAS
+# fontes juntas — fetch_jira.py grava tudo no mesmo status_changelog.json, key com prefixo do
+# projeto sem colisão) funciona pra card de qualquer uma das duas sem nenhuma tradução de nome.
+sweep_backoffice_full=json.load(open('sweep_backoffice.json')) if os.path.exists('sweep_backoffice.json') else []
+for x in sweep_backoffice_full:
+    x['c']=pdt(x['created']); x['r']=pdt(x['resolved']); x['m']=mn(x['modulo'])
+    x['u']=pdt(x.get('updated'))
+RES_EXCLUI_BACKOFFICE={'Não Pode Reproduzir'}
+sweep_backoffice=[x for x in sweep_backoffice_full if x['res'] not in RES_EXCLUI_BACKOFFICE]
+def _tag_origem(cards,origem):
+    return [dict(x,origem=origem) for x in cards]
+# sweep_dev/sweep_dev_full: MESMO papel de sweep/sweep_full, só que somando as duas fontes —
+# usados em TODO o resto do módulo Desenvolvedores no lugar de sweep/sweep_full. devs_ordem/
+# devs_total/devs_avatar (grade de avatares) continuam em `sweep` (só BUG) de propósito — a
+# Jane confirmou que todo mundo do BACKOFFICE já aparece no BUG, e a grade deve continuar
+# baseada só no BUG mesmo que isso mude no futuro.
+sweep_dev=_tag_origem(sweep,'BUG')+_tag_origem(sweep_backoffice,'BACKOFFICE')
+sweep_dev_full=_tag_origem(sweep_full,'BUG')+_tag_origem(sweep_backoffice_full,'BACKOFFICE')
+def _elegivel_dev(x):
+    """Equivalente a _elegivel_evol, mas pro escopo combinado do módulo Desenvolvedores (sem o
+    filtro de itype — sweep.json/sweep_backoffice.json já vêm com o escopo certo de cada
+    projeto: BUG_TYPES pro BUG, os 3 tipos do BACKOFFICE, todos contam). Resolução excluída
+    depende da origem (RES_EXCLUI_ACUM pro BUG, RES_EXCLUI_BACKOFFICE pro BACKOFFICE); status
+    excluído (Backlog/Impedimento Produto) é o mesmo pros dois — mesmo esquema de status."""
+    res_exclui=RES_EXCLUI_ACUM if x['origem']=='BUG' else RES_EXCLUI_BACKOFFICE
+    return x['res'] not in res_exclui and x['status'] not in STATUS_EXCLUI_ACUM
+#
+# Escopo de Esforço/MTTR pessoal: sweep_dev (base líquida combinada, BUG + BACKOFFICE), MESMA
+# régua de "Qualidade por módulo"/"Carga por squad" — cards CRIADOS no período. MTTR é tirado
+# do conjunto UNIFICADO das duas fontes (uma mediana só, não duas somadas/mediadas). "Concluídos"
+# (CORRIGIDO EM 18/09/2026, a pedido da Jane — antes usava coorte de criação por engano, igual ao
+# gráfico "Evolução mês a mês" já corrigia) usa a RÉGUA OFICIAL de evol_modulo/_elegivel_dev/
+# _mes_concluido: conta pelo mês da 1ª transição pra "Em produção" (changelog), não pelo mês de
+# criação do card — um bug criado em agosto e entregue em setembro conta como "concluído de
+# setembro" de quem entregou, nunca como concluído do mês em que foi criado. "Em desenvolvimento
+# agora" é sempre o estado atual (sem recorte de mês), também somando as duas fontes.
 #
 # Estrutura pensada pra abrir espaço no futuro sem reestruturar: cada pessoa é um objeto com
 # uma seção 'metrics_jira' — outras seções (gestão de pessoas, hoje engavetada) podem ser
 # acrescentadas ao lado dela depois. Nenhum campo futuro é criado agora.
 def _dev_cards(assignee,ini,fim=None):
     if fim is None: fim=ini
-    return [x for x in sweep if x['c'] and x.get('assignee')==assignee and ini<=x['c'].strftime('%Y-%m')<=fim]
+    return [x for x in sweep_dev if x['c'] and x.get('assignee')==assignee and ini<=x['c'].strftime('%Y-%m')<=fim]
 def _dev_esforco_h(cards):
     seg=sum(x['timespent'] for x in cards if isinstance(x['timespent'],(int,float))
             and x['status'] not in STATUS_EXCLUI_ESFORCO and x['res']!='Cancelado Dev')
@@ -873,7 +909,7 @@ def _dev_mttr_dias(cards):
     return (round(statistics.median(vals),1) if vals else None),len(vals)
 def _time_mttr_dias(ini,fim=None):
     if fim is None: fim=ini
-    vals=[busdays(x['c'].date(),pdt(x['entrega_data']).date()) for x in sweep
+    vals=[busdays(x['c'].date(),pdt(x['entrega_data']).date()) for x in sweep_dev
           if x['c'] and ini<=x['c'].strftime('%Y-%m')<=fim and pdt(x.get('entrega_data'))]
     return round(statistics.median(vals),1) if vals else None
 def _ano_ant(ym):
@@ -884,14 +920,15 @@ def _dev_periodo(dev,ini,fim=None):
     return {'esforco_h':_dev_esforco_h(cards),'mttr':mttr,'mttr_n':mttr_n,'n_periodo':len(cards)}
 
 # "Concluídos" (KPI + comparação "vs mesmo período do ano anterior") e "Evolução mês a mês" —
-# MESMA régua OFICIAL de evol_modulo (_elegivel_evol/_mes_concluido: mês da 1ª entrada em "Em
-# produção" via changelog, não importa quando o card foi criado), agrupada por assignee em vez
-# de módulo. sweep_full porque _elegivel_evol já faz a própria exclusão de Cancelado QA/Dev e
-# status atual Impedimento Produto/Backlog.
+# MESMA régua OFICIAL de evol_modulo (_mes_concluido: mês da 1ª entrada em "Em produção" via
+# changelog, não importa quando o card foi criado), agrupada por assignee em vez de módulo,
+# somando BUG + BACKOFFICE (_elegivel_dev/sweep_dev_full acima — NOVO 21/09/2026). sweep_dev_full
+# porque _elegivel_dev já faz a própria exclusão de resolução (Cancelado QA/Dev pro BUG, Não Pode
+# Reproduzir pro BACKOFFICE) e status atual Impedimento Produto/Backlog.
 _edev_e=collections.defaultdict(lambda:collections.Counter())
 _edev_ek=collections.defaultdict(lambda:collections.defaultdict(list))
-for x in sweep_full:
-    if not _elegivel_evol(x): continue
+for x in sweep_dev_full:
+    if not _elegivel_dev(x): continue
     a=x.get('assignee')
     if not a: continue
     mc=_mes_concluido(x)
@@ -914,7 +951,22 @@ devs_avatar={}
 for x in sweep:
     a=x.get('assignee')
     if a and a not in devs_avatar: devs_avatar[a]=x.get('assignee_avatar')
-devs_em_dev_count=collections.Counter(r['resp'] for r in d['em_dev_devs'])
+# "Em desenvolvimento agora" combinado (BUG + BACKOFFICE) — MESMO critério/campos de
+# d['em_dev_devs'] acima (status ATUAL "Em Desenvolvimento", sem recorte de safra), só que a
+# partir de sweep_dev em vez de sweep. Estrutura PRÓPRIA do módulo Desenvolvedores
+# (d['devs']['em_dev_combinado'], não d['em_dev_devs']) — o painel de Bugs ("Cards em
+# desenvolvimento por desenvolvedor") continua lendo só d['em_dev_devs'] (só BUG), sem alteração.
+em_dev_combinado=[]
+for x in sweep_dev:
+    if x['status']!='Em Desenvolvimento': continue
+    edt=pdt(x.get('em_dev_data'))
+    em_dev_combinado.append({'key':x['key'],'resp':x.get('assignee') or 'Sem responsável','avatar':x.get('assignee_avatar'),
+                    'prio':x['prio'] or '—','mod':x['m'],'origem':x['origem'],
+                    'data_entrada':edt.strftime('%d/%m/%Y') if edt else None,
+                    'dias':busdays(edt.date(),TODAY) if edt else None,
+                    'url':f"{d['jira_base']}/browse/{x['key']}"})
+em_dev_combinado.sort(key=lambda t:-(t['dias'] if t['dias'] is not None else -1))
+devs_em_dev_count=collections.Counter(r['resp'] for r in em_dev_combinado)
 # Última movimentação EFETIVA de cada pessoa — campo `updated` do Jira (atualizado a cada
 # transição de status/edição em qualquer card dela), MAX entre todos os cards atribuídos, sem
 # recorte de período. Usado só pra decidir em qual safra o card da pessoa aparece na grade do
@@ -965,7 +1017,11 @@ for dev in devs_ordem:
     }}
 
 # ==================== CICLO DE VIDA (card 5, painel de detalhe do Desenvolvedores) ====================
-# NOVO EM 18/09/2026, a pedido da Jane. 3 peças de dado:
+# NOVO EM 18/09/2026, a pedido da Jane. DESDE 21/09/2026, as 3 peças abaixo somam BUG +
+# BACKOFFICE (sweep_dev/sweep_dev_full, topo do módulo) — status_kanban_ordem, status_series e
+# ciclo_vida cobrem cards das duas fontes, cada card com 'origem' (BUG/BACKOFFICE) pra UI
+# identificar de qual projeto ele veio (mesmo esquema de status/changelog nos dois, sem
+# nenhuma tradução de nome). 3 peças de dado:
 #   1) status_kanban_ordem .... status com pelo menos 1 OCORRÊNCIA REAL (status atual de algum
 #      card de BUG_TYPES, ou destino de alguma transição no changelog) nos ÚLTIMOS 6 MESES —
 #      mesma janela "recente" já usada em outros pontos do dashboard (JANELAS_TENDENCIA/
@@ -1010,24 +1066,24 @@ _status_last_seen={}
 def _status_seen(s,dt):
     if not s or not dt: return
     if s not in _status_last_seen or dt>_status_last_seen[s]: _status_last_seen[s]=dt
-for x in sweep:
+for x in sweep_dev:
     _status_seen(x['status'],x['u'])
     _sc=_status_changelog.get(x['key'])
     if _sc:
         for _iso,_to in (_sc.get('mudancas') or []): _status_seen(_to,pdt(_iso))
-_status_count_atual=collections.Counter(x['status'] for x in sweep if x['status'])
+_status_count_atual=collections.Counter(x['status'] for x in sweep_dev if x['status'])
 status_kanban_ordem=sorted(
     (s for s,dt in _status_last_seen.items() if AGORA_BR-dt<=_STATUS_JANELA_RECENTE),
     key=lambda s:(-_status_count_atual.get(s,0),s))
 
 _cards_por_dev=collections.defaultdict(list)
-for x in sweep:
+for x in sweep_dev:
     a=x.get('assignee')
     if a: _cards_por_dev[a].append(x)
 
 _ds_cnt=collections.defaultdict(collections.Counter)
 _ds_keys=collections.defaultdict(lambda:collections.defaultdict(list))
-for x in sweep:
+for x in sweep_dev:
     a=x.get('assignee')
     if not a or not x['c']: continue
     ym=x['c'].strftime('%Y-%m')
@@ -1068,7 +1124,7 @@ def _historico_mes(sc,status_atual,ini_ep,fim_ep):
 # provavelmente automação/bulk-edit tocando o campo repetidamente sem mudar o valor final —
 # sem isso, a mesma observação de repasse aparecia repetida N vezes na UI.
 _cards_com_amud=[]
-for x in sweep:
+for x in sweep_dev:
     amud=(_status_changelog.get(x['key']) or {}).get('assignee_mudancas')
     if not amud: continue
     _seen=set(); _dedup=[]
@@ -1090,7 +1146,7 @@ def _ciclo_vida_mes(dev,ym):
         hist=_historico_mes(sc,x['status'],ini_ep,fim_ep)
         if hist is None: continue
         cards.append({'key':x['key'],'url':f"{d['jira_base']}/browse/{x['key']}",
-                      'modulo':x['m'],'prio':x['prio'],'status':x['status'],'historico':hist})
+                      'modulo':x['m'],'prio':x['prio'],'status':x['status'],'origem':x['origem'],'historico':hist})
     return cards,ini_ep,fim_ep
 
 def _repasses_mes(dev,ini_ep,fim_ep):
@@ -1131,7 +1187,7 @@ for dev in devs_ordem:
         pessoas[dev]['metrics_jira']['status_series']=dev_status_series[dev]
 
 d['devs']={'ordem':devs_ordem,'meses':meses,'pessoas':pessoas,'piso_amostra':PISO_AMOSTRA_SLA,
-           'status_kanban_ordem':status_kanban_ordem}
+           'status_kanban_ordem':status_kanban_ordem,'em_dev_combinado':em_dev_combinado}
 
 # ---- HISTÓRICO POR MÓDULO (criados bruto por módulo por mês) ----
 cellh=collections.defaultdict(lambda:collections.Counter()); toth=collections.Counter()
