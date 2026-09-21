@@ -25,7 +25,7 @@ jobs:
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
         run: |
-          python3 -c "
+          python3 -u -c "
           import sys, json, collections, requests
           sys.path.insert(0, '.')
           import fetch_jira as fj
@@ -110,11 +110,16 @@ jobs:
 
           # ---- 6) changelog: testa fetch_changelogs (mesma chamada de evolucao_bugs.py/fetch_jira.py) ----
           linha('6) CHANGELOG (expand via /changelog/bulkfetch, mesma chamada do pipeline)')
-          amostra_ids = [i.get('id') for i in issues[:8]]
-          changelogs, iniciais = fj.fetch_changelogs(amostra_ids)
-          print(f'changelogs retornados: {len(changelogs)}/{len(amostra_ids)} ids pedidos')
-          for i in issues[:8]:
-              iid = i.get('id'); key = i.get('key')
-              muds = changelogs.get(iid, [])
-              print(f'  {key}: inicial={iniciais.get(iid)!r} | {len(muds)} mudanca(s) de status' + (f' | ex: {muds[:3]}' if muds else ''))
+          try:
+              amostra_ids = [i.get('id') for i in issues[:8]]
+              changelogs, iniciais = fj.fetch_changelogs(amostra_ids)
+              print(f'changelogs retornados: {len(changelogs)}/{len(amostra_ids)} ids pedidos')
+              for i in issues[:8]:
+                  iid = i.get('id'); key = i.get('key')
+                  muds = changelogs.get(iid, [])
+                  print(f'  {key}: inicial={iniciais.get(iid)!r} | {len(muds)} mudanca(s) de status' + (f' | ex: {muds[:3]}' if muds else ''))
+          except Exception as e:
+              import traceback
+              print('ERRO na secao 6:', repr(e))
+              traceback.print_exc()
           "
