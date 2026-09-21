@@ -112,12 +112,13 @@ jobs:
           linha('6) CHANGELOG (expand via /changelog/bulkfetch, mesma chamada do pipeline)')
           try:
               amostra_ids = [i.get('id') for i in issues[:8]]
-              changelogs, iniciais = fj.fetch_changelogs(amostra_ids)
+              changelogs, iniciais, assignee_changelogs = fj.fetch_changelogs(amostra_ids)
               print(f'changelogs retornados: {len(changelogs)}/{len(amostra_ids)} ids pedidos')
               for i in issues[:8]:
                   iid = i.get('id'); key = i.get('key')
                   muds = changelogs.get(iid, [])
-                  print(f'  {key}: inicial={iniciais.get(iid)!r} | {len(muds)} mudanca(s) de status' + (f' | ex: {muds[:3]}' if muds else ''))
+                  amuds = assignee_changelogs.get(iid, [])
+                  print(f'  {key}: inicial={iniciais.get(iid)!r} | {len(muds)} mudanca(s) de status' + (f' | ex: {muds[:3]}' if muds else '') + f' | {len(amuds)} mudanca(s) de assignee' + (f' | ex: {amuds[:2]}' if amuds else ''))
           except Exception as e:
               import traceback
               print('ERRO na secao 6:', repr(e))
