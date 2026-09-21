@@ -1094,6 +1094,12 @@ function prioBadge(p){
 function statusBadge(s){
   return `<span class="badge" style="background:var(--surface-2);color:var(--text-2)">${s||'—'}</span>`;
 }
+// Origem do card (BUG/BACKOFFICE) — NOVO 21/09/2026, módulo Desenvolvedores soma as duas
+// fontes (gen_data.py). Mesmo padrão neutro de statusBadge (não é uma dimensão com cor
+// semântica já padronizada no dashboard).
+function origemBadge(o){
+  return `<span class="badge" style="background:var(--surface-2);color:var(--text-2)">${o||'—'}</span>`;
+}
 // filtroResp opcional (usado pelo módulo Desenvolvedores, clique em "Em desenvolvimento
 // agora" — reaproveita esta mesma lista/lógica, só filtrando as linhas, sem recriar nada).
 function devsEmDesenvolvimento(filtroResp){
@@ -1160,7 +1166,13 @@ function devKpiCards(dev){
   const periodoAnoTxt=acum?'no mesmo acumulado do ano passado':'no mesmo mês do ano passado';
   const anoTxt=k.concluidos_ano_anterior!=null?`vs ${k.concluidos_ano_anterior} ${periodoAnoTxt}`:'sem dado do ano anterior';
   const concKeys=(k.concluidos_keys||[]).join(',');
-  const emDevKeys=(DATA.em_dev_devs||[]).filter(r=>r.resp===dev).map(r=>r.key).join(',');
+  // "Em desenvolvimento agora" soma BUG + BACKOFFICE (NOVO 21/09/2026) — usa
+  // DATA.devs.em_dev_combinado (estrutura própria do módulo Desenvolvedores), não
+  // DATA.em_dev_devs (só BUG, usado pelo painel de Bugs "Cards em desenvolvimento por
+  // desenvolvedor" — sem alteração ali). Abre o Jira direto com "key in (...)" das duas
+  // fontes juntas; o próprio Jira já mostra o prefixo do projeto (BUG-123/MB-456) em cada
+  // resultado, então a identificação de origem já vem de graça nesse fluxo.
+  const emDevKeys=(D.em_dev_combinado||[]).filter(r=>r.resp===dev).map(r=>r.key).join(',');
   return `<div class="mh-kpis" style="margin-top:4px">
     <div class="mh-kpi clickable" data-keys="${concKeys}" onclick="abrirCardsBar(this)" title="Clique para ver os cards no Jira">
       <div class="mh-kpi-lbl">Concluídos${seloAno}</div>
@@ -1248,9 +1260,10 @@ function cvLista(dev){
   const D=DATA.devs, mj=D.pessoas[dev].metrics_jira, cur=curSafra();
   const cv=(mj.ciclo_vida||{})[cur]||{cards:[],repasses:[]};
   const tabela=!cv.cards.length?`<div class="note">Nenhum card de ${dev} com mudança de status em ${mesLbl(cur)}.</div>`
-    :`<table><thead><tr><th>Card</th><th>Módulo</th><th>Prioridade</th><th>Status atual</th><th>Histórico do mês</th></tr></thead><tbody>${
+    :`<table><thead><tr><th>Card</th><th>Origem</th><th>Módulo</th><th>Prioridade</th><th>Status atual</th><th>Histórico do mês</th></tr></thead><tbody>${
       cv.cards.map(c=>`<tr>
         <td><a class="jira-link" href="${c.url}" target="_blank" rel="noopener">${c.key}</a></td>
+        <td>${origemBadge(c.origem)}</td>
         <td>${c.modulo||'—'}</td>
         <td>${prioBadge(c.prio)}</td>
         <td>${statusBadge(c.status)}</td>
@@ -1264,7 +1277,7 @@ function cicloVidaExpandido(dev){
   const status=cvActiveStatus(dev);
   return `<div class="panel" style="margin-top:10px;background:var(--surface-2)">
     <div class="kpi-label" style="margin-bottom:10px">Ciclo de vida — ${dev}
-      <span class="info" data-tip="Nº de cards com assignee atual = ${dev} que tiveram QUALQUER mudança de status no changelog dentro do mês selecionado. Card repassado pra outra pessoa dentro do mês não conta aqui (assignee atual já não é mais ${dev}) — aparece em 'Observações — repasses' abaixo da lista. O gráfico de barras é independente do mês selecionado: mostra, pro status escolhido nos chips, todos os cards ATUAIS de ${dev} nesse status, por mês de criação (idade do trabalho).">i</span></div>
+      <span class="info" data-tip="Nº de cards (BUG + BACKOFFICE) com assignee atual = ${dev} que tiveram QUALQUER mudança de status no changelog dentro do mês selecionado. Card repassado pra outra pessoa dentro do mês não conta aqui (assignee atual já não é mais ${dev}) — aparece em 'Observações — repasses' abaixo da lista. O gráfico de barras é independente do mês selecionado: mostra, pro status escolhido nos chips, todos os cards ATUAIS de ${dev} nesse status (das duas fontes), por mês de criação (idade do trabalho). A coluna 'Origem' na lista abaixo mostra de qual projeto cada card veio.">i</span></div>
     ${cvChips(dev)}
     ${cvStatusChart(dev,status)}
     <div class="kpi-label" style="margin:16px 0 6px">Cards com atividade em ${mesLbl(curSafra())}</div>
@@ -1294,7 +1307,7 @@ function devEvolChart(dev){
     bars+=`<text x="${xs(i).toFixed(1)}" y="${(y-4).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="${col('--text-1')}">${v||''}</text>`;
   });
   const band=safraBand((i)=>xs(i),(W-2*P)/n,P,H);
-  return `<div style="font-size:12px;color:var(--text-2);margin:2px 0 8px">Bugs concluídos por mês (mês de <b>conclusão</b> via changelog — mesma régua de "Bug por módulo"). Barra clara = mês corrente, ainda em andamento; faixa azul = safra em foco. Clique numa barra p/ ver os cards no Jira.</div>
+  return `<div style="font-size:12px;color:var(--text-2);margin:2px 0 8px">Concluídos por mês, BUG + BACKOFFICE (mês de <b>conclusão</b> via changelog — mesma régua de "Bug por módulo"). Barra clara = mês corrente, ainda em andamento; faixa azul = safra em foco. Clique numa barra p/ ver os cards no Jira.</div>
     <svg viewBox="0 0 ${W} ${H}" width="100%">${band}${grid}${xl}${bars}</svg>`;
 }
 function renderDevsModule(){
@@ -1308,7 +1321,7 @@ function renderDevsModule(){
    <h2>${si('gauge-high')}Detalhe do desenvolvedor</h2>
    <div class="panel">
      <div class="kpi-label" style="margin-bottom:10px">${dev} — ${acum?`acumulado até ${mesLbl(curSafra())}`:`safra ${mesLbl(curSafra())}`}${acumToggle('devs')}
-       <span class="info" data-tip="Concluídos = bugs cujo assignee é a pessoa selecionada e cuja 1ª transição para 'Em produção' (changelog) aconteceu dentro do período selecionado — mesma régua oficial de 'Bug por módulo'/Evolução por módulo: mês de CONCLUSÃO, não de criação (um bug criado em agosto e entregue em setembro conta como concluído de setembro da pessoa que entregou). O gráfico de evolução abaixo usa exatamente essa mesma régua. Esforço (h) e MTTR pessoal continuam sobre cards CRIADOS no período (Esforço exclui Impedimento Dev/Produto e Cancelado Dev, mesma régua de 'Esforço por módulo'; MTTR = dias úteis entre criação e 1ª entrada em Em produção, comparado com a mediana do time no mesmo período). 'Em desenvolvimento agora' é sempre o estado atual. 'Ciclo de vida' sempre usa o mês selecionado (não segue o alternador Mês/Acumulado) — veja o card para detalhe.">i</span></div>
+       <span class="info" data-tip="Todos os números e gráficos deste painel somam o projeto BUG e o projeto BACKOFFICE (NOVO 21/09/2026 — a grade de avatares continua baseada só no BUG). Concluídos = cards cujo assignee é a pessoa selecionada e cuja 1ª transição para 'Em produção' (changelog) aconteceu dentro do período selecionado — mesma régua oficial de 'Bug por módulo'/Evolução por módulo: mês de CONCLUSÃO, não de criação (um bug criado em agosto e entregue em setembro conta como concluído de setembro da pessoa que entregou). O gráfico de evolução abaixo usa exatamente essa mesma régua. Esforço (h) e MTTR pessoal continuam sobre cards CRIADOS no período, tirados do conjunto combinado das duas fontes (Esforço exclui Impedimento Dev/Produto e Cancelado Dev; MTTR = dias úteis entre criação e 1ª entrada em Em produção, comparado com a mediana do time no mesmo período, também combinada). 'Em desenvolvimento agora' é sempre o estado atual. 'Ciclo de vida' sempre usa o mês selecionado (não segue o alternador Mês/Acumulado) — veja o card para detalhe.">i</span></div>
      ${devKpiCards(dev)}
      <div class="kpi-label" style="margin:18px 0 6px">Evolução mês a mês — bugs concluídos</div>
      ${devEvolChart(dev)}
