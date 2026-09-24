@@ -756,25 +756,34 @@ d['squads_acumulado_por_mes']={m:_squads_de([x for x in sweep if x['c'] and x['c
 
 # ---- FUNIL DE ENTREGA DO DEV — para CADA mês (safra) ----
 # RÉGUA DO FUNIL — só deste painel (build_funil/funilPanel), NÃO usada em mais nenhum
-# lugar do dashboard (não mexe em ENTREGUE/d['tot_series'] acima, nem em evolucao_bugs.py):
+# lugar do dashboard (não mexe em ENTREGUE/d['tot_series'] acima, nem em evolucao_bugs.py).
+# REORGANIZADO EM 24/09/2026, a pedido da Jane (mockup aprovado): corte de Backlog vira etapa
+# própria, ANTES do corte de Cancelado QA, e "confirmados" (pós todos os cortes) fica com nome
+# e destaque próprio — deve bater sempre com o "criado" de Bug por módulo/evolucao_bugs.py:
 #   1. Criados ....... TODOS os bugs criados no mês (sem excluir por resolução/status/tipo
 #                       de issue nesta etapa — mas sweep_full já não tem Chat de Suporte,
 #                       igual em toda a análise, então esse módulo continua fora).
-#   2. Cancelados dev  segmento próprio: dos que passaram pelo QA (não Cancelado QA), quantos
-#                       têm resolution == "Cancelado Dev" — DECISÃO DE 02/09/2026: agora sai
-#                       ANTES de "chegaram ao dev" (não depois), pra "chegaram ao dev" já vir
-#                       líquido de cancelamento — igual à régua oficial (Evolução por módulo/
-#                       evolucao_bugs.py), que sempre excluiu Cancelado Dev de "criados".
-#                       Antes esse card contava em "chegaram ao dev" e só saía no passo
-#                       seguinte — o que fazia esse painel divergir da régua oficial no mesmo
-#                       mês (achado ao comparar Diagnóstico do mês vs Evolução por módulo).
-#   3. Chegaram ao dev  criados − Cancelado QA − Cancelado Dev.
-#   4. Entregues ..... status ATUAL em ST_ENTREGUE_FUNIL (Em produção/Em Produção/Done/
+#   2. Backlog ....... segmento próprio: dos criados, quantos têm status ATUAL "Backlog" —
+#                       ainda não entraram no fluxo de dev, saem ANTES de tudo.
+#   3. Cancelados QA   dos que sobraram (pós-Backlog), quantos têm resolution == "Cancelado
+#                       QA" — descartado pelo QA, não é defeito de produto.
+#   4. Chegaram ao dev  criados − Backlog − Cancelado QA.
+#   5. Cancelados dev  dos que chegaram ao dev, quantos têm resolution == "Cancelado Dev" —
+#                       cancelamento real, já dentro do fluxo (DECISÃO DE 02/09/2026: sai
+#                       ANTES de "confirmados", não depois, mesmo espírito de antes).
+#   6. Confirmados ... chegaram ao dev − Cancelado Dev = MESMA régua oficial (Evolução por
+#                       módulo/evolucao_bugs.py: exclui Cancelado QA/Dev e status atual
+#                       Backlog/Impedimento Produto) — EXCETO Impedimento Produto, que essa
+#                       régua do funil não corta (fica dentro de "confirmados"/"fila", já que
+#                       é trabalho real só bloqueado, diferente de Backlog). "Confirmados" só
+#                       bate exatamente com o "criado" de Bug por módulo em meses sem nenhum
+#                       card em Impedimento Produto entre os criados daquele mês.
+#   7. Entregues ..... status ATUAL em ST_ENTREGUE_FUNIL (Em produção/Em Produção/Done/
 #                       Concluído/Concluido) — mais amplo que o ENTREGUE usado acima em
 #                       d['tot_series'] (só "Em produção"); intencional, só pra este painel.
-#   5. Na fila/pipeline  o resto: chegaram ao dev, não entregues — inclui Backlog e todas as
-#                       colunas de status ativas. Por safra: cada mês roda isolado (crj = só
-#                       cards criados naquele mês).
+#   8. Na fila/pipeline  o resto: confirmados, não entregues — todas as colunas de status
+#                       ativas (Backlog já saiu na etapa 2). Por safra: cada mês roda isolado
+#                       (crj = só cards criados naquele mês).
 ST_ENTREGUE_FUNIL={'Em produção','Em Produção','Done','Concluído','Concluido'}
 def build_funil(ini,fim=None):
     """`ini==fim` (ou `fim` omitido) = funil de UM mês só (view "Mês", comportamento original).
@@ -785,8 +794,13 @@ def build_funil(ini,fim=None):
     `ref` (campo 'mes' do retorno) fica como o fim do intervalo — a safra selecionada."""
     if fim is None: fim=ini
     crj=[x for x in sweep_full if x['c'] and ini<=x['c'].strftime('%Y-%m')<=fim]
-    disc=[x for x in crj if x['res']=='Cancelado QA']
-    pos_qa=[x for x in crj if x['res']!='Cancelado QA']
+    # NOVO EM 24/09/2026, a pedido da Jane: corte de Backlog vira sua própria etapa, ANTES do
+    # corte de Cancelado QA (mockup aprovado por ela) — antes esses cards ficavam escondidos
+    # dentro de "chegaram ao dev"/"fila", só aparecendo na composição da fila lá embaixo.
+    backlog=[x for x in crj if x['status']=='Backlog']
+    pos_backlog=[x for x in crj if x['status']!='Backlog']
+    disc=[x for x in pos_backlog if x['res']=='Cancelado QA']
+    pos_qa=[x for x in pos_backlog if x['res']!='Cancelado QA']
     canc_dev=[x for x in pos_qa if x['res']=='Cancelado Dev']
     dev=[x for x in pos_qa if x['res']!='Cancelado Dev']
     entregues=[x for x in dev if x['status'] in ST_ENTREGUE_FUNIL]
@@ -812,10 +826,11 @@ def build_funil(ini,fim=None):
     for i in det_itens: i['pct']=round(100*i['n']/det_tot)
     mt=[busdays(x['c'].date(),x['r'].date()) for x in dev if x['c'] and x['r']]
     napont=sum(1 for x in dev if isinstance(x['timespent'],(int,float)) and x['timespent'])
-    return {'mes':fim,'total':len(crj),'descartados_qa':len(disc),'dev':len(dev),
+    return {'mes':fim,'total':len(crj),'backlog':len(backlog),'descartados_qa':len(disc),
+        'chegaram_dev':len(pos_qa),'confirmados':len(dev),
         'cancelados_dev':len(canc_dev),
         'entregues':len(entregues),'fila':len(fila),'fila_det':fila_det,'fila_det_keys':dict(fila_det_keys),
-        'pct_descarte':round(100*len(disc)/len(crj)) if crj else 0,
+        'pct_descarte':round(100*len(disc)/len(pos_backlog)) if pos_backlog else 0,
         'pct_entrega':round(100*len(entregues)/len(dev)) if dev else 0,
         'sev':sev_ord,'mod_top':modd,'detc':det_itens,
         'mttr_mediana':round(statistics.median(mt),1) if mt else None,
