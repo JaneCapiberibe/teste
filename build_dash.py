@@ -1353,8 +1353,8 @@ function funilPanel(){
   // original (número pequeno junto da seta, não uma etapa do fluxo principal).
   const arrowNum=(val,lbl,c)=>`<div style="align-self:center;text-align:center;color:${c};padding:0;flex:0 0 44px;width:44px">
      <div style="font-size:13px;font-weight:700;letter-spacing:-.3px;line-height:1.15">${val}</div>
-     <div style="font-size:7px;color:var(--text-3);line-height:1.1;margin-bottom:1px">${lbl}</div>
-     <div style="font-size:12px;line-height:1;color:var(--text-3)">→</div></div>`;
+     <div style="font-size:12px;line-height:1;color:var(--text-3);margin:1px 0">→</div>
+     <div style="font-size:7px;color:var(--text-3);line-height:1.1">${lbl}</div></div>`;
   const sevTxt=f.sev.map(s=>`${s.nivel} ${s.n}`).join(' · ');
   const modTxt=f.mod_top.map(m=>`${m[0]} ${m[1]}`).join(' · ');
   const filaTxt=f.fila_det.length?f.fila_det.map(x=>`${x[1]} ${x[0].toLowerCase()}`).join(', '):'—';
