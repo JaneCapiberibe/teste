@@ -1347,13 +1347,14 @@ function funilPanel(){
      <div style="font-size:28px;font-weight:800;color:${c};letter-spacing:-1px">${val}</div>
      <div style="font-size:11.5px;color:var(--text-1);font-weight:600;margin-top:2px">${lbl}</div>
      <div style="font-size:10px;color:var(--text-3);margin-top:2px">${sub}</div></div>`;
-  // caixas secundárias (Backlog/Cancelados QA/Cancelados dev) — bem menores que os números
-  // principais do fluxo (Criados/Chegaram ao dev/Confirmados/Entregues/Fila), pedido da Jane
-  // pra ficar visualmente claro que são cortes/segmentos, não etapas do fluxo principal.
-  const stepSmall=(val,lbl,c)=>`<div style="flex:0 0 auto;text-align:center;padding:0 6px;align-self:center">
-     <div style="font-size:14px;font-weight:700;color:${c};letter-spacing:-.3px">${val}</div>
-     <div style="font-size:8.5px;color:var(--text-3);margin-top:1px">${lbl}</div></div>`;
   const arrow=(t)=>`<div style="align-self:center;text-align:center;color:var(--text-3);padding:0;flex:0 0 32px;width:32px"><div style="font-size:12px;line-height:1">→</div><div style="font-size:7.5px;line-height:1.1">${t}</div></div>`;
+  // seta com o número do corte (Backlog/Cancelados QA/Cancelados dev) EM CIMA dela, em vez de
+  // uma caixa separada do tamanho das etapas principais — pedido da Jane, replicando o desenho
+  // original (número pequeno junto da seta, não uma etapa do fluxo principal).
+  const arrowNum=(val,lbl,c)=>`<div style="align-self:center;text-align:center;color:${c};padding:0;flex:0 0 44px;width:44px">
+     <div style="font-size:13px;font-weight:700;letter-spacing:-.3px;line-height:1.15">${val}</div>
+     <div style="font-size:7px;color:var(--text-3);line-height:1.1;margin-bottom:1px">${lbl}</div>
+     <div style="font-size:12px;line-height:1;color:var(--text-3)">→</div></div>`;
   const sevTxt=f.sev.map(s=>`${s.nivel} ${s.n}`).join(' · ');
   const modTxt=f.mod_top.map(m=>`${m[0]} ${m[1]}`).join(' · ');
   const filaTxt=f.fila_det.length?f.fila_det.map(x=>`${x[1]} ${x[0].toLowerCase()}`).join(', '):'—';
@@ -1364,14 +1365,11 @@ function funilPanel(){
       <span class="info" data-tip="O funil mostra a carga REAL do desenvolvimento no período. Parte do total de bugs criados (sem exclusão nesta etapa) e corta, em sequência: Backlog (ainda não entrou no fluxo de dev) e Cancelado QA (descartado pelo QA, não é defeito de produto) — o que sobra é 'chegaram ao dev'. Dali corta Cancelado Dev (cancelamento real, já dentro do fluxo) — o que sobra é 'confirmados', a MESMA régua oficial de 'Bug por módulo'/evolucao_bugs.py (bate sempre com o 'criado' daquele painel, no mesmo mês). 'Entregues' = status atual em Em produção/Em Produção/Done/Concluído/Concluido (regra só deste painel — diferente do resto do dashboard, que conta só 'Em produção' como entregue) e 'na fila' = o resto dos confirmados (status ativos, sem Backlog — já cortado antes); os dois juntos sempre somam 'confirmados'. Em Acumulado, cada número soma o intervalo inteiro (do primeiro mês disponível até a safra selecionada), recalculado do zero sobre a união dos cards — não é a soma dos números já prontos de cada mês. É a leitura honesta de capacidade: mede o dev pelo que ele recebeu de verdade, não pelo volume bruto inflado por triagem, backlog ou por cancelamentos.">i</span></div>
     <div style="display:flex;flex-wrap:wrap;gap:2px;align-items:stretch">
       ${step(f.total,'bugs criados','entraram como bug',col('--text-2'))}
-      ${arrow('Backlog')}
-      ${stepSmall(f.backlog,'backlog',col('--text-3'))}
-      ${arrow('Cancelado QA')}
-      ${stepSmall(f.descartados_qa,'cancelados QA',col('--text-3'))}
+      ${arrowNum(f.backlog,'backlog',col('--text-3'))}
+      ${arrowNum(f.descartados_qa,'cancelados QA',col('--text-3'))}
       ${arrow('sem os cortes acima')}
       ${step(f.chegaram_dev,'chegaram ao dev','líquido de backlog e QA',col('--s2'))}
-      ${arrow('Cancelado Dev')}
-      ${stepSmall(f.cancelados_dev,'cancelados dev',col('--text-3'))}
+      ${arrowNum(f.cancelados_dev,'cancelados dev',col('--text-3'))}
       ${arrow('= criado de Bug por módulo')}
       ${step(f.confirmados,'confirmados','mesma régua de Bug por módulo',col('--s1'))}
       ${arrow('dev entregou')}
