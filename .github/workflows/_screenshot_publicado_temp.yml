@@ -49,6 +49,7 @@ jobs:
           with sync_playwright() as p:
               browser = p.chromium.launch()
               page = browser.new_page(viewport={'width':1300,'height':1400})
+              page.add_init_script('sessionStorage.setItem(\"of_dash_auth\",\"1\")')
               page.goto('file://' + __import__('os').path.abspath(fname))
               page.wait_for_timeout(500)
               h2 = page.query_selector('h2:has-text(\"Diagnóstico do mês\")')
