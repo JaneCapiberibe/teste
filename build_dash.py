@@ -1367,10 +1367,10 @@ function funilPanel(){
       ${step(f.total,'bugs criados','entraram como bug',col('--text-2'))}
       ${arrowNum(f.backlog,'backlog',col('--text-3'))}
       ${arrowNum(f.descartados_qa,'cancelados QA',col('--text-3'))}
-      ${arrow('sem os cortes acima')}
+      ${arrow('')}
       ${step(f.chegaram_dev,'chegaram ao dev','líquido de backlog e QA',col('--s2'))}
       ${arrowNum(f.cancelados_dev,'cancelados dev',col('--text-3'))}
-      ${arrow('= criado de Bug por módulo')}
+      ${arrow('')}
       ${step(f.confirmados,'confirmados','mesma régua de Bug por módulo',col('--s1'))}
       ${arrow('dev entregou')}
       ${step(f.entregues,'entregues','em produção/done/concluído',col('--good'))}
