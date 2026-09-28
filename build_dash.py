@@ -1343,17 +1343,27 @@ function funilPanel(){
   const fSrc=acum?DATA.funil_acumulado_por_mes:DATA.funil_por_mes;
   const f=(fSrc&&fSrc[curSafra()])||DATA.funil; if(!f) return '';
   const isCorrente=f.mes===DATA.mes_corrente;
-  const step=(val,lbl,sub,c)=>`<div style="flex:1;min-width:96px;text-align:center">
-     <div style="font-size:28px;font-weight:800;color:${c};letter-spacing:-1px">${val}</div>
+  // NUMH = altura fixa da linha do número, IGUAL pra step()/arrowNum()/arrow() — sem isso, cada
+  // caixa tem uma altura de conteúdo diferente e "align-self:center" centraliza cada uma pelo
+  // próprio centro, então os números não ficam alinhados entre si (pedido da Jane: números
+  // alinhados e do mesmo tamanho entre os pequenos).
+  const NUMH=32;
+  const numBand=(html)=>`<div style="height:${NUMH}px;display:flex;align-items:center;justify-content:center">${html}</div>`;
+  const step=(val,lbl,sub,c)=>`<div style="flex:1;min-width:96px;text-align:center;align-self:flex-start">
+     ${numBand(`<span style="font-size:28px;font-weight:800;color:${c};letter-spacing:-1px">${val}</span>`)}
      <div style="font-size:11.5px;color:var(--text-1);font-weight:600;margin-top:2px">${lbl}</div>
      <div style="font-size:10px;color:var(--text-3);margin-top:2px">${sub}</div></div>`;
-  const arrow=(t)=>`<div style="align-self:center;text-align:center;color:var(--text-3);padding:0;flex:0 0 32px;width:32px"><div style="font-size:12px;line-height:1">→</div><div style="font-size:7.5px;line-height:1.1">${t}</div></div>`;
+  const arrow=(t)=>`<div style="align-self:flex-start;text-align:center;color:var(--text-3);padding:0;flex:0 0 32px;width:32px">
+     ${numBand('')}
+     <div style="font-size:12px;line-height:1">→</div><div style="font-size:7.5px;line-height:1.1">${t}</div></div>`;
   // seta com o número do corte (Backlog/Cancelados QA/Cancelados dev) EM CIMA dela, em vez de
   // uma caixa separada do tamanho das etapas principais — pedido da Jane, replicando o desenho
-  // original (número pequeno junto da seta, não uma etapa do fluxo principal).
-  const arrowNum=(val,lbl,c)=>`<div style="align-self:center;text-align:center;color:${c};padding:0;flex:0 0 44px;width:44px">
-     <div style="font-size:13px;font-weight:700;letter-spacing:-.3px;line-height:1.15">${val}</div>
-     <div style="font-size:12px;line-height:1;color:var(--text-3);margin:1px 0">→</div>
+  // original (número pequeno junto da seta, não uma etapa do fluxo principal). Mesmo tamanho de
+  // fonte (13px) e mesma NUMH pros três (Backlog/Cancelados QA/Cancelados dev), pra ficarem
+  // idênticos e alinhados com o resto da fileira.
+  const arrowNum=(val,lbl,c)=>`<div style="align-self:flex-start;text-align:center;color:${c};padding:0;flex:0 0 44px;width:44px">
+     ${numBand(`<span style="font-size:13px;font-weight:700;letter-spacing:-.3px">${val}</span>`)}
+     <div style="font-size:12px;line-height:1;color:var(--text-3);margin-bottom:1px">→</div>
      <div style="font-size:7px;color:var(--text-3);line-height:1.1">${lbl}</div></div>`;
   const sevTxt=f.sev.map(s=>`${s.nivel} ${s.n}`).join(' · ');
   const modTxt=f.mod_top.map(m=>`${m[0]} ${m[1]}`).join(' · ');
