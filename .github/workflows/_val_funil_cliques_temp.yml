@@ -69,3 +69,37 @@ jobs:
 
           print('RESULTADO FINAL:', 'TODOS BATEM' if tudo_ok else 'HÁ DIVERGÊNCIA')
           "
+
+      - name: Diagnóstico do card divergente (Bugs criados)
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: |
+          python3 -c "
+          import json, urllib.parse, sys
+          sys.path.insert(0, '.')
+          import fetch_jira as fj
+
+          d = json.load(open('dash_data.json'))
+          f = d['funil']
+          jql = urllib.parse.unquote(f['url_total'].split('jql=', 1)[1])
+          issues_jql = fj.fetch_all(jql=jql)
+          keys_jql = {i['key'] for i in issues_jql}
+
+          sweep = json.load(open('sweep.json'))
+          keys_py = {x['key'] for x in sweep if x['created'] and x['created'][:7] == f['mes']}
+
+          so_jql = keys_jql - keys_py
+          so_py = keys_py - keys_jql
+          print('só no JQL (não no Python):', so_jql)
+          print('só no Python (não no JQL):', so_py)
+          print()
+          for k in so_jql | so_py:
+              card = next((x for x in sweep if x['key'] == k), None)
+              if card:
+                  print(k, '-> created (Python, sweep.json):', card['created'])
+              full = next((i for i in issues_jql if i['key'] == k), None)
+              if full:
+                  print(k, '-> created (Jira, campo bruto da issue):', full['fields'].get('created'))
+          "
