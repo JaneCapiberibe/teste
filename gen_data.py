@@ -826,6 +826,30 @@ def build_funil(ini,fim=None):
     for i in det_itens: i['pct']=round(100*i['n']/det_tot)
     mt=[busdays(x['c'].date(),x['r'].date()) for x in dev if x['c'] and x['r']]
     napont=sum(1 for x in dev if isinstance(x['timespent'],(int,float)) and x['timespent'])
+    # NOVO EM 28/09/2026, a pedido da Jane: os 7 números da cadeia (exceto "chegaram ao dev",
+    # que ela decidiu deixar sem clique por enquanto) ganham URL de JQL pro Jira — mesma
+    # utilitária _jql_url() já usada em "Sem prioridade"/"Alerta operacional", e as MESMAS
+    # constantes (RES_EXCLUI_ACUM/ST_ENTREGUE_FUNIL) usadas acima pro cálculo, sem reescrever
+    # nome de status/resolution na mão (risco de divergência entre o número e o filtro do
+    # clique). Período (created) usa o intervalo [1º dia do mês `ini`, último dia do mês `fim`]
+    # — mesmo `ini`/`fim` do funil, cobre também a view Acumulado.
+    _ini_d=_mes_bounds(ini)[0]; _fim_d=_mes_bounds(fim)[1]; _prox_d=_fim_d+datetime.timedelta(days=1)
+    _periodo=f'created >= "{_ini_d.isoformat()}" AND created < "{_prox_d.isoformat()}"'
+    _res_lista=','.join(f'"{r}"' for r in sorted(RES_EXCLUI_ACUM))
+    _ent_lista=','.join(f'"{s}"' for s in sorted(ST_ENTREGUE_FUNIL))
+    # (resolution not in (...) OR resolution is EMPTY): "not in" sozinho teria que valer pra
+    # quem não tem resolution nenhuma (imensa maioria dos cards ainda não fechados) — a cláusula
+    # OR garante isso, batendo com o `x['res'] not in RES_EXCLUI_ACUM` do Python (None não está
+    # no set, então passa).
+    _pos_backlog=f'status != "Backlog"'
+    _pos_res=f'(resolution not in ({_res_lista}) OR resolution is EMPTY)'
+    url_total=_jql_url(f'project = BUG AND {_periodo}')
+    url_backlog=_jql_url(f'project = BUG AND {_periodo} AND status = "Backlog"')
+    url_qa=_jql_url(f'project = BUG AND {_periodo} AND resolution = "Cancelado QA"')
+    url_dev_cancel=_jql_url(f'project = BUG AND {_periodo} AND resolution = "Cancelado Dev"')
+    url_confirmados=_jql_url(f'project = BUG AND {_periodo} AND {_pos_res} AND {_pos_backlog}')
+    url_entregues=_jql_url(f'project = BUG AND {_periodo} AND status in ({_ent_lista}) AND {_pos_res} AND {_pos_backlog}')
+    url_fila=_jql_url(f'project = BUG AND {_periodo} AND status not in ({_ent_lista}) AND {_pos_res} AND {_pos_backlog}')
     return {'mes':fim,'total':len(crj),'backlog':len(backlog),'descartados_qa':len(disc),
         'chegaram_dev':len(pos_qa),'confirmados':len(dev),
         'cancelados_dev':len(canc_dev),
@@ -835,7 +859,10 @@ def build_funil(ini,fim=None):
         'sev':sev_ord,'mod_top':modd,'detc':det_itens,
         'mttr_mediana':round(statistics.median(mt),1) if mt else None,
         'mttr_media':round(statistics.mean(mt),1) if mt else None,
-        'apont_cov':[napont,len(dev)]}
+        'apont_cov':[napont,len(dev)],
+        'url_total':url_total,'url_backlog':url_backlog,'url_qa':url_qa,
+        'url_dev_cancel':url_dev_cancel,'url_confirmados':url_confirmados,
+        'url_entregues':url_entregues,'url_fila':url_fila}
 cur_m=str(TODAY)[:7]
 mkeys=sorted({x['c'].strftime('%Y-%m') for x in sweep_full if x['c']})
 ref=cur_m if cur_m in mkeys else max(mkeys)   # safra do mês corrente

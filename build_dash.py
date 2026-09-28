@@ -1349,10 +1349,16 @@ function funilPanel(){
   // alinhados e do mesmo tamanho entre os pequenos).
   const NUMH=32;
   const numBand=(html)=>`<div style="height:${NUMH}px;display:flex;align-items:center;justify-content:center">${html}</div>`;
-  const step=(val,lbl,sub,c)=>`<div style="flex:1;min-width:96px;text-align:center;align-self:flex-start">
+  // NOVO EM 28/09/2026: número clicável abre o Jira em nova aba, já filtrado pela JQL que a
+  // Jane pediu (url vem pronta de build_funil()/gen_data.py, mesma _jql_url() de "Sem
+  // prioridade"/"Alerta operacional" — nada de JQL montada aqui no front). `wrap(url,html)`
+  // replica o mesmo padrão de <a> já usado em "Sem prioridade" (severidadePanel()): bloco
+  // inteiro clicável, cor herdada, sem sublinhado.
+  const wrap=(url,html)=>url?`<a href="${url}" target="_blank" rel="noopener" style="display:block;color:inherit;text-decoration:none;cursor:pointer" title="Clique p/ ver os cards no Jira">${html}</a>`:html;
+  const step=(val,lbl,sub,c,url)=>`<div style="flex:1;min-width:96px;text-align:center;align-self:flex-start">${wrap(url,`
      ${numBand(`<span style="font-size:28px;font-weight:800;color:${c};letter-spacing:-1px">${val}</span>`)}
      <div style="font-size:11.5px;color:var(--text-1);font-weight:600;margin-top:2px">${lbl}</div>
-     <div style="font-size:10px;color:var(--text-3);margin-top:2px">${sub}</div></div>`;
+     <div style="font-size:10px;color:var(--text-3);margin-top:2px">${sub}</div>`)}</div>`;
   const arrow=(t)=>`<div style="align-self:flex-start;text-align:center;color:var(--text-3);padding:0;flex:0 0 32px;width:32px">
      ${numBand('')}
      <div style="font-size:12px;line-height:1">→</div><div style="font-size:7.5px;line-height:1.1">${t}</div></div>`;
@@ -1361,10 +1367,10 @@ function funilPanel(){
   // original (número pequeno junto da seta, não uma etapa do fluxo principal). Mesmo tamanho de
   // fonte (13px) e mesma NUMH pros três (Backlog/Cancelados QA/Cancelados dev), pra ficarem
   // idênticos e alinhados com o resto da fileira.
-  const arrowNum=(val,lbl,c)=>`<div style="align-self:flex-start;text-align:center;color:${c};padding:0;flex:0 0 44px;width:44px">
+  const arrowNum=(val,lbl,c,url)=>`<div style="align-self:flex-start;text-align:center;color:${c};padding:0;flex:0 0 44px;width:44px">${wrap(url,`
      ${numBand(`<span style="font-size:13px;font-weight:700;letter-spacing:-.3px">${val}</span>`)}
      <div style="font-size:12px;line-height:1;color:var(--text-3);margin-bottom:1px">→</div>
-     <div style="font-size:7px;color:var(--text-3);line-height:1.1">${lbl}</div></div>`;
+     <div style="font-size:7px;color:var(--text-3);line-height:1.1">${lbl}</div>`)}</div>`;
   const sevTxt=f.sev.map(s=>`${s.nivel} ${s.n}`).join(' · ');
   const modTxt=f.mod_top.map(m=>`${m[0]} ${m[1]}`).join(' · ');
   const filaTxt=f.fila_det.length?f.fila_det.map(x=>`${x[1]} ${x[0].toLowerCase()}`).join(', '):'—';
@@ -1374,18 +1380,18 @@ function funilPanel(){
     <div class="kpi-label" style="margin-bottom:14px;font-size:13px">Carga real que chegou ao desenvolvimento — ${periodoLbl}${acumToggle('funil')}
       <span class="info" data-tip="O funil mostra a carga REAL do desenvolvimento no período. Parte do total de bugs criados (sem exclusão nesta etapa) e corta, em sequência: Backlog (ainda não entrou no fluxo de dev) e Cancelado QA (descartado pelo QA, não é defeito de produto) — o que sobra é 'chegaram ao dev'. Dali corta Cancelado Dev (cancelamento real, já dentro do fluxo) — o que sobra é 'confirmados', a MESMA régua oficial de 'Bug por módulo'/evolucao_bugs.py (bate sempre com o 'criado' daquele painel, no mesmo mês). 'Entregues' = status atual em Em produção/Em Produção/Done/Concluído/Concluido (regra só deste painel — diferente do resto do dashboard, que conta só 'Em produção' como entregue) e 'na fila' = o resto dos confirmados (status ativos, sem Backlog — já cortado antes); os dois juntos sempre somam 'confirmados'. Em Acumulado, cada número soma o intervalo inteiro (do primeiro mês disponível até a safra selecionada), recalculado do zero sobre a união dos cards — não é a soma dos números já prontos de cada mês. É a leitura honesta de capacidade: mede o dev pelo que ele recebeu de verdade, não pelo volume bruto inflado por triagem, backlog ou por cancelamentos.">i</span></div>
     <div style="display:flex;flex-wrap:wrap;gap:2px;align-items:stretch">
-      ${step(f.total,'bugs criados','entraram como bug',col('--text-2'))}
-      ${arrowNum(f.backlog,'backlog',col('--text-3'))}
-      ${arrowNum(f.descartados_qa,'cancelados QA',col('--text-3'))}
+      ${step(f.total,'bugs criados','entraram como bug',col('--text-2'),f.url_total)}
+      ${arrowNum(f.backlog,'backlog',col('--text-3'),f.url_backlog)}
+      ${arrowNum(f.descartados_qa,'cancelados QA',col('--text-3'),f.url_qa)}
       ${arrow('')}
       ${step(f.chegaram_dev,'chegaram ao dev','líquido de backlog e QA',col('--s2'))}
-      ${arrowNum(f.cancelados_dev,'cancelados dev',col('--text-3'))}
+      ${arrowNum(f.cancelados_dev,'cancelados dev',col('--text-3'),f.url_dev_cancel)}
       ${arrow('')}
-      ${step(f.confirmados,'confirmados','mesma régua de Bug por módulo',col('--s1'))}
+      ${step(f.confirmados,'confirmados','mesma régua de Bug por módulo',col('--s1'),f.url_confirmados)}
       ${arrow('dev entregou')}
-      ${step(f.entregues,'entregues','em produção/done/concluído',col('--good'))}
+      ${step(f.entregues,'entregues','em produção/done/concluído',col('--good'),f.url_entregues)}
       ${arrow('restou')}
-      ${step(f.fila,'na fila','ainda no pipeline',col('--warn'))}
+      ${step(f.fila,'na fila','ainda no pipeline',col('--warn'),f.url_fila)}
     </div>
     ${filaBreakdown(f)}
     ${funilDetc(f)}
