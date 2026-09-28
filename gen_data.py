@@ -843,13 +843,19 @@ def build_funil(ini,fim=None):
     # no set, então passa).
     _pos_backlog=f'status != "Backlog"'
     _pos_res=f'(resolution not in ({_res_lista}) OR resolution is EMPTY)'
-    url_total=_jql_url(f'project = BUG AND {_periodo}')
-    url_backlog=_jql_url(f'project = BUG AND {_periodo} AND status = "Backlog"')
-    url_qa=_jql_url(f'project = BUG AND {_periodo} AND resolution = "Cancelado QA"')
-    url_dev_cancel=_jql_url(f'project = BUG AND {_periodo} AND resolution = "Cancelado Dev"')
-    url_confirmados=_jql_url(f'project = BUG AND {_periodo} AND {_pos_res} AND {_pos_backlog}')
-    url_entregues=_jql_url(f'project = BUG AND {_periodo} AND status in ({_ent_lista}) AND {_pos_res} AND {_pos_backlog}')
-    url_fila=_jql_url(f'project = BUG AND {_periodo} AND status not in ({_ent_lista}) AND {_pos_res} AND {_pos_backlog}')
+    # base líquida (CLAUDE.md): os números em Python vêm de sweep_full, que já tira o módulo
+    # "Chat de Suporte" (EXCLUI_MOD) — sem essa cláusula na JQL, o clique conta card a mais toda
+    # vez que um card do mês cair nesse módulo. Mesma cláusula/campo já usados em fetch_jira.py
+    # (variável `nochat`, customfield_10073 = "Módulo"), só generalizada pro conjunto EXCLUI_MOD.
+    _mod_lista=','.join(f'"{m}"' for m in sorted(EXCLUI_MOD))
+    _nochat=f'(customfield_10073 is EMPTY OR customfield_10073 not in ({_mod_lista}))'
+    url_total=_jql_url(f'project = BUG AND {_periodo} AND {_nochat}')
+    url_backlog=_jql_url(f'project = BUG AND {_periodo} AND status = "Backlog" AND {_nochat}')
+    url_qa=_jql_url(f'project = BUG AND {_periodo} AND resolution = "Cancelado QA" AND {_nochat}')
+    url_dev_cancel=_jql_url(f'project = BUG AND {_periodo} AND resolution = "Cancelado Dev" AND {_nochat}')
+    url_confirmados=_jql_url(f'project = BUG AND {_periodo} AND {_pos_res} AND {_pos_backlog} AND {_nochat}')
+    url_entregues=_jql_url(f'project = BUG AND {_periodo} AND status in ({_ent_lista}) AND {_pos_res} AND {_pos_backlog} AND {_nochat}')
+    url_fila=_jql_url(f'project = BUG AND {_periodo} AND status not in ({_ent_lista}) AND {_pos_res} AND {_pos_backlog} AND {_nochat}')
     return {'mes':fim,'total':len(crj),'backlog':len(backlog),'descartados_qa':len(disc),
         'chegaram_dev':len(pos_qa),'confirmados':len(dev),
         'cancelados_dev':len(canc_dev),
