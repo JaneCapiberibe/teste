@@ -1,0 +1,71 @@
+name: "[TEMP] Validação: números clicáveis do funil (JQL x contagem)"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Puxar do Jira (BUG + BACKOFFICE)
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: python fetch_jira.py
+
+      - name: Gerar dash_data.json
+        run: python gen_data.py
+
+      - name: Rodar cada JQL contra o Jira real e comparar com o número do funil
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: |
+          python3 -c "
+          import json, urllib.parse, sys
+          sys.path.insert(0, '.')
+          import fetch_jira as fj
+
+          d = json.load(open('dash_data.json'))
+          f = d['funil']
+          print('safra em foco:', f['mes'])
+          print()
+
+          pares = [
+              ('Bugs criados',   f['total'],          f['url_total']),
+              ('Cancelados QA',  f['descartados_qa'], f['url_qa']),
+              ('Cancelados Dev', f['cancelados_dev'], f['url_dev_cancel']),
+              ('Backlog',        f['backlog'],        f['url_backlog']),
+              ('Confirmados (\"Chegaram ao Dev\" da Jane)', f['confirmados'], f['url_confirmados']),
+              ('Entregues',      f['entregues'],      f['url_entregues']),
+              ('Pipeline (na fila)', f['fila'],        f['url_fila']),
+          ]
+
+          tudo_ok = True
+          for nome, esperado, url in pares:
+              jql = urllib.parse.unquote(url.split('jql=', 1)[1])
+              issues = fj.fetch_all(jql=jql)
+              real = len(issues)
+              ok = '✓' if real == esperado else '✗ DIVERGE'
+              if real != esperado: tudo_ok = False
+              print(f'{nome}: esperado={esperado} | JQL real={real} {ok}')
+              print(f'  JQL: {jql}')
+              print(f'  URL: {url}')
+              print()
+
+          print('RESULTADO FINAL:', 'TODOS BATEM' if tudo_ok else 'HÁ DIVERGÊNCIA')
+          "
