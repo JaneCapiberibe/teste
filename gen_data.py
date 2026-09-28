@@ -906,44 +906,60 @@ if os.path.exists('impedimentos_live.json'):
 # Grade de avatares + painel de detalhe por pessoa (dados só, sem gestão de pessoas — 1:1,
 # feedback, plano de carreira ficam engavetados, aguardando decisão de arquitetura futura).
 #
-# FONTE COMBINADA (BUG + BACKOFFICE) — NOVO EM 21/09/2026, a pedido da Jane, só pra este
-# módulo (Bugs continua 100% sweep/project=BUG, sem BACKOFFICE — nenhuma mudança lá). Base
-# líquida do BACKOFFICE espelha a de sweep: `sweep` já exclui Cancelado QA de sweep_full;
-# aqui exclui resolution "Não Pode Reproduzir" de sweep_backoffice_full — EQUIVALÊNCIA
-# CONFIRMADA com a Jane no levantamento de schema (21/09/2026): "não é trabalho real", mesmo
-# espírito de Cancelado QA. "Itens concluídos" conta normalmente (é uma entrega). Não existe
-# "Cancelado Dev" nesse projeto — nenhuma lógica correspondente é aplicada a ele. Mesmo esquema
-# de status/changelog do BUG (confirmado no mesmo levantamento — nomes de status idênticos,
-# formato de changelog idêntico), então `_status_changelog` (já carregado acima, com as DUAS
-# fontes juntas — fetch_jira.py grava tudo no mesmo status_changelog.json, key com prefixo do
-# projeto sem colisão) funciona pra card de qualquer uma das duas sem nenhuma tradução de nome.
+# FONTE COMBINADA (BUG + BACKOFFICE + SUS) — BACKOFFICE somado em 21/09/2026, SUS em
+# 28/09/2026, ambos a pedido da Jane, só pra este módulo (Bugs continua 100% sweep/project=BUG,
+# sem BACKOFFICE/SUS — nenhuma mudança lá). Base líquida de cada fonte secundária espelha a de
+# sweep (`sweep` já exclui Cancelado QA de sweep_full):
+#   BACKOFFICE: exclui só resolution "Não Pode Reproduzir" de sweep_backoffice_full —
+#     EQUIVALÊNCIA CONFIRMADA com a Jane no levantamento de schema (21/09/2026): "não é
+#     trabalho real", mesmo espírito de Cancelado QA. "Itens concluídos" conta normalmente (é
+#     uma entrega). Não existe "Cancelado Dev" nesse projeto.
+#   SUS: MESMOS valores de resolution do BACKOFFICE ("Não Pode Reproduzir" exclui, "Itens
+#     concluídos" conta) — confirmado no levantamento de schema (28/09/2026) — MAIS as duas
+#     resoluções do BUG (RES_EXCLUI_ACUM: "Cancelado QA"/"Cancelado Dev"), não observadas na
+#     amostra investigada mas tratadas por segurança com a MESMA regra do BUG caso apareçam
+#     fora dela (decisão explícita da Jane) — union dos dois conjuntos, não uma regra nova.
+# Mesmo esquema de status/changelog do BUG nas duas fontes secundárias (confirmado nos dois
+# levantamentos — nomes de status idênticos, formato de changelog idêntico), então
+# `_status_changelog` (já carregado acima, com as TRÊS fontes juntas — fetch_jira.py grava tudo
+# no mesmo status_changelog.json, key com prefixo do projeto sem colisão) funciona pra card de
+# qualquer uma delas sem nenhuma tradução de nome. Campo de módulo do SUS (customfield_10073,
+# quase sempre vazio, e a variante "Módulos"/customfield_10065, baixíssimo uso) NÃO é usado pra
+# classificar cards do SUS em nenhum módulo do BUG — decisão explícita da Jane; cards do SUS só
+# aparecem como "Não classificado" onde um módulo é exibido (mesmo fallback de sempre, `mn()`).
 sweep_backoffice_full=json.load(open('sweep_backoffice.json')) if os.path.exists('sweep_backoffice.json') else []
 for x in sweep_backoffice_full:
     x['c']=pdt(x['created']); x['r']=pdt(x['resolved']); x['m']=mn(x['modulo'])
     x['u']=pdt(x.get('updated'))
 RES_EXCLUI_BACKOFFICE={'Não Pode Reproduzir'}
 sweep_backoffice=[x for x in sweep_backoffice_full if x['res'] not in RES_EXCLUI_BACKOFFICE]
+sweep_sus_full=json.load(open('sweep_sus.json')) if os.path.exists('sweep_sus.json') else []
+for x in sweep_sus_full:
+    x['c']=pdt(x['created']); x['r']=pdt(x['resolved']); x['m']=mn(x['modulo'])
+    x['u']=pdt(x.get('updated'))
+RES_EXCLUI_SUS=RES_EXCLUI_BACKOFFICE|RES_EXCLUI_ACUM
+sweep_sus=[x for x in sweep_sus_full if x['res'] not in RES_EXCLUI_SUS]
 def _tag_origem(cards,origem):
     return [dict(x,origem=origem) for x in cards]
-# sweep_dev/sweep_dev_full: MESMO papel de sweep/sweep_full, só que somando as duas fontes —
+# sweep_dev/sweep_dev_full: MESMO papel de sweep/sweep_full, só que somando as três fontes —
 # usados em TODO o resto do módulo Desenvolvedores no lugar de sweep/sweep_full. devs_ordem/
 # devs_total/devs_avatar (grade de avatares) continuam em `sweep` (só BUG) de propósito — a
-# Jane confirmou que todo mundo do BACKOFFICE já aparece no BUG, e a grade deve continuar
-# baseada só no BUG mesmo que isso mude no futuro.
-sweep_dev=_tag_origem(sweep,'BUG')+_tag_origem(sweep_backoffice,'BACKOFFICE')
-sweep_dev_full=_tag_origem(sweep_full,'BUG')+_tag_origem(sweep_backoffice_full,'BACKOFFICE')
+# Jane confirmou que todo mundo do BACKOFFICE e do SUS já aparece no BUG, e a grade deve
+# continuar baseada só no BUG mesmo que isso mude no futuro.
+sweep_dev=_tag_origem(sweep,'BUG')+_tag_origem(sweep_backoffice,'BACKOFFICE')+_tag_origem(sweep_sus,'SUS')
+sweep_dev_full=_tag_origem(sweep_full,'BUG')+_tag_origem(sweep_backoffice_full,'BACKOFFICE')+_tag_origem(sweep_sus_full,'SUS')
+_RES_EXCLUI_POR_ORIGEM={'BUG':RES_EXCLUI_ACUM,'BACKOFFICE':RES_EXCLUI_BACKOFFICE,'SUS':RES_EXCLUI_SUS}
 def _elegivel_dev(x):
     """Equivalente a _elegivel_evol, mas pro escopo combinado do módulo Desenvolvedores (sem o
-    filtro de itype — sweep.json/sweep_backoffice.json já vêm com o escopo certo de cada
-    projeto: BUG_TYPES pro BUG, os 3 tipos do BACKOFFICE, todos contam). Resolução excluída
-    depende da origem (RES_EXCLUI_ACUM pro BUG, RES_EXCLUI_BACKOFFICE pro BACKOFFICE); status
-    excluído (Backlog/Impedimento Produto) é o mesmo pros dois — mesmo esquema de status."""
-    res_exclui=RES_EXCLUI_ACUM if x['origem']=='BUG' else RES_EXCLUI_BACKOFFICE
-    return x['res'] not in res_exclui and x['status'] not in STATUS_EXCLUI_ACUM
+    filtro de itype — sweep.json/sweep_backoffice.json/sweep_sus.json já vêm com o escopo certo
+    de cada projeto: BUG_TYPES pro BUG, todos os tipos pro BACKOFFICE/SUS). Resolução excluída
+    depende da origem (_RES_EXCLUI_POR_ORIGEM acima); status excluído (Backlog/Impedimento
+    Produto) é o mesmo pras três — mesmo esquema de status."""
+    return x['res'] not in _RES_EXCLUI_POR_ORIGEM[x['origem']] and x['status'] not in STATUS_EXCLUI_ACUM
 #
-# Escopo de Esforço/MTTR pessoal: sweep_dev (base líquida combinada, BUG + BACKOFFICE), MESMA
-# régua de "Qualidade por módulo"/"Carga por squad" — cards CRIADOS no período. MTTR é tirado
-# do conjunto UNIFICADO das duas fontes (uma mediana só, não duas somadas/mediadas). "Concluídos"
+# Escopo de Esforço/MTTR pessoal: sweep_dev (base líquida combinada, BUG + BACKOFFICE + SUS),
+# MESMA régua de "Qualidade por módulo"/"Carga por squad" — cards CRIADOS no período. MTTR é
+# tirado do conjunto UNIFICADO das três fontes (uma mediana só, não três somadas/mediadas). "Concluídos"
 # (CORRIGIDO EM 18/09/2026, a pedido da Jane — antes usava coorte de criação por engano, igual ao
 # gráfico "Evolução mês a mês" já corrigia) usa a RÉGUA OFICIAL de evol_modulo/_elegivel_dev/
 # _mes_concluido: conta pelo mês da 1ª transição pra "Em produção" (changelog), não pelo mês de

@@ -3,14 +3,15 @@ fetch_jira.py — puxa TODOS os bugs do Jira (projeto BUG) via API REST e gera o
 arquivos que o pipeline consome: sweep.json + jira_backlog.json + impedimentos_live.json
 + sobra_live.json + ni_assignee.json + status_changelog.json.
 
-Desde 21/09/2026 também puxa o projeto BACKOFFICE (mesmo esquema de status/changelog do BUG,
-confirmado em levantamento de schema com a Jane) e gera sweep_backoffice.json — arquivo
-separado, só consumido pelo módulo Desenvolvedores (gen_data.py soma as duas fontes por
-pessoa); o módulo Bugs e o resto do pipeline continuam 100% sweep.json/project=BUG, sem
-BACKOFFICE. status_changelog.json passa a ter as duas fontes juntas (key já inclui o prefixo
-do projeto — BUG-123 vs MB-456 — sem colisão). BACKOFFICE é fonte SECUNDÁRIA: se a busca falhar
-(0 issues), só avisa e mantém sweep_backoffice.json como estava — não derruba o pipeline
-inteiro (diferente do BUG, onde 0 issues sempre aborta a atualização).
+Desde 21/09/2026 também puxa o projeto BACKOFFICE, e desde 28/09/2026 também o projeto SUS
+("Sustentação") — mesmo esquema de status/changelog do BUG nos dois, confirmado em levantamento
+de schema com a Jane — e gera sweep_backoffice.json/sweep_sus.json — arquivos separados, só
+consumidos pelo módulo Desenvolvedores (gen_data.py soma as três fontes por pessoa); o módulo
+Bugs e o resto do pipeline continuam 100% sweep.json/project=BUG, sem BACKOFFICE/SUS.
+status_changelog.json passa a ter as três fontes juntas (key já inclui o prefixo do projeto —
+BUG-123 vs MB-456 vs SUS-789 — sem colisão). BACKOFFICE/SUS são fontes SECUNDÁRIAS: se a busca
+falhar (0 issues), só avisa e mantém o sweep_*.json daquela fonte como estava — não derruba o
+pipeline inteiro (diferente do BUG, onde 0 issues sempre aborta a atualização).
 
 Credenciais via variáveis de ambiente (segredos do GitHub Actions):
   JIRA_BASE_URL   ex.: https://orcafascio.atlassian.net
@@ -436,19 +437,19 @@ def puxar_projeto(jql, obrigatorio, label):
     status_changelog = build_status_changelog(issues, changelogs, iniciais, recs_all, assignee_changelogs)
     return recs_all, status_changelog
 
-def build_sweep_backoffice(recs):
-    """sweep_backoffice.json — MESMO formato/campos de sweep.json (build_outputs acima), pro
-    projeto BACKOFFICE. Arquivo próprio (não mistura com sweep.json) — módulo Bugs continua só
-    project=BUG; só o módulo Desenvolvedores soma as duas fontes (gen_data.py). Sem filtro de
-    issuetype (diferente de BUG_TYPES no sweep.json principal) — os 3 tipos do projeto
-    (Sustentação BackOffice/Melhoria BackOffice/Nova função) contam todos, decisão confirmada
-    com a Jane em 21/09/2026 (levantamento de schema do projeto)."""
-    sweep_bo = [{k: r[k] for k in ('key', 'status', 'prio', 'itype', 'res', 'created', 'resolved', 'updated', 'timespent',
+def build_sweep_extra(recs, filename, label):
+    """MESMO formato/campos de sweep.json (build_outputs acima), pra uma fonte SECUNDÁRIA do
+    módulo Desenvolvedores (BACKOFFICE, SUS, ...) — arquivo próprio (não mistura com
+    sweep.json); módulo Bugs continua só project=BUG, só o módulo Desenvolvedores soma essas
+    fontes (gen_data.py). Sem filtro de issuetype (diferente de BUG_TYPES no sweep.json
+    principal) — todos os tipos do projeto contam, decisão confirmada com a Jane em cada
+    levantamento de schema (BACKOFFICE em 21/09/2026, SUS em 28/09/2026)."""
+    sweep_extra = [{k: r[k] for k in ('key', 'status', 'prio', 'itype', 'res', 'created', 'resolved', 'updated', 'timespent',
                  'modulo', 'assignee', 'assignee_avatar', 'concluido_mes', 'em_dev_data', 'entrega_data',
                  'nao_iniciado_data', 'producao_data', 'done_pos_producao_data',
                  'card_revisado')} for r in recs]
-    json.dump(sweep_bo, open('sweep_backoffice.json', 'w'), ensure_ascii=False)
-    print(f'  sweep_backoffice: {len(sweep_bo)} issues')
+    json.dump(sweep_extra, open(filename, 'w'), ensure_ascii=False)
+    print(f'  {filename}: {len(sweep_extra)} issues ({label})')
 
 if __name__ == '__main__':
     print('Puxando do Jira (BUG)...')
@@ -465,7 +466,14 @@ if __name__ == '__main__':
                                                        obrigatorio=False, label='BACKOFFICE')
     status_changelog.update(status_changelog_bo)  # keys já vêm com o prefixo do projeto — sem colisão
     if recs_all_bo:
-        build_sweep_backoffice(recs_all_bo)
+        build_sweep_extra(recs_all_bo, 'sweep_backoffice.json', 'BACKOFFICE')
+
+    print('Puxando do Jira (SUS)...')
+    recs_all_sus, status_changelog_sus = puxar_projeto('project = SUS ORDER BY created ASC',
+                                                        obrigatorio=False, label='SUS')
+    status_changelog.update(status_changelog_sus)  # keys já vêm com o prefixo do projeto — sem colisão
+    if recs_all_sus:
+        build_sweep_extra(recs_all_sus, 'sweep_sus.json', 'SUS')
 
     json.dump(status_changelog, open('status_changelog.json', 'w'), ensure_ascii=False)
     print('OK — arquivos gerados.')
