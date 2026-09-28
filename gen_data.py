@@ -785,6 +785,13 @@ d['squads_acumulado_por_mes']={m:_squads_de([x for x in sweep if x['c'] and x['c
 #                       ativas (Backlog já saiu na etapa 2). Por safra: cada mês roda isolado
 #                       (crj = só cards criados naquele mês).
 ST_ENTREGUE_FUNIL={'Em produção','Em Produção','Done','Concluído','Concluido'}
+# NOVO EM 28/09/2026, a pedido da Jane: "Composição da fila" (breakdown por status dentro da
+# etapa "na fila" do funil) segue essa ORDEM FIXA do fluxo do Kanban, em vez de "maior contagem
+# primeiro" (que reordenava os chips a cada safra, dificultando a leitura). Qualquer status que
+# apareça na fila e não esteja nesta lista (não deveria acontecer, mas por segurança) cai no
+# fim, por contagem decrescente — pra nunca sumir da UI.
+FILA_STATUS_ORDEM=['Não Iniciado','Em Desenvolvimento','IMPEDIMENTO DEV','Merge Request',
+    'Revisão QA','Reprovado QA','Aprovado QA','Revert']
 def build_funil(ini,fim=None):
     """`ini==fim` (ou `fim` omitido) = funil de UM mês só (view "Mês", comportamento original).
     `ini<fim` = funil ACUMULADO do intervalo [ini,fim] (view "Acumulado", seletor Mês/Acumulado,
@@ -805,7 +812,9 @@ def build_funil(ini,fim=None):
     dev=[x for x in pos_qa if x['res']!='Cancelado Dev']
     entregues=[x for x in dev if x['status'] in ST_ENTREGUE_FUNIL]
     fila=[x for x in dev if x['status'] not in ST_ENTREGUE_FUNIL]
-    fila_det=sorted(collections.Counter(x['status'] for x in fila).items(),key=lambda t:-t[1])
+    _fila_cnt=collections.Counter(x['status'] for x in fila)
+    fila_det=sorted(_fila_cnt.items(),
+        key=lambda t:(FILA_STATUS_ORDEM.index(t[0]) if t[0] in FILA_STATUS_ORDEM else len(FILA_STATUS_ORDEM),-t[1]))
     # keys por status da fila (mesmo critério de fila_det acima) — usadas pro clique em
     # "Composição da fila" abrir a lista exata desses cards no Jira, mesmo padrão de
     # criaD_keys/concD_keys (Bug por módulo) e por_status_keys (Sobra por status).
