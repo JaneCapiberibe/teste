@@ -106,10 +106,17 @@ if not candidatos:
           'pra escolher manualmente. Parando aqui (passos 1-2 não têm o que investigar).')
     sys.exit(0)
 
-if len(candidatos) > 3:
-    print(f'Mais de 3 candidatos plausíveis ({len(candidatos)}) — listados acima pra confirmação '
-          'antes de aprofundar. Parando aqui.')
-    sys.exit(0)
+# CONFIRMADO PELA JANE (30/09/2026): dos 5 candidatos por palavra-chave, PEM ("Produtos e
+# Melhorias", 193 issues) é o projeto certo — nome bate exatamente, volume real (os outros 4
+# somam 26 issues, 2 deles vazios), e "PEM" já era referenciado no código (gen_data.py, "lado
+# Build/PEM") como o lado Build do Run vs Build, só nunca puxado do Jira diretamente. Restringe
+# aos passos 1-2 só pra esse projeto, sem re-perguntar.
+CONFIRMADO = ['PEM']
+candidatos = [p for p in candidatos if p['key'] in CONFIRMADO] or \
+             [p for p in projetos if p['key'] in CONFIRMADO]
+if not candidatos:
+    print(f'Projeto(s) confirmado(s) {CONFIRMADO} não encontrado(s) na lista de projetos — abortando.')
+    sys.exit(1)
 
 
 # ==============================================================================
