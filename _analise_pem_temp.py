@@ -22,6 +22,13 @@ FIELDS = ['issuetype', 'status', 'resolution', 'created', 'assignee', 'summary',
 
 NAO_DEV_CONHECIDOS = {'Giovanna', 'Renato Canever'}
 
+# CONFIRMADO via diagnóstico real (30/09/2026): "Concluído" NUNCA aparece como destino de
+# transição no changelog do PEM inteiro — só "Done" (97 ocorrências). Mesmo fenômeno já
+# documentado no BUG (rename de status não migrado no histórico: o changelog guarda o nome QUE
+# EXISTIA no momento da transição, "Concluído" é só o nome atual do status). Mesma equivalência
+# já usada em ST_ENTREGUE_FUNIL (gen_data.py) — reaproveitada aqui, não uma regra nova.
+STATUS_CONCLUIDO = ('Concluído', 'Done', 'Concluido')
+
 
 def linha(c='='):
     print(c * 84)
@@ -108,13 +115,16 @@ for i in issues:
     if not chg:
         continue
     destinos = [to for _, to in chg]
-    tem_concluido_no_chg = 'Concluído' in destinos
+    tem_concluido_no_chg = any(s in destinos for s in STATUS_CONCLUIDO)
     if not tem_concluido_no_chg and cnt_diag < 8:
-        print(f'  {i["key"]}: status atual=Concluído, mas changelog NÃO tem "Concluído" como '
-              f'destino — destinos reais: {destinos}  |  inicial: {iniciais.get(i["id"])}')
+        print(f'  {i["key"]}: status atual=Concluído, mas changelog NÃO tem {STATUS_CONCLUIDO} '
+              f'como destino — destinos reais: {destinos}  |  inicial: {iniciais.get(i["id"])}')
         cnt_diag += 1
 if cnt_diag == 0:
-    print('  (nenhum card com essa divergência — "Concluído" bate certinho no changelog)')
+    print(f'  (nenhum card com essa divergência — {STATUS_CONCLUIDO} bate certinho no changelog)')
+print(f'\n=> CONFIRMADO: "Done" é o nome antigo de "Concluído" (rename de status não migrado no '
+      f'histórico, mesmo fenômeno do BUG). Todo cálculo abaixo usa STATUS_CONCLUIDO={STATUS_CONCLUIDO}, '
+      f'não só o literal "Concluído".')
 
 
 # ==============================================================================
@@ -128,7 +138,7 @@ chegou_concluido = []
 chegou_marketing = []
 for i in issues:
     iid = i['id']
-    ep_c = primeira_transicao(iid, 'Concluído')
+    ep_c = primeira_transicao(iid, STATUS_CONCLUIDO)
     ep_m = primeira_transicao(iid, 'Marketing e Lançamento')
     if ep_c is not None:
         chegou_concluido.append((i, ep_c))
@@ -212,12 +222,12 @@ def data_lancado_A(i):
 def data_lancado_B(i):
     ep = primeira_transicao(i['id'], 'Marketing e Lançamento')
     if ep is None:
-        ep = primeira_transicao(i['id'], 'Concluído')
+        ep = primeira_transicao(i['id'], STATUS_CONCLUIDO)
     return fj._epoch_iso(ep) if ep is not None else None
 
 
 def data_lancado_C(i):
-    ep = primeira_transicao(i['id'], 'Concluído')
+    ep = primeira_transicao(i['id'], STATUS_CONCLUIDO)
     return fj._epoch_iso(ep) if ep is not None else None
 
 
@@ -406,7 +416,7 @@ for i in issues_validos:
         continue
     ep_lanc = primeira_transicao(i['id'], 'Marketing e Lançamento')
     if ep_lanc is None:
-        ep_lanc = primeira_transicao(i['id'], 'Concluído')
+        ep_lanc = primeira_transicao(i['id'], STATUS_CONCLUIDO)
     if ep_lanc is None or ep_lanc < ep_ap:
         continue
     dias = (ep_lanc - ep_ap) / 86400
