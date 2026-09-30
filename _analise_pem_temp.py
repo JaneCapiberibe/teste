@@ -83,6 +83,41 @@ def primeira_transicao(iid, status_nome):
 
 
 # ==============================================================================
+# DIAGNÓSTICO — "Concluído" nunca aparece como destino de transição? Suspeita de rename de
+# status (mesmo problema já documentado no BUG: workflow criado em inglês, renomeado depois —
+# o esquema do PEM tem "Selected for Development" ao lado de nomes em português, o que é
+# exatamente esse padrão). Confirma com dado real antes de aplicar qualquer fallback.
+# ==============================================================================
+linha()
+print('DIAGNÓSTICO — "Concluído" aparece no changelog como destino de transição?')
+linha()
+destinos_vistos = collections.Counter()
+for i in issues:
+    for _, to in (changelogs.get(i['id']) or []):
+        destinos_vistos[to] += 1
+print('Todos os valores "to" (destino) vistos no changelog de status do projeto inteiro:')
+for to, c in destinos_vistos.most_common():
+    print(f'  {to!r}: {c}')
+
+print('\nCards com status ATUAL "Concluído" cujo changelog eu tenho, e o que aparece nele:')
+cnt_diag = 0
+for i in issues:
+    if (i['fields'].get('status') or {}).get('name') != 'Concluído':
+        continue
+    chg = changelogs.get(i['id'])
+    if not chg:
+        continue
+    destinos = [to for _, to in chg]
+    tem_concluido_no_chg = 'Concluído' in destinos
+    if not tem_concluido_no_chg and cnt_diag < 8:
+        print(f'  {i["key"]}: status atual=Concluído, mas changelog NÃO tem "Concluído" como '
+              f'destino — destinos reais: {destinos}  |  inicial: {iniciais.get(i["id"])}')
+        cnt_diag += 1
+if cnt_diag == 0:
+    print('  (nenhum card com essa divergência — "Concluído" bate certinho no changelog)')
+
+
+# ==============================================================================
 # DEFINIÇÃO DE "LANÇADO" — Concluído × Marketing e Lançamento
 # ==============================================================================
 linha()
