@@ -123,111 +123,36 @@ for i in issues:
 if cnt_diag == 0:
     print(f'  (nenhum card com essa divergência — {STATUS_CONCLUIDO} bate certinho no changelog)')
 print(f'\n=> CONFIRMADO: "Done" é o nome antigo de "Concluído" (rename de status não migrado no '
-      f'histórico, mesmo fenômeno do BUG). Todo cálculo abaixo usa STATUS_CONCLUIDO={STATUS_CONCLUIDO}, '
-      f'não só o literal "Concluído".')
+      f'histórico, mesmo fenômeno do BUG). Mantido aqui só como registro do diagnóstico — a '
+      f'definição de "lançado" usada abaixo é "Em produção" (decisão da Jane), que já aparece '
+      f'direto no changelog sem esse problema de rename.')
 
 
 # ==============================================================================
-# DEFINIÇÃO DE "LANÇADO" — Concluído × Marketing e Lançamento
+# DEFINIÇÃO DE "LANÇADO" — DECIDIDO PELA JANE (30/09/2026): 1ª transição pra "Em produção"
 # ==============================================================================
 linha()
-print('DEFINIÇÃO DE "LANÇADO" — investigação Concluído × Marketing e Lançamento')
+print('DEFINIÇÃO DE "LANÇADO" — Jane decidiu: 1ª transição para "Em produção"')
 linha()
+STATUS_EM_PRODUCAO = ('Em produção', 'Em Produção')  # mesma variante de capitalização já
+# tratada em ST_ENTREGUE_FUNIL (gen_data.py) — por segurança, não porque haja rename aqui
+# ('Em produção' já aparece direto no changelog do PEM, sem fantasma, confirmado no diagnóstico
+# de destinos acima).
 
-chegou_concluido = []
-chegou_marketing = []
+chegou_producao = []
 for i in issues:
-    iid = i['id']
-    ep_c = primeira_transicao(iid, STATUS_CONCLUIDO)
-    ep_m = primeira_transicao(iid, 'Marketing e Lançamento')
-    if ep_c is not None:
-        chegou_concluido.append((i, ep_c))
-    if ep_m is not None:
-        chegou_marketing.append((i, ep_m))
-
-set_c = {i['key'] for i, _ in chegou_concluido}
-set_m = {i['key'] for i, _ in chegou_marketing}
-so_c = set_c - set_m
-so_m = set_m - set_c
-ambos = set_c & set_m
-
-print(f'Cards que já passaram por "Concluído" (algum momento): {len(set_c)}')
-print(f'Cards que já passaram por "Marketing e Lançamento" (algum momento): {len(set_m)}')
-print(f'  só Concluído (nunca chegou em Marketing e Lançamento): {len(so_c)}')
-print(f'  só Marketing e Lançamento (nunca chegou em Concluído): {len(so_m)}')
-print(f'  passaram pelos DOIS: {len(ambos)}')
-
-antes_concl = antes_mkt = mesmo_instante = 0
-exemplos_ordem = []
-for i, ep_c in chegou_concluido:
-    key = i['key']
-    if key not in ambos:
-        continue
-    ep_m = dict((ii['key'], ep) for ii, ep in chegou_marketing)[key]
-    if ep_c < ep_m:
-        antes_concl += 1
-        ordem = 'Concluído -> Marketing e Lançamento'
-    elif ep_m < ep_c:
-        antes_mkt += 1
-        ordem = 'Marketing e Lançamento -> Concluído'
-    else:
-        mesmo_instante += 1
-        ordem = '(mesmo instante)'
-    if len(exemplos_ordem) < 6:
-        exemplos_ordem.append((key, i['fields'].get('summary', '')[:60], ordem,
-                                fj._epoch_iso(ep_c), fj._epoch_iso(ep_m)))
-
-print(f'\nDos {len(ambos)} que passaram pelos dois:')
-print(f'  Concluído ANTES de Marketing e Lançamento: {antes_concl}')
-print(f'  Marketing e Lançamento ANTES de Concluído: {antes_mkt}')
-print(f'  mesmo instante (mudança em lote): {mesmo_instante}')
-print('\nExemplos reais (key, resumo, ordem, data Concluído, data Marketing e Lançamento):')
-for key, resumo, ordem, dc, dm in exemplos_ordem:
-    print(f'  {key} ({resumo}): {ordem}')
-    print(f'      Concluído: {dc}  |  Marketing e Lançamento: {dm}')
-
-print(f'\nExemplos de cards que só chegaram em "Concluído" (nunca "Marketing e Lançamento"):')
-for i, ep_c in chegou_concluido[:3]:
-    if i['key'] in so_c:
-        print(f'  {i["key"]} ({i["fields"].get("summary","")[:60]}) — tipo: '
-              f'{(i["fields"].get("issuetype") or {}).get("name")} — status atual: '
-              f'{(i["fields"].get("status") or {}).get("name")}')
-
-print(f'\nExemplos de cards que só chegaram em "Marketing e Lançamento" (nunca "Concluído"):')
-cnt = 0
-for i, ep_m in chegou_marketing:
-    if i['key'] in so_m:
-        print(f'  {i["key"]} ({i["fields"].get("summary","")[:60]}) — tipo: '
-              f'{(i["fields"].get("issuetype") or {}).get("name")} — status atual: '
-              f'{(i["fields"].get("status") or {}).get("name")}')
-        cnt += 1
-        if cnt >= 3:
-            break
-
-print('\n--- PROPOSTA (a confirmar com a Jane) ---')
-print('  "lançado" = 1ª transição pra "Marketing e Lançamento"; PRA CARDS QUE NUNCA CHEGAM LÁ,')
-print('  fallback pra 1ª transição pra "Concluído" (mesmo espírito do concluido_mes de BUG: ')
-print('  usa o sinal mais forte disponível, sem deixar o card de fora só por falta do passo ideal).')
-print('  Reporto os 3 recortes abaixo lado a lado pra você decidir:')
-print('    (A) só Marketing e Lançamento (ignora quem não chegou lá)')
-print('    (B) PROPOSTA — Marketing e Lançamento, fallback Concluído')
-print('    (C) só Concluído (ignora Marketing e Lançamento)')
+    ep = primeira_transicao(i['id'], STATUS_EM_PRODUCAO)
+    if ep is not None:
+        chegou_producao.append((i, ep))
+print(f'Cards que já passaram por "Em produção" (algum momento): {len(chegou_producao)}')
+print('Exemplos reais:')
+for i, ep in chegou_producao[:3]:
+    print(f'  {i["key"]} ({i["fields"].get("summary","")[:60]}) — 1ª entrada em Em produção: '
+          f'{fj._epoch_iso(ep)}')
 
 
-def data_lancado_A(i):
-    ep = primeira_transicao(i['id'], 'Marketing e Lançamento')
-    return fj._epoch_iso(ep) if ep is not None else None
-
-
-def data_lancado_B(i):
-    ep = primeira_transicao(i['id'], 'Marketing e Lançamento')
-    if ep is None:
-        ep = primeira_transicao(i['id'], STATUS_CONCLUIDO)
-    return fj._epoch_iso(ep) if ep is not None else None
-
-
-def data_lancado_C(i):
-    ep = primeira_transicao(i['id'], STATUS_CONCLUIDO)
+def data_lancado(i):
+    ep = primeira_transicao(i['id'], STATUS_EM_PRODUCAO)
     return fj._epoch_iso(ep) if ep is not None else None
 
 
@@ -253,7 +178,7 @@ issues_validos = [i for i in issues if (i['fields'].get('resolution') or {}).get
 # 1) VOLUME LANÇADO — 2024/2025/2026
 # ==============================================================================
 linha()
-print('1) VOLUME LANÇADO POR ANO E TIPO (3 definições lado a lado)')
+print('1) VOLUME LANÇADO POR ANO E TIPO (definição: 1ª transição pra "Em produção")')
 linha()
 
 ANOS = ['2024', '2025', '2026']
@@ -272,17 +197,13 @@ def tabela_volume(fn_data):
     return tab
 
 
-for nome, fn in [('(A) só Marketing e Lançamento', data_lancado_A),
-                  ('(B) PROPOSTA: Mkt+Lançamento c/ fallback Concluído', data_lancado_B),
-                  ('(C) só Concluído', data_lancado_C)]:
-    print(f'\n--- {nome} ---')
-    tab = tabela_volume(fn)
-    for ano in ANOS + sorted(set(tab) - set(ANOS)):
-        if ano not in tab:
-            continue
-        c = tab[ano]
-        print(f'  {ano}: TOTAL={c["TOTAL"]}  |  Melhoria={c.get("Melhoria",0)}  '
-              f'Nova função={c.get("Nova função",0)}  Epic={c.get("Epic",0)}')
+tab = tabela_volume(data_lancado)
+for ano in ANOS + sorted(set(tab) - set(ANOS)):
+    if ano not in tab:
+        continue
+    c = tab[ano]
+    print(f'  {ano}: TOTAL={c["TOTAL"]}  |  Melhoria={c.get("Melhoria",0)}  '
+          f'Nova função={c.get("Nova função",0)}  Epic={c.get("Epic",0)}')
 
 print(f'\nAVISO DE COBERTURA: card mais antigo do projeto é de {data_mais_antiga} — se isso cair '
       f'dentro de 2024, o ano de 2024 pode estar incompleto (não por limite da extração, que '
@@ -294,12 +215,12 @@ print(f'\nAVISO DE COBERTURA: card mais antigo do projeto é de {data_mais_antig
 # 2) LANÇAMENTOS POR MÓDULO
 # ==============================================================================
 linha()
-print('2) LANÇAMENTOS POR MÓDULO (customfield_10065), por ano — usando a definição (B) proposta')
+print('2) LANÇAMENTOS POR MÓDULO (customfield_10065), por ano — (1ª transição pra Em produção)')
 linha()
 mod_ano = collections.defaultdict(lambda: collections.Counter())
 sem_modulo_ano = collections.Counter()
 for i in issues_validos:
-    d = data_lancado_B(i)
+    d = data_lancado(i)
     if not d:
         continue
     ano = d[:4]
@@ -318,14 +239,14 @@ for ano in ANOS:
 
 
 # ==============================================================================
-# 3) EVOLUÇÃO MENSAL 2024-2026 — usando definição (B)
+# 3) EVOLUÇÃO MENSAL 2024-2026 — 1ª transição pra Em produção
 # ==============================================================================
 linha()
-print('3) EVOLUÇÃO MENSAL (Jan/24 até hoje) — total e por tipo, definição (B)')
+print('3) EVOLUÇÃO MENSAL (Jan/24 até hoje) — total e por tipo (1ª transição pra Em produção)')
 linha()
 mensal = collections.defaultdict(lambda: collections.Counter())
 for i in issues_validos:
-    d = data_lancado_B(i)
+    d = data_lancado(i)
     if not d:
         continue
     ym = d[:7]
@@ -343,12 +264,12 @@ for ym in sorted(mensal):
 # 4) RANKING "QUEM SUBIU MAIS FEATURE"
 # ==============================================================================
 linha()
-print('4) RANKING POR ASSIGNEE — definição (B), por ano')
+print('4) RANKING POR ASSIGNEE — 1ª transição pra Em produção, por ano')
 linha()
 
 flagged = collections.defaultdict(list)
 for i in issues_validos:
-    d = data_lancado_B(i)
+    d = data_lancado(i)
     if not d:
         continue
     a = (i['fields'].get('assignee') or {}).get('displayName')
@@ -370,7 +291,7 @@ rank_a = collections.defaultdict(lambda: collections.Counter())
 for i in issues_validos:
     if (i['fields'].get('issuetype') or {}).get('name') != 'Nova função':
         continue
-    d = data_lancado_B(i)
+    d = data_lancado(i)
     if not d:
         continue
     a = (i['fields'].get('assignee') or {}).get('displayName')
@@ -385,7 +306,7 @@ for ano in ANOS:
 print('\n--- (4b) Ranking TODOS os tipos lançados, por ano ---')
 rank_b = collections.defaultdict(lambda: collections.Counter())
 for i in issues_validos:
-    d = data_lancado_B(i)
+    d = data_lancado(i)
     if not d:
         continue
     a = (i['fields'].get('assignee') or {}).get('displayName')
@@ -408,15 +329,13 @@ linha()
 print('\n--- (5a) Tempo médio "Aprovado Produto" -> lançamento (dias corridos), por tipo ---')
 tempos = collections.defaultdict(list)
 for i in issues_validos:
-    d = data_lancado_B(i)
+    d = data_lancado(i)
     if not d:
         continue
     ep_ap = primeira_transicao(i['id'], 'Aprovado Produto')
     if ep_ap is None:
         continue
-    ep_lanc = primeira_transicao(i['id'], 'Marketing e Lançamento')
-    if ep_lanc is None:
-        ep_lanc = primeira_transicao(i['id'], STATUS_CONCLUIDO)
+    ep_lanc = primeira_transicao(i['id'], STATUS_EM_PRODUCAO)
     if ep_lanc is None or ep_lanc < ep_ap:
         continue
     dias = (ep_lanc - ep_ap) / 86400
@@ -431,7 +350,7 @@ print('\n--- (5b) Origem cliente identificável (customfield_10066/10067) — la
 com_cliente = sem_cliente = 0
 exemplos_cliente = []
 for i in issues_validos:
-    d = data_lancado_B(i)
+    d = data_lancado(i)
     if not d:
         continue
     if tem_origem_cliente(i['fields']):
