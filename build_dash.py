@@ -362,7 +362,6 @@ function si(n){return '<span class="sec-ico">'+svg(n)+'</span>';}
 const MODULES=[
  {key:'bugs',label:'Bugs',icon:'bug'},
  {key:'produtos',label:'Produtos e Melhoria',icon:'cube'},
- {key:'sustentacao',label:'Sustentação',icon:'headset'},
  {key:'devs',label:'Desenvolvedores',icon:'code'}
 ];
 window.__activeModule='bugs';
