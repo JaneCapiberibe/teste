@@ -1280,6 +1280,137 @@ for dev in devs_ordem:
 d['devs']={'ordem':devs_ordem,'meses':meses,'pessoas':pessoas,'piso_amostra':PISO_AMOSTRA_SLA,
            'status_kanban_ordem':status_kanban_ordem,'em_dev_combinado':em_dev_combinado}
 
+# ==================== MÓDULO PRODUTOS E MELHORIA (SPA, build_dash.py — produtosModule()) ====================
+# NOVO EM 30/09/2026, a pedido da Jane, após levantamento de schema (projeto PEM, "Produtos e
+# Melhorias") + extração histórica (2024-2026) validada com ela dado a dado. PEM é um workflow
+# ÚNICO onde o mesmo card passa por uma fase de produto (Prototipação/Documentação/Revisão
+# Produto/Aprovado Produto/etc — status que NÃO EXISTEM no workflow do BUG) e depois entra no
+# MESMO workflow de dev já conhecido (Backlog→Em Desenvolvimento→Revisão QA→Aprovado QA→Em
+# produção→Concluído) — confirmado via changelog: 61/91 cards de uma amostra cruzaram as duas
+# fases no mesmo card (evidência de fluxo único, não dois grupos de cards sem relação).
+#
+# "Lançado" = 1ª transição para "Em produção" — DECISÃO DA JANE (30/09/2026), depois de ver que
+# "Concluído" e "Marketing e Lançamento" (quando os dois existem no mesmo card) diferem só por
+# segundos (Marketing e Lançamento sempre alguns segundos ANTES de Concluído — automação de duas
+# transições em sequência, não uma etapa de negócio própria) e que só ~6% dos cards passam por
+# "Marketing e Lançamento". Usa `producao_data`, campo JÁ calculado em fetch_jira.py/norm() com
+# ST_PRODUCAO=('Em produção','Em Produção') — o MESMO campo que MTTR/Qualidade por módulo já
+# usam pro BUG — reaproveitado aqui sem nenhuma lógica nova de changelog.
+#
+# Exclusões: resolution == "Won't Do" (mesmo espírito de Cancelado QA/Dev — decisão explícita de
+# não fazer, confirmado com exemplos reais na extração: PEM-132/PEM-229). Ranking por pessoa
+# exclui Giovanna e Renato Canever (identificados no levantamento de schema como não-devs/
+# produto) — DECISÃO DA JANE (30/09/2026): excluir sempre do ranking, mesmo quando aparecem como
+# assignee de item técnico real (aconteceu 1x com Renato Canever, card PEM-223) — o card
+# continua contando nos totais gerais (volume por ano/módulo), só não no ranking por pessoa.
+#
+# Campo de módulo é customfield_10065 ("Módulos", plural, campo `modulos` em sweep_pem.json) —
+# DIFERENTE do customfield_10073 do BUG (quase não usado no PEM). Um card pode ter mais de um
+# módulo marcado; cada um conta separadamente nos totais por módulo (a soma por módulo não bate
+# com o total de itens lançados). Só os 4 números explicitamente pedidos pela Jane pra virarem
+# painel (volume por ano, por módulo, série mensal, ranking) — "outras informações" da extração
+# (tempo Aprovado Produto→lançamento, origem cliente) ficaram só no relatório, não viraram
+# painel — não foram pedidas como parte da implementação.
+RES_EXCLUI_PEM={"Won't Do"}
+NAO_DEV_PEM={'Giovanna','Renato Canever'}
+sweep_pem_full=json.load(open('sweep_pem.json')) if os.path.exists('sweep_pem.json') else []
+for x in sweep_pem_full:
+    x['c']=pdt(x['created']); x['u']=pdt(x.get('updated'))
+sweep_pem=[x for x in sweep_pem_full if x['res'] not in RES_EXCLUI_PEM]
+
+def _pem_lancado(x):
+    """Data de 'lançado' (string ISO) = producao_data (1ª transição p/ Em produção/Em Produção,
+    já calculado em fetch_jira.py) — None se o card nunca chegou lá."""
+    return x.get('producao_data')
+
+_pem_lancados=[x for x in sweep_pem if _pem_lancado(x)]
+_pem_meses_com_dado=sorted({_pem_lancado(x)[:7] for x in _pem_lancados})
+_pem_anos=sorted({m[:4] for m in _pem_meses_com_dado})
+
+# 1) volume por ano x tipo (com keys POR TIPO também — pro clique abrir só os cards daquela
+#    célula ano×tipo, não o ano inteiro)
+_pem_por_ano_acc=collections.defaultdict(lambda:{'total':0,'por_tipo':collections.Counter(),
+                                                  'keys':[],'por_tipo_keys':collections.defaultdict(list)})
+for x in _pem_lancados:
+    ano=_pem_lancado(x)[:4]
+    a=_pem_por_ano_acc[ano]
+    a['total']+=1; a['por_tipo'][x['itype']]+=1; a['keys'].append(x['key'])
+    a['por_tipo_keys'][x['itype']].append(x['key'])
+pem_por_ano={ano:{'total':v['total'],'por_tipo':dict(v['por_tipo']),'keys':v['keys'],
+                  'por_tipo_keys':dict(v['por_tipo_keys'])}
+             for ano,v in _pem_por_ano_acc.items()}
+
+# 2) por módulo, por ano (card com >1 módulo conta em cada um; sem módulo vai pra 'sem_modulo')
+_pem_mod_ano_acc=collections.defaultdict(lambda: collections.defaultdict(lambda:{'n':0,'keys':[]}))
+_pem_sem_mod_ano_acc=collections.defaultdict(lambda:{'n':0,'keys':[]})
+for x in _pem_lancados:
+    ano=_pem_lancado(x)[:4]
+    _mods_pem=[mn(m) for m in (x.get('modulos') or [])]
+    if not _mods_pem:
+        s=_pem_sem_mod_ano_acc[ano]; s['n']+=1; s['keys'].append(x['key']); continue
+    for m in _mods_pem:
+        e=_pem_mod_ano_acc[ano][m]; e['n']+=1; e['keys'].append(x['key'])
+pem_por_modulo_ano={ano:{'modulos':dict(mm),'sem_modulo':_pem_sem_mod_ano_acc.get(ano,{'n':0,'keys':[]})}
+                    for ano,mm in _pem_mod_ano_acc.items()}
+for _ano in _pem_sem_mod_ano_acc:
+    if _ano not in pem_por_modulo_ano:
+        pem_por_modulo_ano[_ano]={'modulos':{},'sem_modulo':_pem_sem_mod_ano_acc[_ano]}
+
+# 3) evolução mensal (total + por tipo, com keys POR TIPO também — pro clique abrir só os cards
+#    daquele segmento do gráfico empilhado, não o mês inteiro), do primeiro mês com lançamento
+#    até o mês corrente.
+_pem_mensal_acc=collections.defaultdict(lambda:{'total':0,'por_tipo':collections.Counter(),
+                                                 'keys':[],'por_tipo_keys':collections.defaultdict(list)})
+for x in _pem_lancados:
+    ym=_pem_lancado(x)[:7]
+    e=_pem_mensal_acc[ym]
+    e['total']+=1; e['por_tipo'][x['itype']]+=1; e['keys'].append(x['key'])
+    e['por_tipo_keys'][x['itype']].append(x['key'])
+_pem_todos_meses=[]
+if _pem_meses_com_dado:
+    _ay,_am=map(int,_pem_meses_com_dado[0].split('-'))
+    _cy,_cm=map(int,cur_m.split('-'))
+    while (_ay,_am)<=(_cy,_cm):
+        _pem_todos_meses.append(f'{_ay:04d}-{_am:02d}')
+        _am+=1
+        if _am>12: _am=1; _ay+=1
+pem_mensal=[{'mes':m,'total':_pem_mensal_acc[m]['total'],
+             'por_tipo':dict(_pem_mensal_acc[m]['por_tipo']),
+             'keys':_pem_mensal_acc[m]['keys'],
+             'por_tipo_keys':dict(_pem_mensal_acc[m]['por_tipo_keys'])} for m in _pem_todos_meses]
+
+# 4) ranking por assignee, por ano — (a) só "Nova função", (b) todos os tipos — exclui NAO_DEV_PEM
+def _pem_ranking(filtro_tipo=None):
+    r=collections.defaultdict(lambda: collections.defaultdict(lambda:{'n':0,'keys':[]}))
+    for x in _pem_lancados:
+        if filtro_tipo and x['itype']!=filtro_tipo: continue
+        a=x.get('assignee')
+        if not a or a in NAO_DEV_PEM: continue
+        ano=_pem_lancado(x)[:4]
+        e=r[ano][a]; e['n']+=1; e['keys'].append(x['key'])
+    return {ano:sorted(({'assignee':nome,**v} for nome,v in porpessoa.items()),key=lambda t:-t['n'])
+            for ano,porpessoa in r.items()}
+pem_ranking_nova_funcao=_pem_ranking('Nova função')
+pem_ranking_todos=_pem_ranking(None)
+
+# cards (detalhe pra exportação CSV/tooltip no front) — só os já lançados
+pem_cards={x['key']:{'key':x['key'],'tipo':x['itype'],
+                      'modulos':[mn(m) for m in (x.get('modulos') or [])] or ['(sem módulo)'],
+                      'assignee':x.get('assignee') or 'Sem responsável',
+                      'lancado_em':_pem_lancado(x)[:10],
+                      'url':f"{d['jira_base']}/browse/{x['key']}"} for x in _pem_lancados}
+
+d['produtos']={
+    'tem_dado':bool(_pem_lancados),
+    'anos':_pem_anos,
+    'por_ano':pem_por_ano,
+    'por_modulo_ano':pem_por_modulo_ano,
+    'mensal':pem_mensal,
+    'ranking_nova_funcao':pem_ranking_nova_funcao,
+    'ranking_todos':pem_ranking_todos,
+    'cards':pem_cards,
+}
+
 # ---- HISTÓRICO POR MÓDULO (criados bruto por módulo por mês) ----
 cellh=collections.defaultdict(lambda:collections.Counter()); toth=collections.Counter()
 for x in sweep:

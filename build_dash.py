@@ -353,7 +353,8 @@ const ICONS={
  'bug':'<rect x="8" y="6" width="8" height="12" rx="4"/><path d="M12 6V3"/><path d="M8 10H3"/><path d="M8 14H3"/><path d="M21 10h-5"/><path d="M21 14h-5"/><path d="M9 19l-2 2"/><path d="M15 19l2 2"/>',
  'code':'<path d="M16 18l6-6-6-6"/><path d="M8 6l-6 6 6 6"/>',
  'menu':'<path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/>',
- 'log-out':'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>'
+ 'log-out':'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>',
+ 'download':'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>'
 };
 function svg(n,cls,st){return '<svg class="ic'+(cls?(' '+cls):'')+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"'+(st?(' style="'+st+'"'):'')+'>'+(ICONS[n]||'')+'</svg>';}
 function si(n){return '<span class="sec-ico">'+svg(n)+'</span>';}
@@ -396,6 +397,7 @@ function renderPlaceholderModule(key){
 function renderModule(){
   if(window.__activeModule==='bugs') render();
   else if(window.__activeModule==='devs') renderDevsModule();
+  else if(window.__activeModule==='produtos') renderProdutosModule();
   else renderPlaceholderModule(window.__activeModule);
 }
 window.__safra=null;
@@ -1333,6 +1335,167 @@ function renderDevsModule(){
    <div class="panel">${devGrid()}</div>
    ${detalhe}`;
   collapsibleNotes();
+}
+// ==================== MÓDULO PRODUTOS E MELHORIA (PEM) ====================
+// NOVO EM 30/09/2026, a pedido da Jane, depois do levantamento de schema + extração histórica
+// do projeto PEM ("Produtos e Melhorias") validados com ela dado a dado. "Lançado" = 1ª
+// transição pra "Em produção" (d['produtos'], gen_data.py — mesmo campo producao_data já usado
+// em MTTR/Qualidade por módulo do BUG, sem lógica nova). Todo número é clicável (mesmo padrão
+// abrirCardsBar já usado no resto do dashboard) e exportável em CSV (pemExportCSV — novo, monta
+// o CSV no navegador a partir de DATA.produtos.cards, sem chamada nenhuma ao Jira).
+function pemTipoColor(t){
+  if(t==='Melhoria') return col('--s2');
+  if(t==='Nova função') return col('--s1');
+  if(t==='Epic') return col('--s4');
+  return col('--text-3');
+}
+function pemOrdemTipos(tipos){
+  const fixa=['Nova função','Melhoria','Epic'];
+  return fixa.filter(t=>tipos.includes(t)).concat(tipos.filter(t=>!fixa.includes(t)));
+}
+function pemCSV(keys){
+  const cards=DATA.produtos.cards;
+  const header=['Key','Tipo','Módulo(s)','Responsável','Lançado em','URL'];
+  const rows=keys.map(k=>{const c=cards[k]||{key:k};
+    return [c.key,c.tipo||'',(c.modulos||[]).join('; '),c.assignee||'',c.lancado_em||'',c.url||''];});
+  return [header,...rows].map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n');
+}
+function pemExportCSV(btn){
+  const keys=(btn.dataset.keys||'').split(',').filter(Boolean);
+  if(!keys.length) return;
+  const blob=new Blob(['﻿'+pemCSV(keys)],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=(btn.dataset.filename||'produtos-melhoria')+'.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+function pemExportBtn(keys,filename){
+  if(!keys||!keys.length) return '';
+  return `<button class="prodbtn" style="padding:4px 10px;font-size:11.5px;display:inline-flex;align-items:center;gap:5px" data-keys="${keys.join(',')}" data-filename="${filename}" onclick="pemExportCSV(this)">${svg('download')}Exportar CSV</button>`;
+}
+function pemClick(keys){
+  return `data-keys="${(keys||[]).join(',')}" onclick="abrirCardsBar(this)" style="cursor:pointer" title="Clique p/ ver os cards no Jira"`;
+}
+window.__pemAno=null; // null = "todos os anos"
+function pemSetAno(a){window.__pemAno=a;renderModule();}
+function pemAnoChips(){
+  const P=DATA.produtos, cur=window.__pemAno;
+  const chips=P.anos.map(a=>`<button class="emchip${cur===a?' on':''}" onclick="pemSetAno('${a}')"><i></i>${a}</button>`).join('');
+  return `<div class="emchiprow"><button class="emchip${cur===null?' on':''}" onclick="pemSetAno(null)"><i></i>Todos os anos</button>${chips}</div>`;
+}
+function pemVolumePorAno(){
+  const P=DATA.produtos, anos=P.anos;
+  if(!anos.length) return '<div class="note">Nenhum lançamento registrado ainda.</div>';
+  const tipos=pemOrdemTipos([...new Set(anos.flatMap(a=>Object.keys(P.por_ano[a].por_tipo)))]);
+  const head=`<tr><th>Ano</th><th class="num">Total</th>${tipos.map(t=>`<th class="num">${t}</th>`).join('')}<th></th></tr>`;
+  const rows=anos.map(ano=>{
+    const a=P.por_ano[ano];
+    const cTotal=`<td class="num"><span ${pemClick(a.keys)}><b>${a.total}</b></span></td>`;
+    const cTipos=tipos.map(t=>{
+      const n=a.por_tipo[t]||0, keys=(a.por_tipo_keys||{})[t]||[];
+      return `<td class="num">${n?`<span ${pemClick(keys)}>${n}</span>`:'—'}</td>`;
+    }).join('');
+    return `<tr><td>${ano}</td>${cTotal}${cTipos}<td class="num">${pemExportBtn(a.keys,`pem-lancados-${ano}`)}</td></tr>`;
+  }).join('');
+  return `<table><thead>${head}</thead><tbody>${rows}</tbody></table>
+    <div class="note" style="margin-top:8px">"Lançado" = 1ª vez que o card entrou em "Em produção". 2024 e o ano corrente cobrem só parte do ano — ver nota abaixo antes de comparar ano a ano.</div>`;
+}
+function pemPorModulo(){
+  const P=DATA.produtos, ano=window.__pemAno;
+  let modulos={}, semModulo={n:0,keys:[]};
+  const anosSoma=ano?[ano]:P.anos;
+  for(const a of anosSoma){
+    const d=P.por_modulo_ano[a]||{modulos:{},sem_modulo:{n:0,keys:[]}};
+    for(const [m,v] of Object.entries(d.modulos)){
+      if(!modulos[m]) modulos[m]={n:0,keys:[]};
+      modulos[m].n+=v.n; modulos[m].keys=modulos[m].keys.concat(v.keys);
+    }
+    semModulo={n:semModulo.n+d.sem_modulo.n,keys:semModulo.keys.concat(d.sem_modulo.keys)};
+  }
+  const entries=Object.entries(modulos).sort((a,b)=>b[1].n-a[1].n);
+  const max=Math.max(1,...entries.map(([,v])=>v.n),semModulo.n);
+  const row=(nome,v)=>`<div class="bar-row"><div class="lbl">${nome}</div>
+     <div class="bar-track"><div class="bar-fill" style="width:${(v.n/max*100).toFixed(1)}%;background:${col('--s1')}"></div></div>
+     <div class="bar-val"><span ${pemClick(v.keys)}>${v.n}</span></div></div>`;
+  const rows=entries.map(([m,v])=>row(m,v)).join('')+(semModulo.n?row('(sem módulo)',semModulo):'');
+  const totalKeys=entries.flatMap(([,v])=>v.keys).concat(semModulo.keys);
+  return `${rows||'<div class="note">Nenhum lançamento nesse período.</div>'}
+    <div style="margin-top:10px">${pemExportBtn(totalKeys,`pem-modulos-${ano||'todos-anos'}`)}</div>`;
+}
+function pemRankingMerge(ranking,anos){
+  const acc={};
+  for(const ano of anos){
+    for(const r of (ranking[ano]||[])){
+      if(!acc[r.assignee]) acc[r.assignee]={assignee:r.assignee,n:0,keys:[]};
+      acc[r.assignee].n+=r.n; acc[r.assignee].keys=acc[r.assignee].keys.concat(r.keys);
+    }
+  }
+  return Object.values(acc).sort((a,b)=>b.n-a.n);
+}
+function pemRankingTabela(ranking,ano,filename){
+  const linhas=ano?(ranking[ano]||[]):pemRankingMerge(ranking,DATA.produtos.anos);
+  if(!linhas.length) return '<div class="note">Sem lançamentos nesse período.</div>';
+  const rows=linhas.map(r=>`<tr><td>${r.assignee}</td><td class="num"><span ${pemClick(r.keys)}><b>${r.n}</b></span></td></tr>`).join('');
+  const totalKeys=linhas.flatMap(r=>r.keys);
+  return `<table><thead><tr><th>Desenvolvedor</th><th class="num">Lançados</th></tr></thead><tbody>${rows}</tbody></table>
+    <div style="margin-top:8px">${pemExportBtn(totalKeys,filename)}</div>`;
+}
+function pemRanking(){
+  const P=DATA.produtos, ano=window.__pemAno;
+  const lbl=ano||`todos os anos (${P.anos[0]}–${P.anos[P.anos.length-1]})`;
+  return `<div class="grid2">
+    <div><div class="kpi-label" style="margin-bottom:8px">Só "Nova função" — ${lbl}</div>${pemRankingTabela(P.ranking_nova_funcao,ano,`pem-ranking-nova-funcao-${ano||'todos-anos'}`)}</div>
+    <div><div class="kpi-label" style="margin-bottom:8px">Todos os tipos — ${lbl}</div>${pemRankingTabela(P.ranking_todos,ano,`pem-ranking-todos-${ano||'todos-anos'}`)}</div>
+  </div>`;
+}
+function pemEvolucaoMensal(){
+  const P=DATA.produtos, meses=P.mensal;
+  if(!meses.length) return '<div class="note">Nenhum lançamento registrado ainda.</div>';
+  const tipos=pemOrdemTipos([...new Set(meses.flatMap(m=>Object.keys(m.por_tipo)))]);
+  const n=meses.length, W=1080,H=260,Pd=44;
+  const maxY=Math.max(4,...meses.map(m=>m.total))*1.15;
+  const bw=(W-2*Pd)/n*0.62;
+  const xs=(i)=>Pd+(i+0.5)*(W-2*Pd)/n;
+  const ys=(v)=>H-Pd-(v/maxY)*(H-2*Pd);
+  const step=Math.max(1,Math.ceil(maxY/4));
+  let grid='';for(let g=0;g<=Math.ceil(maxY/step);g++){const val=g*step;const yy=ys(val);grid+=`<line x1="${Pd}" y1="${yy}" x2="${W-Pd}" y2="${yy}" stroke="${col('--line')}"/><text x="${Pd-6}" y="${yy+4}" text-anchor="end" fill="${col('--text-3')}" font-size="10">${val}</text>`;}
+  let xl='';meses.forEach((m,i)=>{if(i%2===0||i===n-1)xl+=`<text x="${xs(i)}" y="${H-Pd+16}" text-anchor="middle" fill="${col('--text-3')}" font-size="9">${mesLbl(m.mes)}</text>`;});
+  let bars='';
+  meses.forEach((m,i)=>{
+    let acc=0;
+    tipos.forEach(t=>{
+      const v=(m.por_tipo[t]||0); if(!v) return;
+      const keys=(m.por_tipo_keys||{})[t]||[];
+      const y0=ys(acc), y1=ys(acc+v);
+      bars+=`<rect x="${(xs(i)-bw/2).toFixed(1)}" y="${y1.toFixed(1)}" width="${bw.toFixed(1)}" height="${(y0-y1).toFixed(1)}" fill="${pemTipoColor(t)}" rx="1" style="cursor:pointer" data-keys="${keys.join(',')}" onclick="abrirCardsBar(this)"><title>${m.mes} · ${t}: ${v} · clique p/ ver no Jira</title></rect>`;
+      acc+=v;
+    });
+    if(m.total>0) bars+=`<text x="${xs(i).toFixed(1)}" y="${(ys(m.total)-4).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="${col('--text-1')}">${m.total}</text>`;
+  });
+  const legend=tipos.map(t=>`<span><i class="dot" style="background:${pemTipoColor(t)}"></i>${t}</span>`).join('');
+  const allKeys=meses.flatMap(m=>m.keys);
+  return `<div class="legend">${legend}</div>
+    <svg viewBox="0 0 ${W} ${H}" width="100%">${grid}${xl}${bars}</svg>
+    <div style="margin-top:6px">${pemExportBtn(allKeys,'pem-evolucao-mensal')}</div>`;
+}
+function renderProdutosModule(){
+  const P=DATA.produtos;
+  if(!P||!P.tem_dado){
+    document.getElementById('app').innerHTML=`<div class="module-placeholder"><div class="ic-big">${svg('cube')}</div><h2>Produtos e Melhoria</h2><p>Nenhum item lançado (1ª entrada em "Em produção") encontrado no Jira (project = PEM).</p></div>`;
+    return;
+  }
+  document.getElementById('app').innerHTML=`
+   <h2>${si('cube')}Produtos e Melhoria <span class="info" data-tip="Dados do projeto PEM (Produtos e Melhorias) no Jira. 'Lançado' = 1ª vez que o card entrou em 'Em produção' (changelog) — mesmo critério já usado em MTTR/Qualidade por módulo do BUG. Exclui cards com resolution 'Won't Do' (decisão explícita de não fazer). Ranking por pessoa exclui Giovanna e Renato Canever (produto/PM, não desenvolvedores) — o card continua contando no volume geral. Todo número é clicável (abre os cards exatos no Jira) e exportável em CSV.">i</span></h2>
+   <div class="kpi-label" style="margin-bottom:6px">Volume lançado por ano</div>
+   <div class="panel">${pemVolumePorAno()}</div>
+
+   <div class="kpi-label" style="margin:18px 0 6px">Lançamentos por módulo e ranking por desenvolvedor</div>
+   ${pemAnoChips()}
+   <div class="panel" style="margin-top:8px"><div class="kpi-label" style="margin-bottom:8px">Por módulo</div>${pemPorModulo()}</div>
+   <div class="panel" style="margin-top:12px">${pemRanking()}</div>
+
+   <div class="kpi-label" style="margin:18px 0 6px">Evolução mensal</div>
+   <div class="panel">${pemEvolucaoMensal()}</div>
+  `;
 }
 function funilPanel(){
   // "Diagnóstico do mês — funil de entrega do dev" — COM seletor Mês/Acumulado (chave 'funil',

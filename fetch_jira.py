@@ -3,15 +3,18 @@ fetch_jira.py — puxa TODOS os bugs do Jira (projeto BUG) via API REST e gera o
 arquivos que o pipeline consome: sweep.json + jira_backlog.json + impedimentos_live.json
 + sobra_live.json + ni_assignee.json + status_changelog.json.
 
-Desde 21/09/2026 também puxa o projeto BACKOFFICE, e desde 28/09/2026 também o projeto SUS
-("Sustentação") — mesmo esquema de status/changelog do BUG nos dois, confirmado em levantamento
-de schema com a Jane — e gera sweep_backoffice.json/sweep_sus.json — arquivos separados, só
-consumidos pelo módulo Desenvolvedores (gen_data.py soma as três fontes por pessoa); o módulo
-Bugs e o resto do pipeline continuam 100% sweep.json/project=BUG, sem BACKOFFICE/SUS.
-status_changelog.json passa a ter as três fontes juntas (key já inclui o prefixo do projeto —
-BUG-123 vs MB-456 vs SUS-789 — sem colisão). BACKOFFICE/SUS são fontes SECUNDÁRIAS: se a busca
-falhar (0 issues), só avisa e mantém o sweep_*.json daquela fonte como estava — não derruba o
-pipeline inteiro (diferente do BUG, onde 0 issues sempre aborta a atualização).
+Desde 21/09/2026 também puxa o projeto BACKOFFICE, desde 28/09/2026 também o projeto SUS
+("Sustentação"), e desde 30/09/2026 também o projeto PEM ("Produtos e Melhorias") — mesmo
+esquema de status/changelog do BUG nos três, confirmado em levantamento de schema com a Jane —
+e gera sweep_backoffice.json/sweep_sus.json/sweep_pem.json — arquivos separados. BACKOFFICE/SUS
+só são consumidos pelo módulo Desenvolvedores (gen_data.py soma as três fontes por pessoa); PEM
+alimenta o módulo próprio "Produtos e Melhoria" (volume lançado, por módulo, ranking — ver
+gen_data.py). O módulo Bugs e o resto do pipeline continuam 100% sweep.json/project=BUG, sem
+BACKOFFICE/SUS/PEM. status_changelog.json passa a ter as quatro fontes juntas (key já inclui o
+prefixo do projeto — BUG-123 vs MB-456 vs SUS-789 vs PEM-789 — sem colisão). BACKOFFICE/SUS/PEM
+são fontes SECUNDÁRIAS: se a busca falhar (0 issues), só avisa e mantém o sweep_*.json daquela
+fonte como estava — não derruba o pipeline inteiro (diferente do BUG, onde 0 issues sempre
+aborta a atualização).
 
 Credenciais via variáveis de ambiente (segredos do GitHub Actions):
   JIRA_BASE_URL   ex.: https://orcafascio.atlassian.net
@@ -25,7 +28,7 @@ BASE = os.environ.get('JIRA_BASE_URL', 'https://orcafascio.atlassian.net').rstri
 
 FIELDS = ['status', 'priority', 'resolution', 'created', 'updated', 'resolutiondate',
           'timespent', 'aggregatetimespent', 'issuetype', 'assignee', 'customfield_10073',
-          'customfield_10120']
+          'customfield_10120', 'customfield_10065']
 
 def _auth_headers():
     email = os.environ['JIRA_EMAIL']
@@ -288,6 +291,11 @@ def norm(issue, changes=None):
     # Normaliza pra lista simples de strings — hoje só o escape rate (det_series, gen_data.py)
     # usa esse campo, mas fica em sweep.json pra eventual uso futuro por outros painéis.
     card_revisado = [opt.get('value') for opt in (f.get('customfield_10120') or [])]
+    # customfield_10065 ("Módulos", plural) — campo de módulo do projeto PEM (levantamento de
+    # schema de 30/09/2026): campo DIFERENTE de customfield_10073 ("Módulo", singular, do BUG —
+    # quase não usado no PEM/SUS). Multi-select, mesma forma de card_revisado (lista de opções
+    # com 'value'). Vazio ([]) pra qualquer projeto que não preenche esse campo — sem custo.
+    modulos = [opt.get('value') for opt in (f.get('customfield_10065') or []) if isinstance(opt, dict)]
     return {
         'key': issue.get('key'),
         'status': status,
@@ -308,6 +316,7 @@ def norm(issue, changes=None):
         'producao_data': producao_data,
         'done_pos_producao_data': done_pos_producao_data,
         'card_revisado': card_revisado,
+        'modulos': modulos,
     }
 
 def mm(iso):
@@ -447,7 +456,7 @@ def build_sweep_extra(recs, filename, label):
     sweep_extra = [{k: r[k] for k in ('key', 'status', 'prio', 'itype', 'res', 'created', 'resolved', 'updated', 'timespent',
                  'modulo', 'assignee', 'assignee_avatar', 'concluido_mes', 'em_dev_data', 'entrega_data',
                  'nao_iniciado_data', 'producao_data', 'done_pos_producao_data',
-                 'card_revisado')} for r in recs]
+                 'card_revisado', 'modulos')} for r in recs]
     json.dump(sweep_extra, open(filename, 'w'), ensure_ascii=False)
     print(f'  {filename}: {len(sweep_extra)} issues ({label})')
 
@@ -474,6 +483,13 @@ if __name__ == '__main__':
     status_changelog.update(status_changelog_sus)  # keys já vêm com o prefixo do projeto — sem colisão
     if recs_all_sus:
         build_sweep_extra(recs_all_sus, 'sweep_sus.json', 'SUS')
+
+    print('Puxando do Jira (PEM)...')
+    recs_all_pem, status_changelog_pem = puxar_projeto('project = PEM ORDER BY created ASC',
+                                                        obrigatorio=False, label='PEM')
+    status_changelog.update(status_changelog_pem)  # keys já vêm com o prefixo do projeto — sem colisão
+    if recs_all_pem:
+        build_sweep_extra(recs_all_pem, 'sweep_pem.json', 'PEM')
 
     json.dump(status_changelog, open('status_changelog.json', 'w'), ensure_ascii=False)
     print('OK — arquivos gerados.')
