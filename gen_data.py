@@ -771,13 +771,20 @@ d['squads_acumulado_por_mes']={m:_squads_de([x for x in sweep if x['c'] and x['c
 #   5. Cancelados dev  dos que chegaram ao dev, quantos têm resolution == "Cancelado Dev" —
 #                       cancelamento real, já dentro do fluxo (DECISÃO DE 02/09/2026: sai
 #                       ANTES de "confirmados", não depois, mesmo espírito de antes).
-#   6. Confirmados ... chegaram ao dev − Cancelado Dev = MESMA régua oficial (Evolução por
-#                       módulo/evolucao_bugs.py: exclui Cancelado QA/Dev e status atual
-#                       Backlog/Impedimento Produto) — EXCETO Impedimento Produto, que essa
-#                       régua do funil não corta (fica dentro de "confirmados"/"fila", já que
-#                       é trabalho real só bloqueado, diferente de Backlog). "Confirmados" só
-#                       bate exatamente com o "criado" de Bug por módulo em meses sem nenhum
-#                       card em Impedimento Produto entre os criados daquele mês.
+#   6. Confirmados ... chegaram ao dev − Cancelado Dev − Impedimento Produto = MESMA régua
+#                       oficial de Evolução por módulo/evolucao_bugs.py (exclui Cancelado QA/Dev
+#                       e status atual Backlog/Impedimento Produto). CORRIGIDO EM 02/10/2026, a
+#                       pedido da Jane: antes "Confirmados" não cortava Impedimento Produto (ficava
+#                       dentro de "confirmados"/"fila"), o que fazia o número divergir do "criado"
+#                       de Bug por módulo em qualquer safra com card parado nesse status no momento
+#                       do cálculo — ela percebeu a divergência comparando os dois painéis numa
+#                       safra fechada (2 cards, BUG-1896/BUG-1927, presos em Impedimento Produto).
+#                       Ambos os painéis usam status ATUAL, calculado ao vivo a cada execução do
+#                       pipeline — por isso um card criado numa safra já fechada pode entrar em
+#                       Impedimento Produto depois, abrindo essa divergência retroativamente (não
+#                       acontecia na safra corrente só porque ainda não tinha dado tempo). Os cards
+#                       em Impedimento Produto não ganharam etapa própria no funil (decisão da
+#                       Jane) — só saem da contagem, igual Backlog, Cancelado QA e Cancelado Dev.
 #   7. Entregues ..... status ATUAL em ST_ENTREGUE_FUNIL (Em produção/Em Produção/Done/
 #                       Concluído/Concluido) — mais amplo que o ENTREGUE usado acima em
 #                       d['tot_series'] (só "Em produção"); intencional, só pra este painel.
@@ -809,7 +816,11 @@ def build_funil(ini,fim=None):
     disc=[x for x in pos_backlog if x['res']=='Cancelado QA']
     pos_qa=[x for x in pos_backlog if x['res']!='Cancelado QA']
     canc_dev=[x for x in pos_qa if x['res']=='Cancelado Dev']
-    dev=[x for x in pos_qa if x['res']!='Cancelado Dev']
+    pos_dev=[x for x in pos_qa if x['res']!='Cancelado Dev']
+    # CORRIGIDO EM 02/10/2026: "Confirmados" também corta status ATUAL "IMPEDIMENTO PRODUTO",
+    # igual a régua oficial de Evolução por módulo (_elegivel_evol) — ver nota acima. Sem etapa
+    # própria no funil (decisão da Jane), só sai da contagem como Backlog/Cancelado QA/Cancelado Dev.
+    dev=[x for x in pos_dev if x['status']!='IMPEDIMENTO PRODUTO']
     entregues=[x for x in dev if x['status'] in ST_ENTREGUE_FUNIL]
     fila=[x for x in dev if x['status'] not in ST_ENTREGUE_FUNIL]
     _fila_cnt=collections.Counter(x['status'] for x in fila)
@@ -852,6 +863,10 @@ def build_funil(ini,fim=None):
     # no set, então passa).
     _pos_backlog=f'status != "Backlog"'
     _pos_res=f'(resolution not in ({_res_lista}) OR resolution is EMPTY)'
+    # CORRIGIDO EM 02/10/2026: mesmo corte de status atual "IMPEDIMENTO PRODUTO" aplicado em
+    # `dev` acima — sem isso o clique em Confirmados/Entregues/Fila contaria 2 cards a mais do
+    # que o número mostrado na tela (ver nota da régua, início de build_funil).
+    _pos_imped=f'status != "IMPEDIMENTO PRODUTO"'
     # base líquida (CLAUDE.md): os números em Python vêm de sweep_full, que já tira o módulo
     # "Chat de Suporte" (EXCLUI_MOD) — sem essa cláusula na JQL, o clique conta card a mais toda
     # vez que um card do mês cair nesse módulo. Mesma cláusula/campo já usados em fetch_jira.py
@@ -862,9 +877,9 @@ def build_funil(ini,fim=None):
     url_backlog=_jql_url(f'project = BUG AND {_periodo} AND status = "Backlog" AND {_nochat}')
     url_qa=_jql_url(f'project = BUG AND {_periodo} AND resolution = "Cancelado QA" AND {_nochat}')
     url_dev_cancel=_jql_url(f'project = BUG AND {_periodo} AND resolution = "Cancelado Dev" AND {_nochat}')
-    url_confirmados=_jql_url(f'project = BUG AND {_periodo} AND {_pos_res} AND {_pos_backlog} AND {_nochat}')
-    url_entregues=_jql_url(f'project = BUG AND {_periodo} AND status in ({_ent_lista}) AND {_pos_res} AND {_pos_backlog} AND {_nochat}')
-    url_fila=_jql_url(f'project = BUG AND {_periodo} AND status not in ({_ent_lista}) AND {_pos_res} AND {_pos_backlog} AND {_nochat}')
+    url_confirmados=_jql_url(f'project = BUG AND {_periodo} AND {_pos_res} AND {_pos_backlog} AND {_pos_imped} AND {_nochat}')
+    url_entregues=_jql_url(f'project = BUG AND {_periodo} AND status in ({_ent_lista}) AND {_pos_res} AND {_pos_backlog} AND {_pos_imped} AND {_nochat}')
+    url_fila=_jql_url(f'project = BUG AND {_periodo} AND status not in ({_ent_lista}) AND {_pos_res} AND {_pos_backlog} AND {_pos_imped} AND {_nochat}')
     return {'mes':fim,'total':len(crj),'backlog':len(backlog),'descartados_qa':len(disc),
         'chegaram_dev':len(pos_qa),'confirmados':len(dev),
         'cancelados_dev':len(canc_dev),
