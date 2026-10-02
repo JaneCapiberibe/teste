@@ -40,7 +40,7 @@ jobs:
       - name: Gerar o dashboard (sanity check do pipeline completo)
         run: python build_dash.py
 
-      - name: Comparar Confirmados (funil) x criado (Evolução por módulo)
+      - name: Comparar Confirmados (funil) x criado (Evolução por módulo) — mês corrente
         run: |
           python3 -c "
           import json
@@ -52,12 +52,33 @@ jobs:
           criado_ref = sum(serie['criados'][mi] for serie in em['por_modulo'].values())
           confirmados_ref = d['funil']['confirmados']
           chegaram_dev = d['funil']['chegaram_dev']
-          print('Mes de referencia do funil:', mes_ref)
+          print('Mes de referencia do funil (corrente):', mes_ref)
           print('criado (evol_modulo, soma todos os modulos):', criado_ref)
           print('confirmados (funil):', confirmados_ref)
           print('chegaram_dev (funil, sem o corte de Impedimento Produto):', chegaram_dev)
-          print()
           print('OK: criado == confirmados' if criado_ref == confirmados_ref else f'DIVERGE ainda: diff={criado_ref-confirmados_ref}')
+          "
+
+      - name: Comparar explicitamente setembro/2026 (o mes que a Jane reportou)
+        run: |
+          python3 -c "
+          import importlib.util, json
+          spec = importlib.util.spec_from_file_location('gen_data_mod', 'gen_data.py')
+          mod = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(mod)  # roda gen_data.py de novo (sweep.json ja esta local, nao faz novo fetch)
+
+          f_set = mod.build_funil('2026-09')
+          em = json.load(open('dash_data.json'))['evol_modulo']
+          mi = em['meses'].index('2026-09')
+          criado_set = sum(serie['criados'][mi] for serie in em['por_modulo'].values())
+
+          print('=== Setembro/2026 (mes fechado, reportado pela Jane) ===')
+          print('criado (evol_modulo, soma todos os modulos):', criado_set)
+          print('confirmados (funil, apos o fix):', f_set['confirmados'])
+          print('chegaram_dev (funil, sem o corte de Impedimento Produto):', f_set['chegaram_dev'])
+          print('diferenca chegaram_dev - confirmados (= cards excluidos por Impedimento Produto no mes):', f_set['chegaram_dev'] - f_set['confirmados'])
+          print()
+          print('OK: criado == confirmados em setembro' if criado_set == f_set['confirmados'] else f'AINDA DIVERGE em setembro: diff={criado_set-f_set[\"confirmados\"]}')
           "
 
       - name: Checar cards reais em Impedimento Produto (base liquida, todo o periodo)
