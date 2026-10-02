@@ -1,0 +1,79 @@
+name: "[TEMP] Validação — funil Confirmados x Impedimento Produto"
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch a validar'
+        required: true
+        default: 'claude/funil-confirmados-impedimento-produto'
+
+permissions:
+  contents: read
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Puxar do Jira
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: python fetch_jira.py
+
+      - name: Recalcular dados
+        run: python gen_data.py
+
+      - name: Gerar o dashboard (sanity check do pipeline completo)
+        run: python build_dash.py
+
+      - name: Comparar Confirmados (funil) x criado (Evolução por módulo)
+        run: |
+          python3 -c "
+          import json
+          d = json.load(open('dash_data.json'))
+          em = d['evol_modulo']
+          meses = em['meses']
+          mes_ref = d['funil']['mes']
+          mi = meses.index(mes_ref)
+          criado_ref = sum(serie['criados'][mi] for serie in em['por_modulo'].values())
+          confirmados_ref = d['funil']['confirmados']
+          chegaram_dev = d['funil']['chegaram_dev']
+          print('Mes de referencia do funil:', mes_ref)
+          print('criado (evol_modulo, soma todos os modulos):', criado_ref)
+          print('confirmados (funil):', confirmados_ref)
+          print('chegaram_dev (funil, sem o corte de Impedimento Produto):', chegaram_dev)
+          print()
+          print('OK: criado == confirmados' if criado_ref == confirmados_ref else f'DIVERGE ainda: diff={criado_ref-confirmados_ref}')
+          "
+
+      - name: Checar cards reais em Impedimento Produto (base liquida, todo o periodo)
+        run: |
+          python3 -c "
+          import json
+          sweep = json.load(open('sweep.json'))
+          imped = [x for x in sweep if x.get('status')=='IMPEDIMENTO PRODUTO']
+          print('Total de cards (sweep, base liquida) em IMPEDIMENTO PRODUTO agora:', len(imped))
+          for x in imped:
+              print(' ', x['key'], '| criado:', x['created'][:7], '| modulo:', x.get('modulo'))
+          "
+
+      - name: Upload dash_data.json como artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: funil-impedimento-dash-data
+          path: dash_data.json
+          retention-days: 5
