@@ -196,17 +196,21 @@ d['produto_antigo_pronto']=bool(antigo_c)
 # vivo do Jira em vários outros pontos do pipeline (STATUS_EXCLUI_ACUM acima, impedimentos_live.json
 # em fetch_jira.py, régua oficial em evolucao_bugs.py), régua definida com o setor de dev.
 STATUS_ORDER=['Não Iniciado','Em Desenvolvimento','IMPEDIMENTO DEV','IMPEDIMENTO PRODUTO','Revert']
-presentes=[s for s in STATUS_ORDER if any(x['status']==s for x in sweep)]
+# DECISÃO DE 07/10/2026, a pedido da Jane: os 5 status ficam sempre disponíveis no seletor,
+# mesmo que nenhum card esteja neles agora (ex.: "Revert" costuma zerar em meses tranquilos) —
+# antes só entravam no <select> os que tinham pelo menos 1 card no momento do cálculo, então a
+# opção sumia do filtro em vez de mostrar uma série zerada. `sobraChart()` já tolera isso (barra
+# não desenha quando v=0, maxY tem piso de 4) — só precisava parar de faltar a chave no dict.
 por_status={}
 por_status_keys={}
-for s in presentes:
+for s in STATUS_ORDER:
     cnt=collections.Counter(x['c'].strftime('%Y-%m') for x in sweep if x['c'] and x['status']==s)
     por_status[s]=[cnt.get(m,0) for m in meses]
     keys_m=collections.defaultdict(list)
     for x in sweep:
         if x['c'] and x['status']==s: keys_m[x['c'].strftime('%Y-%m')].append(x['key'])
     por_status_keys[s]=[keys_m.get(m,[]) for m in meses]
-d['status_series']={'meses':meses,'ordem':presentes,'por_status':por_status,'por_status_keys':por_status_keys}
+d['status_series']={'meses':meses,'ordem':STATUS_ORDER,'por_status':por_status,'por_status_keys':por_status_keys}
 # override AO VIVO da sobra por status (contagens JQL de hoje) — ver sobra_live.json
 # 'full': substitui a série INTEIRA de cada status pelo mapa {mês:qtd} ao vivo (zera os demais meses).
 if os.path.exists('sobra_live.json'):
