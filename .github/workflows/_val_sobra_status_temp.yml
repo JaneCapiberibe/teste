@@ -1,0 +1,68 @@
+name: "[TEMP] Validação — Sobra por status, todos visíveis"
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch a validar'
+        required: true
+        default: 'claude/sobra-status-todos-visiveis'
+
+permissions:
+  contents: read
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Puxar do Jira
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: python fetch_jira.py
+
+      - name: Recalcular dados
+        run: python gen_data.py
+
+      - name: Gerar o dashboard (sanity check do pipeline completo)
+        run: python build_dash.py
+
+      - name: Conferir status_series com dados reais
+        run: |
+          python3 -c "
+          import json
+          d = json.load(open('dash_data.json'))
+          ss = d['status_series']
+          print('ordem:', ss['ordem'])
+          print()
+          esperado = ['Não Iniciado','Em Desenvolvimento','IMPEDIMENTO DEV','IMPEDIMENTO PRODUTO','Revert']
+          print('OK: ordem tem os 5 status esperados, na ordem certa' if ss['ordem']==esperado else f'DIVERGE: {ss[\"ordem\"]}')
+          print()
+          for s in ss['ordem']:
+              vals = ss['por_status'][s]
+              tot = sum(vals)
+              print(f'{s:22s} total={tot:4d}  ultimos_6_meses={vals[-6:]}')
+          print()
+          zerados = [s for s in ss['ordem'] if sum(ss['por_status'][s])==0]
+          print('Status com total zero em toda a serie (prova real do caso que motivou o fix):', zerados if zerados else 'nenhum no momento')
+          "
+
+      - name: Upload dash_data.json como artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sobra-status-dash-data
+          path: dash_data.json
+          retention-days: 5
