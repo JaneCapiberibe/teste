@@ -252,6 +252,7 @@ for m in meses:
 d['det_series']=det_series
 _defech=[s for s in det_series if s['mes']<cur_ym and s['total']>0][-6:]
 d['det_series_meta']={'media_fechadas':round(statistics.mean([s['escape'] for s in _defech])) if _defech else 0,
+                      'media_fechadas_abs':round(statistics.mean([s['cliente'] for s in _defech]),1) if _defech else 0,
                       'mes_corrente':cur_ym}
 
 # ---- RECORTES: BIM (externo) x Sem BIM (internos) ----

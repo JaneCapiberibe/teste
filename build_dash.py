@@ -560,17 +560,20 @@ function abrirCardsBar(el){
 function escapeChart(){
   const S=DATA.det_series, meta=DATA.det_series_meta;
   const W=1080,H=260,P=42,n=S.length, gw=(W-2*P)/n, cx=(i)=>P+(i+0.5)*gw;
-  const maxV=Math.max(10,...S.map(d=>d.escape)), maxY=Math.min(100,Math.ceil(maxV*1.2/10)*10);
+  const maxV=Math.max(1,...S.map(d=>d.cliente)), maxY=Math.max(20,Math.ceil(maxV*1.2/20)*20);
   const ys=(v)=>H-P-(v/maxY)*(H-2*P);
-  let grid='';for(let g=0;g<=4;g++){const yy=P+g*(H-2*P)/4,val=Math.round(maxY*(1-g/4));grid+=`<line x1="${P}" y1="${yy}" x2="${W-P}" y2="${yy}" stroke="${col('--line')}" stroke-width="1"/><text x="${P-6}" y="${yy+4}" text-anchor="end" fill="${col('--text-3')}" font-size="10">${val}%</text>`;}
+  let grid='';for(let g=0;g<=4;g++){const yy=P+g*(H-2*P)/4,val=Math.round(maxY*(1-g/4));grid+=`<line x1="${P}" y1="${yy}" x2="${W-P}" y2="${yy}" stroke="${col('--line')}" stroke-width="1"/><text x="${P-6}" y="${yy+4}" text-anchor="end" fill="${col('--text-3')}" font-size="10">${val}</text>`;}
   let xl='';S.forEach((d,i)=>{if(i%2===0||i===n-1)xl+=`<text x="${cx(i)}" y="${H-P+16}" text-anchor="middle" fill="${col('--text-3')}" font-size="9">${d.mes.slice(2)}</text>`;});
   const si2=S.findIndex(d=>d.mes===curSafra());let band='';
   if(si2>=0){const w=gw*0.9;band=`<rect x="${(cx(si2)-w/2).toFixed(1)}" y="${P}" width="${w.toFixed(1)}" height="${H-2*P}" fill="${col('--s1')}" opacity="0.10"/>`;}
-  const my=ys(meta.media_fechadas);
-  const avg=`<line x1="${P}" y1="${my.toFixed(1)}" x2="${W-P}" y2="${my.toFixed(1)}" stroke="${col('--text-3')}" stroke-width="1.3" stroke-dasharray="5 4"/><text x="${W-P}" y="${(my-5).toFixed(1)}" text-anchor="end" fill="${col('--text-3')}" font-size="10">média safras fechadas ${meta.media_fechadas}%</text>`;
-  const lp=S.map((d,i)=>(i?'L':'M')+cx(i).toFixed(1)+' '+ys(d.escape).toFixed(1)).join(' ');
-  let dots='';S.forEach((d,i)=>{const atual=d.mes===meta.mes_corrente;dots+=`<circle cx="${cx(i).toFixed(1)}" cy="${ys(d.escape).toFixed(1)}" r="3.5" fill="${col('--bad')}" stroke="${col('--surface-1')}" stroke-width="1.5" opacity="${atual?0.45:1}"><title>${d.mes} · ${d.escape}% escapou (${d.cliente} de ${d.total})</title></circle>`;});
-  return `<div class="legend"><span><i class="dot" style="background:var(--bad);border-radius:2px;width:14px;height:3px"></i>% que escapou p/ o cliente</span><span><i class="dot" style="background:var(--text-3);border-radius:2px;width:14px;height:3px"></i>média das safras fechadas</span></div>
+  const my=ys(meta.media_fechadas_abs);
+  const mediaLbl=meta.media_fechadas_abs.toFixed(1).replace('.',',');
+  const avg=`<line x1="${P}" y1="${my.toFixed(1)}" x2="${W-P}" y2="${my.toFixed(1)}" stroke="${col('--text-3')}" stroke-width="1.3" stroke-dasharray="5 4"/><text x="${W-P}" y="${(my-5).toFixed(1)}" text-anchor="end" fill="${col('--text-3')}" font-size="10">média ${mediaLbl} escapes/mês</text>`;
+  const lp=S.map((d,i)=>(i?'L':'M')+cx(i).toFixed(1)+' '+ys(d.cliente).toFixed(1)).join(' ');
+  let dots='';S.forEach((d,i)=>{const atual=d.mes===meta.mes_corrente,op=atual?0.45:1;
+    dots+=`<circle cx="${cx(i).toFixed(1)}" cy="${ys(d.cliente).toFixed(1)}" r="3.5" fill="${col('--bad')}" stroke="${col('--surface-1')}" stroke-width="1.5" opacity="${op}"><title>${d.mes} · ${d.cliente} escaparam de ${d.total} criados (${d.escape}%)</title></circle>`;
+    dots+=`<text x="${cx(i).toFixed(1)}" y="${(ys(d.cliente)-8).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="${col('--text-1')}" opacity="${op}">${d.cliente}</text>`;});
+  return `<div class="legend"><span><i class="dot" style="background:var(--bad)"></i>Escapes para o cliente</span><span><i class="dot" style="background:var(--text-3);border-radius:2px;width:14px;height:3px"></i>Média das safras fechadas</span></div>
   <svg viewBox="0 0 ${W} ${H}" width="100%">${band}${grid}${xl}${avg}
    <path d="${lp}" fill="none" stroke="${col('--bad')}" stroke-width="2.5"/>
    ${dots}</svg>`;
@@ -1640,9 +1643,9 @@ function render(){
      <div id="sobrawrap">${sobraChart()}</div>
      <div class="note"><b>Como ler:</b> selecione um status no menu acima para ver, em cada mês, quantos cards daquela safra estão nele hoje. Cada barra traz o número exato; a barra clara é o mês corrente (ainda em andamento). Útil para: "Não Iniciado" = o que ficou sem começar; "Impedimento Produto/Dev" = onde estão os travados; "Em Desenvolvimento" = o que o time tem em mãos agora. Base líquida — exclui descartados pelo QA e o módulo Chat de Suporte.</div></div>
    <h2>${si('gauge-high')}Panorama do período</h2>${kpiCards()}
-   <h2>${si('chart-line')}Detecção ao longo do tempo — escape rate mensal <span class="info" data-tip="% dos bugs criados em cada mês que vieram como 'Bug Cliente' (escaparam para produção). Por mês de criação, base líquida. Linha tracejada = média das safras fechadas. O mês corrente aparece esmaecido porque ainda está em andamento. Quanto MAIS BAIXA a linha, melhor — mais bugs barrados antes do cliente.">i</span></h2>
+   <h2>${si('chart-line')}Detecção ao longo do tempo — escapes para o cliente por mês <span class="info" data-tip="Quantidade de bugs criados em cada mês que vieram como 'Bug Cliente' (escaparam para produção), por mês de criação, base líquida. A linha tracejada é a média das safras fechadas. O mês corrente aparece esmaecido porque ainda está em andamento — o número tende a subir até o fim do mês. Quanto mais baixa a linha, melhor.">i</span></h2>
    <div class="panel"><div id="escwrap">${escapeChart()}</div>
-     <div class="note"><b>Como ler:</b> cada ponto é o % dos bugs daquele mês que chegaram como Bug Cliente (escaparam). <b>Linha caindo = melhorando</b> — mais bugs barrados internamente (QA/Dev) antes do cliente. Mês corrente esmaecido, ainda em andamento. Base líquida, por mês de criação.</div></div>
+     <div class="note"><b>Como ler:</b> cada ponto é a quantidade de bugs daquele mês que chegaram como Bug Cliente (escaparam). <b>Linha caindo = melhorando</b> — mais bugs barrados internamente (QA/Dev) antes do cliente. Mês corrente esmaecido, ainda em andamento. Base líquida, por mês de criação.</div></div>
    ${isAll?'':responsavelPanel()}
    ${isAll?`
    <h2>${si('cubes')}Qualidade por módulo</h2>
