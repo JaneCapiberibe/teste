@@ -393,6 +393,17 @@ function renderPlaceholderModule(key){
     <p>Em construção — esse módulo ainda não tem conteúdo.</p>
   </div>`;
 }
+// Produtos e Melhoria: mesmo padrão de Desenvolvedores — seletor de safra no topo (compartilhado
+// via curSafra()/setSafra(), que já chama renderModule()) e título/painel abaixo. O conteúdo ainda
+// não existe: nenhum número é inventado, o painel diz explicitamente que falta (regra da casa).
+function renderProdutosModule(){
+  document.getElementById('app').innerHTML=`
+   ${safraSelector()}
+   <h2>${si('cube')}Produtos e Melhoria</h2>
+   <div class="panel"><div class="module-placeholder" style="padding:28px 12px">
+     <p>Em construção — safra em foco: <b>${mesLbl(curSafra())}</b>. Os números deste módulo entram quando a fonte de dados (Jira) for definida; até lá, nada é estimado.</p>
+   </div></div>`;
+}
 function renderModule(){
   if(window.__activeModule==='bugs') render();
   else if(window.__activeModule==='devs') renderDevsModule();
