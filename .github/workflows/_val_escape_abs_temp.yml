@@ -1,0 +1,82 @@
+name: "[TEMP] Validação — escapeChart número absoluto"
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch a validar'
+        required: true
+        default: 'claude/escape-chart-numero-absoluto'
+
+permissions:
+  contents: read
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Puxar do Jira
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: python fetch_jira.py
+
+      - name: Recalcular dados
+        run: python gen_data.py
+
+      - name: Gerar o dashboard (sanity check do pipeline completo)
+        run: python build_dash.py
+
+      - name: Conferir det_series / det_series_meta com dados reais
+        run: |
+          python3 -c "
+          import json, statistics
+          d = json.load(open('dash_data.json'))
+          S = d['det_series']; meta = d['det_series_meta']
+          print('mes_corrente:', meta['mes_corrente'])
+          print('media_fechadas (%):', meta['media_fechadas'])
+          print('media_fechadas_abs:', meta['media_fechadas_abs'])
+          print()
+          print(f\"{'mes':8s} {'cliente':>8s} {'total':>8s} {'escape%':>8s}\")
+          for s in S[-12:]:
+              print(f\"{s['mes']:8s} {s['cliente']:8d} {s['total']:8d} {s['escape']:8d}\")
+          print()
+          # recomputa media_fechadas_abs localmente pra conferir contra o valor gerado
+          defech = [s for s in S if s['mes'] < meta['mes_corrente'] and s['total'] > 0][-6:]
+          esperado = round(statistics.mean([s['cliente'] for s in defech]), 1) if defech else 0
+          print('janela usada p/ media (ultimas 6 safras fechadas com total>0):', [s['mes'] for s in defech])
+          print('media_fechadas_abs esperado (recalculado aqui):', esperado)
+          print('OK: bate' if esperado == meta['media_fechadas_abs'] else f'DIVERGE: gerado={meta[\"media_fechadas_abs\"]} esperado={esperado}')
+          print()
+          # confere escape% consistente com cliente/total em cada mes
+          bad = [s['mes'] for s in S if s['total']>0 and round(100*s['cliente']/s['total']) != s['escape']]
+          print('Meses com escape% inconsistente com cliente/total:', bad if bad else 'nenhum')
+          "
+
+      - name: Confirmar recorteEscape() e card do Panorama intactos (grep)
+        run: |
+          echo '--- recorteEscape ainda usa d.escape (%) ---'
+          grep -A3 'function recorteEscape' build_dash.py | head -5
+          echo
+          echo '--- card do Panorama ainda usa det.escape_pct ---'
+          grep -n 'escape_pct' build_dash.py gen_data.py
+
+      - name: Upload dash_data.json como artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: escape-abs-dash-data
+          path: dash_data.json
+          retention-days: 5
