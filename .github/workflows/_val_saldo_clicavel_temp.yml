@@ -1,0 +1,81 @@
+name: "[TEMP] Validação — saldo clicável em Evolução por módulo"
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch a validar'
+        required: true
+        default: 'claude/saldo-clicavel-evol-modulo'
+
+permissions:
+  contents: read
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Puxar do Jira
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: python fetch_jira.py
+
+      - name: Recalcular dados
+        run: python gen_data.py
+
+      - name: Gerar o dashboard (sanity check do pipeline completo)
+        run: python build_dash.py
+
+      - name: Conferir evol_modulo com dados reais e simular saldo_keys
+        run: |
+          python3 -c "
+          import json
+          d = json.load(open('dash_data.json'))
+          EM = d['evol_modulo']
+          meses = EM['meses']
+          # soma TODOS os módulos (equivalente a selecionar 'Todos' na UI)
+          abertos = set()
+          saldo = 0
+          linhas = []
+          for i, mes in enumerate(meses):
+              criados_i = sum(EM['por_modulo'][m]['criados'][i] for m in EM['ordem'])
+              concl_i = sum(EM['por_modulo'][m]['concluidos'][i] for m in EM['ordem'])
+              saldo += criados_i - concl_i
+              for m in EM['ordem']:
+                  for k in EM['por_modulo'][m].get('criados_keys', [[]]*len(meses))[i]:
+                      abertos.add(k)
+                  for k in EM['por_modulo'][m].get('concluidos_keys', [[]]*len(meses))[i]:
+                      abertos.discard(k)
+              linhas.append((mes, saldo, len(abertos)))
+          print(f\"{'mes':8s} {'saldo(num)':>10s} {'len(saldo_keys)':>16s}\")
+          for mes, sd, nk in linhas[-8:]:
+              print(f'{mes:8s} {sd:10d} {nk:16d}')
+          print()
+          divergem = [l for l in linhas if l[1] != l[2]]
+          print('OK: saldo numérico bate com len(saldo_keys) em todos os meses' if not divergem else f'DIVERGE em {len(divergem)} mes(es): {divergem}')
+          print()
+          ultimo_mes, ultimo_saldo, _ = linhas[-1]
+          ultimas_keys = sorted(abertos)[:15]
+          print(f'Amostra de chaves em aberto no mês {ultimo_mes} (saldo={ultimo_saldo}):', ultimas_keys)
+          "
+
+      - name: Upload dash_data.json como artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: saldo-clicavel-dash-data
+          path: dash_data.json
+          retention-days: 5
