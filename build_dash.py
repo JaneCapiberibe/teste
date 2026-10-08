@@ -611,10 +611,12 @@ function emComputeSeries(){
     concluidos:sel.reduce((s,m)=>s+((EM.por_modulo[m]&&EM.por_modulo[m].concluidos[i])||0),0),
     criados_keys:sel.flatMap(m=>(EM.por_modulo[m]&&EM.por_modulo[m].criados_keys&&EM.por_modulo[m].criados_keys[i])||[]),
     concluidos_keys:sel.flatMap(m=>(EM.por_modulo[m]&&EM.por_modulo[m].concluidos_keys&&EM.por_modulo[m].concluidos_keys[i])||[])}));
-  let saldo=0;
+  let saldo=0; const abertos=new Set();
   return base.map((d,i)=>{ saldo+=d.criados-d.concluidos;
+    d.criados_keys.forEach(k=>abertos.add(k));
+    d.concluidos_keys.forEach(k=>abertos.delete(k));
     const lo=Math.max(0,i-1),hi=Math.min(base.length,i+2),jan=base.slice(lo,hi).map(x=>x.criados);
-    return {...d,saldo,tend:jan.reduce((s,v)=>s+v,0)/jan.length}; });
+    return {...d,saldo,saldo_keys:[...abertos],tend:jan.reduce((s,v)=>s+v,0)/jan.length}; });
 }
 function emKpi(){
   if(emSel().size===0) return '';
@@ -634,8 +636,9 @@ function emChart(){
     bars+=`<rect x="${x1.toFixed(1)}" y="${yC.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-yC).toFixed(1)}" fill="${col('--s2')}" rx="1.5" style="cursor:pointer" data-keys="${kCkeys}" onclick="abrirCardsBar(this)"><title>${d.mes} · criados ${d.criados} · clique p/ ver os cards no Jira</title></rect>`;
     bars+=`<rect x="${x2.toFixed(1)}" y="${yD.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-yD).toFixed(1)}" fill="${col('--s3')}" rx="1.5" style="cursor:pointer" data-keys="${kDkeys}" onclick="abrirCardsBar(this)"><title>${d.mes} · concluídos ${d.concluidos} · clique p/ ver os cards no Jira</title></rect>`;});
   const lp=S.map((d,i)=>(i?'L':'M')+cx(i).toFixed(1)+' '+ys(d.saldo).toFixed(1)).join(' ');
-  let dots='';S.forEach((d,i)=>{dots+=`<circle cx="${cx(i).toFixed(1)}" cy="${ys(d.saldo).toFixed(1)}" r="3.5" fill="${col('--bad')}" stroke="${col('--surface-1')}" stroke-width="1.5"><title>${d.mes} · passou adiante ${d.saldo}</title></circle>`;});
-  return `<div class="legend"><span><i class="dot" style="background:var(--s2)"></i>Cards criados</span><span><i class="dot" style="background:var(--s3)"></i>Cards concluídos</span><span><i class="dot" style="background:var(--bad);border-radius:2px;width:14px;height:3px"></i>Quantos passaram p/ próximo mês</span><span style="color:${col('--text-3')}">Clique numa barra p/ ver os cards no Jira</span></div>
+  let dots='';S.forEach((d,i)=>{const kSkeys=(d.saldo_keys||[]).join(',');
+    dots+=`<circle cx="${cx(i).toFixed(1)}" cy="${ys(d.saldo).toFixed(1)}" r="3.5" fill="${col('--bad')}" stroke="${col('--surface-1')}" stroke-width="1.5" style="cursor:pointer" data-keys="${kSkeys}" onclick="abrirCardsBar(this)"><title>${d.mes} · passou adiante ${d.saldo} · clique p/ ver os cards no Jira</title></circle>`;});
+  return `<div class="legend"><span><i class="dot" style="background:var(--s2)"></i>Cards criados</span><span><i class="dot" style="background:var(--s3)"></i>Cards concluídos</span><span><i class="dot" style="background:var(--bad);border-radius:2px;width:14px;height:3px"></i>Quantos passaram p/ próximo mês</span><span style="color:${col('--text-3')}">Clique numa barra ou ponto p/ ver os cards no Jira</span></div>
   <svg viewBox="0 0 ${W} ${H}" width="100%">${band}${grid}${xl}${bars}<path d="${lp}" fill="none" stroke="${col('--bad')}" stroke-width="2.5"/>${dots}</svg>`;
 }
 function emRerender(){document.getElementById('emchiprow').innerHTML=emChips();document.getElementById('emselcount').innerHTML=emSelcount();document.getElementById('emwrap').innerHTML=emChart();}
