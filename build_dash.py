@@ -1152,8 +1152,17 @@ window.__devSel=null;
 // esvaziava quase por completo, mesmo quando a pessoa tinha cards concluídos naquele mês. Agora
 // a grade sempre mostra TODOS os devs de DATA.devs.ordem em qualquer safra, com 0 nos KPIs
 // quando a pessoa não teve atividade naquele período — sem sumir da lista.
+// DECISÃO DE 16/10/2026, a pedido da Jane: a ordem de apresentação (grade + seleção padrão)
+// passa a ser decrescente por cards concluídos NA SAFRA EM FOCO (kpi_por_mes[cur].concluidos),
+// não mais por volume total histórico (DATA.devs.ordem) — quem concluiu mais nesse mês aparece
+// primeiro, e é quem fica pré-selecionado no painel de detalhe.
 function devsAtivosNaSafra(){
-  return DATA.devs.ordem;
+  const D=DATA.devs, cur=curSafra();
+  return [...D.ordem].sort((a,b)=>{
+    const ca=(D.pessoas[a].metrics_jira.kpi_por_mes||{})[cur]?.concluidos||0;
+    const cb=(D.pessoas[b].metrics_jira.kpi_por_mes||{})[cur]?.concluidos||0;
+    return cb-ca;
+  });
 }
 function devSel(){
   const ativos=devsAtivosNaSafra();
