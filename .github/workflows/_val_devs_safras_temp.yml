@@ -1,0 +1,77 @@
+name: "[TEMP] Validação — devs em todas as safras"
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch a validar'
+        required: true
+        default: 'claude/devs-todos-safras-anteriores'
+
+permissions:
+  contents: read
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Puxar do Jira
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: python fetch_jira.py
+
+      - name: Recalcular dados
+        run: python gen_data.py
+
+      - name: Gerar o dashboard (sanity check do pipeline completo)
+        run: python build_dash.py
+
+      - name: Conferir devs/meses com dados reais
+        run: |
+          python3 -c "
+          import json
+          d = json.load(open('dash_data.json'))
+          D = d['devs']
+          print('Total de devs (DATA.devs.ordem):', len(D['ordem']))
+          print('Devs:', D['ordem'])
+          print()
+          print('Range de meses (safras disponíveis):', D['meses'][0], '->', D['meses'][-1], f'(n={len(D[\"meses\"])})')
+          print()
+          print('Meses de 2026 presentes:', [m for m in D['meses'] if m.startswith('2026')])
+          print()
+          # confere que TODO dev tem kpi_por_mes pra TODA safra (mesmo que concluidos=0)
+          faltando = []
+          for dev in D['ordem']:
+              kpm = D['pessoas'][dev]['metrics_jira'].get('kpi_por_mes', {})
+              for m in D['meses']:
+                  if m not in kpm:
+                      faltando.append((dev, m))
+          print('OK: todo dev tem kpi_por_mes em toda safra' if not faltando else f'FALTANDO ({len(faltando)}): {faltando[:10]}')
+          print()
+          # amostra: dev com menos atividade, safra mais antiga
+          primeiro_mes = D['meses'][0]
+          for dev in D['ordem']:
+              k = D['pessoas'][dev]['metrics_jira']['kpi_por_mes'].get(primeiro_mes, {})
+              print(f'{dev:25s} concluidos em {primeiro_mes}: {k.get(\"concluidos\", \"N/A\")}')
+          "
+
+      - name: Upload dash_data.json como artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: devs-safras-dash-data
+          path: dash_data.json
+          retention-days: 5
