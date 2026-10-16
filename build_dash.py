@@ -1145,14 +1145,15 @@ function devsEmDesenvolvimento(filtroResp){
 // selecionada (padrão: DATA.devs.ordem[0], a de maior volume). Reaproveita o MESMO seletor
 // Mês/Acumulado do resto do dashboard (chave 'devs', ver setModoAcum/acumToggle acima).
 window.__devSel=null;
-// Só entra na grade quem teve alguma movimentação EFETIVA (campo `updated` do Jira — muda a
-// cada transição/edição em qualquer card da pessoa) na safra selecionada. DECISÃO DE
-// 18/09/2026, a pedido da Jane: gente sem atividade recente (ex.: já saiu do time) ficava
-// "fantasma" aparecendo em qualquer mês, inclusive o atual, mesmo sem ter se mexido — agora só
-// aparece na safra em que de fato teve a última movimentação.
+// DECISÃO DE 18/09/2026 (filtrar quem não teve movimentação EFETIVA na safra selecionada)
+// REVERTIDA EM 16/10/2026, a pedido da Jane: o filtro fazia a grade parecer "sem dados" toda
+// vez que se voltava pra uma safra anterior, porque a `ultima_movimentacao_mes` de cada pessoa
+// é um ÚNICO mês (o mais recente) — então quase ninguém batia com uma safra antiga e a grade
+// esvaziava quase por completo, mesmo quando a pessoa tinha cards concluídos naquele mês. Agora
+// a grade sempre mostra TODOS os devs de DATA.devs.ordem em qualquer safra, com 0 nos KPIs
+// quando a pessoa não teve atividade naquele período — sem sumir da lista.
 function devsAtivosNaSafra(){
-  const D=DATA.devs, cur=curSafra();
-  return D.ordem.filter(dev=>D.pessoas[dev].metrics_jira.ultima_movimentacao_mes===cur);
+  return DATA.devs.ordem;
 }
 function devSel(){
   const ativos=devsAtivosNaSafra();
