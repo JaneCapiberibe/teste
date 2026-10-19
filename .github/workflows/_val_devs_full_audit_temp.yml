@@ -43,7 +43,10 @@ jobs:
       - name: AUDITORIA 1 — recomputa Concluídos por projeto DIRETO dos sweep*.json (independente de gen_data.py) e compara com dash_data.json, TODOS os devs e TODAS as safras
         run: |
           python3 << 'PYEOF'
-          import json, collections
+          import json, collections, re
+
+          def mn(m):
+              return 'Não classificado' if not m else re.sub(r'^\d+\s*-\s*', '', str(m)).strip()
 
           d = json.load(open('dash_data.json'))
           D = d['devs']
@@ -62,6 +65,7 @@ jobs:
           }
           NAO_DEV_PEM = {'Giovanna', 'Renato Canever'}
           STATUS_EXCLUI_ACUM = {'IMPEDIMENTO PRODUTO', 'Backlog'}
+          EXCLUI_MOD = {'Chat de Suporte'}  # só vale pro BUG (campo de módulo é específico dele)
 
           # recomputa concluidos_por_projeto[dev][mes][origem] = set(keys), igual à regra de
           # _elegivel_dev em gen_data.py: exclui resolução por origem E status atual em
@@ -78,6 +82,8 @@ jobs:
                   if r.get('res') in RES_EXCLUI[origem]:
                       continue
                   if r.get('status') in STATUS_EXCLUI_ACUM:
+                      continue
+                  if origem == 'BUG' and mn(r.get('modulo')) in EXCLUI_MOD:
                       continue
                   a = r.get('assignee')
                   if not a or a in NAO_DEV_PEM:
