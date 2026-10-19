@@ -272,6 +272,21 @@ footer{max-width:1180px;margin:0 auto;padding:10px 18px 40px;color:var(--text-3)
 .dev-card-name{font-size:12.5px;font-weight:700;color:var(--text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .dev-card-num{font-size:22px;font-weight:800;color:var(--brand-blue);line-height:1}
 .dev-card-sub{font-size:10px;color:var(--text-3)}
+/* --- módulo Desenvolvedores: barra colapsada (dev selecionado em destaque) --- */
+.dev-selected-bar{display:flex;align-items:center;gap:10px}
+.dev-nav-btn{flex:none;width:32px;height:32px;border:1px solid var(--line);background:var(--surface-1);color:var(--text-2);border-radius:8px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;transition:border-color .15s,color .15s}
+.dev-nav-btn:hover{border-color:var(--brand-blue);color:var(--brand-blue)}
+.dev-nav-btn .ic{width:16px;height:16px}
+.dev-selected-card{flex:1;min-width:0;display:flex;align-items:center;gap:12px;background:rgba(0,95,232,.08);border:1px solid var(--brand-blue);border-radius:12px;padding:10px 14px}
+:root[data-theme="dark"] .dev-selected-card{background:rgba(111,168,255,.14)}
+.dev-selected-card .dev-avatar-wrap,.dev-selected-card .dev-avatar,.dev-selected-card .dev-avatar-fallback{width:40px;height:40px;font-size:15px}
+.dev-selected-info{min-width:0;flex:1}
+.dev-selected-name{font-size:14px;font-weight:700;color:var(--text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dev-selected-sub{font-size:11.5px;color:var(--text-3);margin-top:1px}
+.dev-selected-num{font-size:22px;font-weight:800;color:var(--brand-blue);line-height:1;flex:none}
+.dev-switch-btn{flex:none;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface-1);color:var(--text-2);border-radius:8px;padding:0 14px;height:32px;font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;transition:border-color .15s,color .15s}
+.dev-switch-btn:hover{border-color:var(--brand-blue);color:var(--brand-blue)}
+.dev-switch-btn .ic{width:14px;height:14px}
 .mh-kpi.clickable{cursor:pointer;transition:border-color .15s}
 .mh-kpi.clickable:hover{border-color:var(--brand-blue)}
 .mh-kpi.clickable .mh-kpi-num{color:var(--brand-blue);text-decoration:underline;text-underline-offset:3px}
@@ -337,6 +352,8 @@ const ICONS={
  'moon':'<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
  'calendar-days':'<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/>',
  'chevron-down':'<path d="M6 9l6 6 6-6"/>',
+ 'chevron-left':'<path d="M15 6l-6 6 6 6"/>',
+ 'chevron-right':'<path d="M9 6l6 6-6 6"/>',
  'scale-balanced':'<path d="M12 3v18"/><path d="M6 21h12"/><path d="M4 7h16"/><path d="M7 7l-3 6h6z"/><path d="M17 7l-3 6h6z"/>',
  'bullseye':'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/>',
  'truck-fast':'<path d="M10 17h4V6H2v11h2"/><path d="M14 9h4l3 3v5h-3"/><circle cx="7" cy="17.5" r="2.2"/><circle cx="17" cy="17.5" r="2.2"/>',
@@ -1173,11 +1190,25 @@ function devSel(){
   if(!window.__devSel||!ativos.includes(window.__devSel)) window.__devSel=ativos[0]||null;
   return window.__devSel;
 }
-function setDevSel(name){window.__devSel=name;window.__cvOpen=false;window.__cvStatus=null;renderModule();}
+// A grade começa aberta (ninguém selecionado ainda). Ao escolher um dev (clique na grade ou
+// navegação ←/→), ela recolhe pra uma barra só com o selecionado em destaque — menos scroll
+// pra quem já sabe quem quer ver. "Trocar" (toggleDevGrid) reabre a grade completa pra escolher
+// outra pessoa; ←/→ troca sem reabrir, pra quem só quer passar pelo time em sequência.
+window.__devGridOpen=true;
+function toggleDevGrid(){window.__devGridOpen=!window.__devGridOpen;renderModule();}
+function setDevSel(name){window.__devSel=name;window.__cvOpen=false;window.__cvStatus=null;window.__devGridOpen=false;renderModule();}
+function stepDevSel(delta){
+  const ativos=devsAtivosNaSafra();
+  if(ativos.length<2) return;
+  const i=ativos.indexOf(devSel());
+  window.__devSel=ativos[(i+delta+ativos.length)%ativos.length];
+  window.__cvOpen=false;window.__cvStatus=null;
+  renderModule();
+}
 function devGrid(){
   const D=DATA.devs, sel=devSel(), cur=curSafra(), ativos=devsAtivosNaSafra();
   if(!ativos.length) return `<div class="note">Nenhum desenvolvedor com movimentação em ${mesLbl(cur)}.</div>`;
-  return `<div class="dev-grid">${ativos.map(dev=>{
+  const grade=()=>`<div class="dev-grid">${ativos.map(dev=>{
     const mj=D.pessoas[dev].metrics_jira, k=(mj.kpi_por_mes||{})[cur]||{concluidos:0};
     const on=dev===sel;
     return `<button class="dev-card${on?' on':''}" onclick="setDevSel('${dev.replace(/'/g,"\\'")}')">
@@ -1187,6 +1218,22 @@ function devGrid(){
       <div class="dev-card-sub">concluídos em ${mesLbl(cur)}</div>
     </button>`;
   }).join('')}</div>`;
+  if(window.__devGridOpen||!sel||ativos.length<2) return grade();
+  const mj=D.pessoas[sel].metrics_jira, k=(mj.kpi_por_mes||{})[cur]||{concluidos:0};
+  const i=ativos.indexOf(sel);
+  return `<div class="dev-selected-bar">
+    <button class="dev-nav-btn" onclick="stepDevSel(-1)" title="Desenvolvedor anterior" aria-label="Desenvolvedor anterior">${svg('chevron-left')}</button>
+    <div class="dev-selected-card">
+      ${devAvatar(sel,mj.avatar)}
+      <div class="dev-selected-info">
+        <div class="dev-selected-name">${sel}</div>
+        <div class="dev-selected-sub">${i+1} de ${ativos.length} · concluídos em ${mesLbl(cur)}</div>
+      </div>
+      <div class="dev-selected-num">${k.concluidos}</div>
+    </div>
+    <button class="dev-nav-btn" onclick="stepDevSel(1)" title="Próximo desenvolvedor" aria-label="Próximo desenvolvedor">${svg('chevron-right')}</button>
+    <button class="dev-switch-btn" onclick="toggleDevGrid()">${svg('users')}Trocar</button>
+  </div>`;
 }
 // Divisão por projeto do card "Concluídos" (DECISÃO DE 19/10/2026, PEM somado ao módulo
 // Desenvolvedores) — barra segmentada proporcional + 4 mini cards, cores fixas de
