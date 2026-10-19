@@ -92,6 +92,18 @@ def fetch_changelogs(issue_ids):
     out = {}
     iniciais = {}
     assignee_out = {}
+    # Acumula por issue ENTRE páginas (não sobrescreve): o bulkfetch pagina pela resposta do
+    # lote como um todo, não por issue — um card com changelog grande pode ter suas
+    # 'changeHistories' espalhadas por mais de uma página. Bug real encontrado em 19/10/2026
+    # (investigação de 5 casos reais de Ciclo de vida sem o concluído do mês — ver BUG-327/
+    # 1060/636/547/1451): a versão antiga fazia `out[iid] = [...]` a cada página, e a última
+    # página recebida pra um card SUBSTITUÍA (em vez de completar) o que já tinha sido montado
+    # nas páginas anteriores, perdendo a transição real "Em produção" quando ela caía numa
+    # página anterior à última. Dedup por (epoch, from, to) pelo mesmo motivo do dedup de
+    # assignee_mudancas em gen_data.py — histórico de changelog às vezes repete a mesma
+    # entrada.
+    _changes_acc = collections.defaultdict(list)
+    _assignee_acc = collections.defaultdict(list)
     try:
         BATCH = 200
         for i in range(0, len(ids), BATCH):
@@ -109,25 +121,24 @@ def fetch_changelogs(issue_ids):
                 for ic in data.get('issueChangeLogs', []):
                     iid = ic.get('issueId')
                     hist = ic.get('changeHistories') or ic.get('histories') or []
-                    changes_full = []
-                    assignee_full = []
                     for h in hist:
                         ep = _to_epoch(h.get('created'))
                         for item in h.get('items', []):
                             if item.get('field') == 'status':
-                                changes_full.append((ep, item.get('fromString'), item.get('toString')))
+                                _changes_acc[iid].append((ep, item.get('fromString'), item.get('toString')))
                             elif item.get('field') == 'assignee':
-                                assignee_full.append((ep, item.get('fromString'), item.get('toString')))
-                    changes_full.sort(key=lambda x: x[0] if x[0] is not None else 0)
-                    assignee_full.sort(key=lambda x: x[0] if x[0] is not None else 0)
-                    out[iid] = [(ep, to) for ep, frm, to in changes_full]
-                    if changes_full:
-                        iniciais[iid] = changes_full[0][1]
-                    if assignee_full:
-                        assignee_out[iid] = assignee_full
+                                _assignee_acc[iid].append((ep, item.get('fromString'), item.get('toString')))
                 token = data.get('nextPageToken')
                 if not token:
                     break
+        for iid, changes_full in _changes_acc.items():
+            changes_full = sorted(set(changes_full), key=lambda x: x[0] if x[0] is not None else 0)
+            out[iid] = [(ep, to) for ep, frm, to in changes_full]
+            if changes_full:
+                iniciais[iid] = changes_full[0][1]
+        for iid, assignee_full in _assignee_acc.items():
+            assignee_full = sorted(set(assignee_full), key=lambda x: x[0] if x[0] is not None else 0)
+            assignee_out[iid] = assignee_full
     except Exception as e:
         print(f'aviso: falha ao buscar changelog em lote ({e}) — seguindo sem concluido_mes '
               f'(a Evolução por módulo fica sem dado de concluídos até o próximo run).')
