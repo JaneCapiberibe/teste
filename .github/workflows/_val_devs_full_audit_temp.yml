@@ -1,0 +1,191 @@
+name: "[TEMP] Auditoria completa — módulo Desenvolvedores (todas as safras)"
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch a validar'
+        required: true
+        default: 'main'
+
+permissions:
+  contents: read
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Puxar do Jira
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: python fetch_jira.py
+
+      - name: Recalcular dados (asserts internos de gen_data.py rodam aqui — soma por projeto e Ciclo de vida, TODA a história)
+        run: python gen_data.py
+
+      - name: Gerar o dashboard (sanity check do pipeline completo)
+        run: python build_dash.py
+
+      - name: AUDITORIA 1 — recomputa Concluídos por projeto DIRETO dos sweep*.json (independente de gen_data.py) e compara com dash_data.json, TODOS os devs e TODAS as safras
+        run: |
+          python3 << 'PYEOF'
+          import json, collections
+
+          d = json.load(open('dash_data.json'))
+          D = d['devs']
+
+          RES_EXCLUI = {
+              'BUG': {'Cancelado QA'},
+              'BACKOFFICE': {'Não Pode Reproduzir'},
+              'SUS': {'Não Pode Reproduzir'},
+              'PEM': {"Won't Do"},
+          }
+          FILES = {
+              'BUG': 'sweep.json',
+              'BACKOFFICE': 'sweep_backoffice.json',
+              'SUS': 'sweep_sus.json',
+              'PEM': 'sweep_pem.json',
+          }
+          NAO_DEV_PEM = {'Giovanna', 'Renato Canever'}
+          STATUS_EXCLUI_ACUM = {'IMPEDIMENTO PRODUTO', 'Backlog'}
+
+          # recomputa concluidos_por_projeto[dev][mes][origem] = set(keys), igual à regra de
+          # _elegivel_dev em gen_data.py: exclui resolução por origem E status atual em
+          # STATUS_EXCLUI_ACUM; concluido_mes define o mês; assignee ATUAL define a pessoa;
+          # PEM exclui NAO_DEV_PEM.
+          recomputo = collections.defaultdict(lambda: collections.defaultdict(lambda: collections.defaultdict(set)))
+          for origem, fname in FILES.items():
+              try:
+                  recs = json.load(open(fname))
+              except FileNotFoundError:
+                  print(f'aviso: {fname} não encontrado, pulando {origem}')
+                  continue
+              for r in recs:
+                  if r.get('res') in RES_EXCLUI[origem]:
+                      continue
+                  if r.get('status') in STATUS_EXCLUI_ACUM:
+                      continue
+                  a = r.get('assignee')
+                  if not a or a in NAO_DEV_PEM:
+                      continue
+                  mc = r.get('concluido_mes')
+                  if not mc:
+                      continue
+                  recomputo[a][mc][origem].add(r['key'])
+
+          divergencias = 0
+          total_checado = 0
+          devs_checados = set(D['pessoas'].keys())
+          for dev in devs_checados:
+              kpm = D['pessoas'][dev]['metrics_jira']['kpi_por_mes']
+              for mes, k in kpm.items():
+                  total_checado += 1
+                  pp_dash = k.get('concluidos_por_projeto', {})
+                  for origem in ('BUG', 'BACKOFFICE', 'SUS', 'PEM'):
+                      esperado = recomputo[dev][mes][origem]
+                      obtido = set(pp_dash.get(origem, {}).get('keys', []))
+                      if esperado != obtido:
+                          divergencias += 1
+                          faltando = esperado - obtido
+                          sobrando = obtido - esperado
+                          print(f'DIVERGENCIA: {dev} / {mes} / {origem} -> faltando no dash: {sorted(faltando)} | sobrando no dash (não deveria estar): {sorted(sobrando)}')
+                  # total do dev/mes
+                  soma_dash = sum(v['n'] for v in pp_dash.values())
+                  if soma_dash != k.get('concluidos'):
+                      divergencias += 1
+                      print(f'DIVERGENCIA TOTAL: {dev} / {mes}: soma_por_projeto={soma_dash} != concluidos={k.get("concluidos")}')
+
+          print()
+          print(f'Pessoas checadas: {len(devs_checados)} | combinações dev/mês checadas: {total_checado}')
+          print('RESULTADO:', 'NENHUMA DIVERGÊNCIA — Concluídos por projeto bate com os dados crus em TODA a história' if divergencias == 0 else f'{divergencias} DIVERGÊNCIA(S) ENCONTRADA(S)')
+
+          # também checa se algum card concluído de alguém em NAO_DEV_PEM vazou pro dash por engano
+          vazamento = []
+          for fname in FILES.values():
+              try:
+                  recs = json.load(open(fname))
+              except FileNotFoundError:
+                  continue
+              for r in recs:
+                  if r.get('assignee') in NAO_DEV_PEM and r.get('key'):
+                      for dev in devs_checados:
+                          if dev in NAO_DEV_PEM:
+                              vazamento.append(dev)
+          print('Giovanna/Renato aparecem como pessoa no dash (não deveriam)?', sorted(set(d for d in devs_checados if d in NAO_DEV_PEM)) or 'não')
+          PYEOF
+
+      - name: AUDITORIA 2 — Ciclo de vida: resultado do assert interno (TODA a história, todos os devs) já rodou no passo 'Recalcular dados' acima
+        run: echo "ver o passo 'Recalcular dados' acima — ele imprime OK ou lista as chaves faltando, cobrindo TODOS os devs e TODAS as safras"
+
+      - name: AUDITORIA 3 — sanity dos números agregados por safra (nenhuma safra com número negativo, MTTR, Esforço)
+        run: |
+          python3 << 'PYEOF'
+          import json
+          d = json.load(open('dash_data.json'))
+          D = d['devs']
+          problemas = 0
+          for dev, pessoa in D['pessoas'].items():
+              kpm = pessoa['metrics_jira']['kpi_por_mes']
+              for mes, k in kpm.items():
+                  if k.get('concluidos', 0) < 0:
+                      problemas += 1; print(f'NEGATIVO concluidos: {dev}/{mes}')
+                  esforco = k.get('esforco_horas')
+                  if esforco is not None and esforco < 0:
+                      problemas += 1; print(f'NEGATIVO esforco: {dev}/{mes}')
+                  mttr = k.get('mttr_cortes', {})
+                  for corte, r in mttr.items():
+                      v = r.get('valor')
+                      if v is not None and v < 0:
+                          problemas += 1; print(f'NEGATIVO mttr[{corte}]: {dev}/{mes} = {v}')
+                      if r.get('n', 0) < 0:
+                          problemas += 1; print(f'NEGATIVO mttr[{corte}].n: {dev}/{mes}')
+          print('RESULTADO:', 'nenhum problema' if problemas == 0 else f'{problemas} problema(s)')
+          PYEOF
+
+      - name: AUDITORIA 4 — amostra de 6 combinações dev/mês espalhadas pela história (pra eu cruzar manualmente com o Jira)
+        run: |
+          python3 << 'PYEOF'
+          import json
+          d = json.load(open('dash_data.json'))
+          D = d['devs']
+          meses = D['meses']
+          print('Safras disponíveis:', meses[0], '->', meses[-1], f'(n={len(meses)})')
+          # pega: mes atual, mes do meio, mes mais antigo, + os 3 devs com mais concluidos no mes atual
+          cur = meses[-1]
+          meio = meses[len(meses)//2]
+          antigo = meses[0]
+          top3 = sorted(D['pessoas'].items(), key=lambda kv: kv[1]['metrics_jira']['kpi_por_mes'].get(cur, {}).get('concluidos', 0), reverse=True)[:3]
+          for dev, pessoa in top3:
+              for mes in (cur, meio, antigo):
+                  k = pessoa['metrics_jira']['kpi_por_mes'].get(mes)
+                  if not k: continue
+                  pp = k.get('concluidos_por_projeto', {})
+                  resumo = {p: v['n'] for p, v in pp.items()}
+                  print(f'{dev} / {mes}: total={k.get("concluidos")} | por_projeto={resumo}')
+          PYEOF
+
+      - name: Upload dash_data.json e sweep*.json como artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: devs-full-audit-data
+          path: |
+            dash_data.json
+            sweep.json
+            sweep_backoffice.json
+            sweep_sus.json
+            sweep_pem.json
+          retention-days: 5
