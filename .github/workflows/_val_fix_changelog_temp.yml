@@ -1,0 +1,82 @@
+name: "[TEMP] Validação — fix paginação changelog/bulkfetch"
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch a validar'
+        required: true
+        default: 'claude/fix-changelog-bulkfetch-paginacao'
+
+permissions:
+  contents: read
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Puxar do Jira (com a correção de paginação do changelog/bulkfetch)
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: python fetch_jira.py
+
+      - name: Recalcular dados (o assert/AVISO de Ciclo de vida roda aqui)
+        run: python gen_data.py
+
+      - name: Gerar o dashboard (sanity check do pipeline completo)
+        run: python build_dash.py
+
+      - name: Validação — os 5 casos reais (BUG-327/1060/636/547/1451) agora aparecem no Ciclo de vida do mês do concluído
+        run: |
+          python3 -c "
+          import json
+          d = json.load(open('dash_data.json'))
+          D = d['devs']
+          casos = [
+              ('Rodrigo Pretel Rosa', '2025-04', 'BUG-327'),
+              ('Paulo Bacelar', '2026-01', 'BUG-1060'),
+              ('Diego Wdson Saraiva Fonseca', '2025-08', 'BUG-636'),
+              ('ANTONIO ARMANDO BARRAU FASCIO IV', '2025-06', 'BUG-547'),
+              ('ANTONIO ARMANDO BARRAU FASCIO IV', '2026-05', 'BUG-1451'),
+          ]
+          tudo_ok = True
+          for dev, mes, key in casos:
+              pessoa = D['pessoas'].get(dev)
+              if not pessoa:
+                  print(f'FALTA PESSOA: {dev}'); tudo_ok = False; continue
+              kpi = pessoa['metrics_jira']['kpi_por_mes'].get(mes, {})
+              concluidos_keys = kpi.get('concluidos_keys', [])
+              cv = pessoa['metrics_jira']['ciclo_vida'].get(mes, {})
+              cv_keys = cv.get('keys', [])
+              no_concluidos = key in concluidos_keys
+              no_cv = key in cv_keys
+              status = 'OK' if (no_concluidos and no_cv) else 'AINDA FALTANDO'
+              if status != 'OK': tudo_ok = False
+              print(f'{dev} / {mes} / {key}: concluidos_keys tem? {no_concluidos} | ciclo_vida tem? {no_cv} -> {status}')
+          print()
+          print('RESULTADO FINAL:', 'TODOS OS 5 CASOS RESOLVIDOS' if tudo_ok else 'AINDA HÁ CASOS FALTANDO')
+          "
+
+      - name: Validação — nenhum outro caso novo de 'concluído fora do Ciclo de vida' (ver log do passo gen_data.py acima)
+        run: echo "ver o passo 'Recalcular dados' acima — ele imprime OK ou lista as chaves faltando"
+
+      - name: Upload dash_data.json como artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fix-changelog-dash-data
+          path: dash_data.json
+          retention-days: 5
