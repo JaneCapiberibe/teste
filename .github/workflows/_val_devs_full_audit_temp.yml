@@ -49,9 +49,9 @@ jobs:
           D = d['devs']
 
           RES_EXCLUI = {
-              'BUG': {'Cancelado QA'},
+              'BUG': {'Cancelado QA', 'Cancelado Dev'},
               'BACKOFFICE': {'Não Pode Reproduzir'},
-              'SUS': {'Não Pode Reproduzir'},
+              'SUS': {'Não Pode Reproduzir', 'Cancelado QA', 'Cancelado Dev'},
               'PEM': {"Won't Do"},
           }
           FILES = {
