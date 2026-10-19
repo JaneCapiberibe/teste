@@ -1,0 +1,144 @@
+name: "[TEMP] Validação — PEM no módulo Desenvolvedores (v2, pós-fix changelog)"
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch a validar'
+        required: true
+        default: 'claude/pem-no-modulo-desenvolvedores'
+
+permissions:
+  contents: read
+
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Puxar do Jira
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: python fetch_jira.py
+
+      - name: Recalcular dados (os asserts de soma-por-projeto e Ciclo-de-vida rodam aqui)
+        run: python gen_data.py
+
+      - name: Gerar o dashboard (sanity check do pipeline completo)
+        run: python build_dash.py
+
+      - name: Validação (a) Mauricio Ribeiro, mês corrente e último fechado
+        run: |
+          python3 -c "
+          import json
+          d = json.load(open('dash_data.json'))
+          D = d['devs']
+          dev = 'Mauricio Ribeiro'
+          meses = D['meses']
+          cur = meses[-1]
+          fechado = meses[-2] if len(meses) > 1 else meses[-1]
+          for m in [cur, fechado]:
+              k = D['pessoas'][dev]['metrics_jira']['kpi_por_mes'][m]
+              pp = k['concluidos_por_projeto']
+              soma = sum(v['n'] for v in pp.values())
+              print(f'--- {dev} / {m} ---')
+              print('concluidos (total):', k['concluidos'])
+              print('por_projeto:', {p: v['n'] for p, v in pp.items()})
+              print('soma das 4 partes:', soma, '| bate com total?', soma == k['concluidos'])
+              for p, v in pp.items():
+                  print(f'  {p}: {v[\"n\"]} cards -> {v[\"keys\"]}')
+              print()
+          "
+
+      - name: Validação (b) antes/depois do Concluídos e do Ciclo de vida
+        run: |
+          python3 -c "
+          import json
+          d = json.load(open('dash_data.json'))
+          D = d['devs']
+          dev = 'Mauricio Ribeiro'
+          meses = D['meses']
+          cur = meses[-1]
+          k = D['pessoas'][dev]['metrics_jira']['kpi_por_mes'][cur]
+          cv = D['pessoas'][dev]['metrics_jira']['ciclo_vida'][cur]
+          pp = k['concluidos_por_projeto']
+          sem_pem = sum(v['n'] for p, v in pp.items() if p != 'PEM')
+          print(f'Mes corrente: {cur}')
+          print(f'Concluidos SEM PEM (antes): {sem_pem}')
+          print(f'Concluidos COM PEM (depois): {k[\"concluidos\"]}')
+          print(f'Diferenca explicada por PEM: {pp[\"PEM\"][\"n\"]}')
+          print(f'Ciclo de vida n: {cv[\"n\"]} (definicao não mudou: cards com QUALQUER mudança de status no mês, agora incluindo PEM no universo)')
+          "
+
+      - name: Validação (c) assert 'concluído aparece no Ciclo de vida' — resultado já no log do gen_data.py acima
+        run: echo "ver o passo 'Recalcular dados' acima — ele imprime OK ou lista as chaves faltando"
+
+      - name: Validação (c-bis) os 5 casos reais investigados antes do fix de paginação agora resolvidos
+        run: |
+          python3 -c "
+          import json
+          d = json.load(open('dash_data.json'))
+          D = d['devs']
+          casos = [
+              ('Rodrigo Pretel Rosa', 'BUG-327'),
+              ('Paulo Bacelar', 'BUG-1060'),
+              ('Diego Wdson Saraiva Fonseca', 'BUG-636'),
+              ('ANTONIO ARMANDO BARRAU FASCIO IV', 'BUG-547'),
+              ('ANTONIO ARMANDO BARRAU FASCIO IV', 'BUG-1451'),
+          ]
+          for dev, key in casos:
+              pessoa = D['pessoas'].get(dev)
+              if not pessoa:
+                  print(f'FALTA PESSOA: {dev}'); continue
+              kpm = pessoa['metrics_jira']['kpi_por_mes']
+              cv = pessoa['metrics_jira']['ciclo_vida']
+              mes_concluido = next((m for m, k in kpm.items() if key in k.get('concluidos_keys', [])), None)
+              no_cv = mes_concluido is not None and key in cv.get(mes_concluido, {}).get('keys', [])
+              print(f'{dev} / {key}: concluido no mes {mes_concluido} | aparece no Ciclo de vida desse mes? {no_cv}')
+          "
+
+      - name: Validação (d) MTTR em 3 recortes
+        run: |
+          python3 -c "
+          import json
+          d = json.load(open('dash_data.json'))
+          D = d['devs']
+          dev = 'Mauricio Ribeiro'
+          meses = D['meses']
+          cur = meses[-1]
+          c = D['pessoas'][dev]['metrics_jira']['kpi_por_mes'][cur]['mttr_cortes']
+          for nome in ['sem_pem','com_pem','so_pem']:
+              r = c[nome]
+              print(f'{nome}: valor={r[\"valor\"]} n={r[\"n\"]} time={r.get(\"time\")}')
+          "
+
+      - name: Validação (e) Giovanna e Renato Canever não aparecem na grade
+        run: |
+          python3 -c "
+          import json
+          d = json.load(open('dash_data.json'))
+          D = d['devs']
+          print('Total de devs na grade:', len(D['ordem']))
+          print('Giovanna na grade?', 'Giovanna' in D['ordem'])
+          print('Renato Canever na grade?', 'Renato Canever' in D['ordem'])
+          "
+
+      - name: Upload dash_data.json como artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pem-devs-dash-data-v2
+          path: dash_data.json
+          retention-days: 5
