@@ -959,22 +959,42 @@ for x in sweep_sus_full:
     x['u']=pdt(x.get('updated'))
 RES_EXCLUI_SUS=RES_EXCLUI_BACKOFFICE|RES_EXCLUI_ACUM
 sweep_sus=[x for x in sweep_sus_full if x['res'] not in RES_EXCLUI_SUS]
+# PEM (Produtos e Melhoria) — carregado aqui (não só mais embaixo, no módulo "Produtos e
+# Melhoria" antigo) porque DECISÃO DE 19/10/2026, a pedido da Jane: PEM passa a somar também no
+# módulo Desenvolvedores (Concluídos/Esforço/MTTR/Ciclo de vida/Evolução por mês), não só no
+# painel "Produtos e Melhoria" que já existia. RES_EXCLUI_PEM/NAO_DEV_PEM/sweep_pem(_full)
+# reaproveitados mais abaixo pelo código antigo do painel — não duplicado.
+RES_EXCLUI_PEM={"Won't Do"}
+NAO_DEV_PEM={'Giovanna','Renato Canever'}  # não-devs do PEM — nunca viram avatar nem entram em nenhuma métrica por pessoa
+sweep_pem_full=json.load(open('sweep_pem.json')) if os.path.exists('sweep_pem.json') else []
+for x in sweep_pem_full:
+    x['c']=pdt(x['created']); x['r']=pdt(x['resolved']); x['m']=mn('Produtos e Melhoria')
+    x['u']=pdt(x.get('updated'))
+sweep_pem=[x for x in sweep_pem_full if x['res'] not in RES_EXCLUI_PEM]
 def _tag_origem(cards,origem):
     return [dict(x,origem=origem) for x in cards]
-# sweep_dev/sweep_dev_full: MESMO papel de sweep/sweep_full, só que somando as três fontes —
+# sweep_dev/sweep_dev_full: MESMO papel de sweep/sweep_full, só que somando as QUATRO fontes —
 # usados em TODO o resto do módulo Desenvolvedores no lugar de sweep/sweep_full. devs_ordem/
 # devs_total/devs_avatar (grade de avatares) continuam em `sweep` (só BUG) de propósito — a
 # Jane confirmou que todo mundo do BACKOFFICE e do SUS já aparece no BUG, e a grade deve
-# continuar baseada só no BUG mesmo que isso mude no futuro.
-sweep_dev=_tag_origem(sweep,'BUG')+_tag_origem(sweep_backoffice,'BACKOFFICE')+_tag_origem(sweep_sus,'SUS')
-sweep_dev_full=_tag_origem(sweep_full,'BUG')+_tag_origem(sweep_backoffice_full,'BACKOFFICE')+_tag_origem(sweep_sus_full,'SUS')
-_RES_EXCLUI_POR_ORIGEM={'BUG':RES_EXCLUI_ACUM,'BACKOFFICE':RES_EXCLUI_BACKOFFICE,'SUS':RES_EXCLUI_SUS}
+# continuar baseada só no BUG mesmo que isso mude no futuro. PEM somado em 19/10/2026 — gente do
+# PEM que não é dev (NAO_DEV_PEM) fica de fora da grade do mesmo jeito, porque devs_ordem nunca
+# olha pro PEM pra decidir quem aparece como avatar.
+sweep_dev=(_tag_origem(sweep,'BUG')+_tag_origem(sweep_backoffice,'BACKOFFICE')
+           +_tag_origem(sweep_sus,'SUS')+_tag_origem([x for x in sweep_pem if x.get('assignee') not in NAO_DEV_PEM],'PEM'))
+sweep_dev_full=(_tag_origem(sweep_full,'BUG')+_tag_origem(sweep_backoffice_full,'BACKOFFICE')
+                +_tag_origem(sweep_sus_full,'SUS')+_tag_origem([x for x in sweep_pem_full if x.get('assignee') not in NAO_DEV_PEM],'PEM'))
+_RES_EXCLUI_POR_ORIGEM={'BUG':RES_EXCLUI_ACUM,'BACKOFFICE':RES_EXCLUI_BACKOFFICE,'SUS':RES_EXCLUI_SUS,'PEM':RES_EXCLUI_PEM}
+PROJ_COR={'BUG':'#005FE8','BACKOFFICE':'#f0a500','SUS':'#1e9e5a','PEM':'#eb6834'}
+PROJ_LABEL={'BUG':'Bug','BACKOFFICE':'Backoffice','SUS':'Sustentação','PEM':'Produtos e melhoria'}
+PROJ_KEY={'BUG':'BUG','BACKOFFICE':'MB','SUS':'SUS','PEM':'PEM'}  # prefixo real do projeto no Jira, pra montar a JQL
+PROJ_ORDEM=['BUG','BACKOFFICE','SUS','PEM']  # ordem fixa usada em toda UI nova (barra, mini cards, legenda, pilha do gráfico)
 def _elegivel_dev(x):
     """Equivalente a _elegivel_evol, mas pro escopo combinado do módulo Desenvolvedores (sem o
-    filtro de itype — sweep.json/sweep_backoffice.json/sweep_sus.json já vêm com o escopo certo
-    de cada projeto: BUG_TYPES pro BUG, todos os tipos pro BACKOFFICE/SUS). Resolução excluída
-    depende da origem (_RES_EXCLUI_POR_ORIGEM acima); status excluído (Backlog/Impedimento
-    Produto) é o mesmo pras três — mesmo esquema de status."""
+    filtro de itype — sweep.json/sweep_backoffice.json/sweep_sus.json/sweep_pem.json já vêm com
+    o escopo certo de cada projeto: BUG_TYPES pro BUG, todos os tipos pros outros). Resolução
+    excluída depende da origem (_RES_EXCLUI_POR_ORIGEM acima); status excluído (Backlog/
+    Impedimento Produto) é o mesmo pras quatro — mesmo esquema de status."""
     return x['res'] not in _RES_EXCLUI_POR_ORIGEM[x['origem']] and x['status'] not in STATUS_EXCLUI_ACUM
 #
 # Escopo de Esforço/MTTR pessoal: sweep_dev (base líquida combinada, BUG + BACKOFFICE + SUS),
@@ -1020,6 +1040,12 @@ def _dev_periodo(dev,ini,fim=None):
 # Reproduzir pro BACKOFFICE) e status atual Impedimento Produto/Backlog.
 _edev_e=collections.defaultdict(lambda:collections.Counter())
 _edev_ek=collections.defaultdict(lambda:collections.defaultdict(list))
+# Por projeto também (DECISÃO DE 19/10/2026, card "Concluídos" dividido por projeto) — mesmo
+# critério, só quebrado por origem além de por mês. _edev_e/_edev_ek continuam a soma das
+# quatro, usada em todo o resto do módulo que já existia (Ciclo de vida, comparação com ano
+# anterior etc.) — nenhum comportamento antigo muda.
+_edev_e_proj=collections.defaultdict(lambda:collections.defaultdict(lambda:collections.Counter()))
+_edev_ek_proj=collections.defaultdict(lambda:collections.defaultdict(lambda:collections.defaultdict(list)))
 for x in sweep_dev_full:
     if not _elegivel_dev(x): continue
     a=x.get('assignee')
@@ -1028,6 +1054,8 @@ for x in sweep_dev_full:
     if mc:
         _edev_e[a][mc]+=1
         _edev_ek[a][mc].append(x['key'])
+        _edev_e_proj[a][x['origem']][mc]+=1
+        _edev_ek_proj[a][x['origem']][mc].append(x['key'])
 def _edev_sum(dev,ini,fim=None):
     """Concluídos (régua oficial) de `dev` no intervalo [ini,fim] de meses 'YYYY-MM' — soma dos
     meses fechados no calendário `meses`, não do changelog cru, pra nunca contar mês fora do
@@ -1037,14 +1065,27 @@ def _edev_sum(dev,ini,fim=None):
     n=sum(_edev_e[dev].get(m,0) for m in ms)
     keys=[k for m in ms for k in _edev_ek[dev].get(m,[])]
     return n,keys
+def _edev_sum_por_projeto(dev,ini,fim=None):
+    """Mesmo que _edev_sum, mas devolve {origem: {'n':int,'keys':[...]}} pras 4 origens — usado
+    pelo card \"Concluídos\" dividido por projeto. A soma das 4 partes é SEMPRE igual ao total de
+    _edev_sum, porque é a mesma contagem (_edev_e_proj é só _edev_e quebrado por origem, no
+    mesmo loop)."""
+    if fim is None: fim=ini
+    ms=[m for m in meses if ini<=m<=fim]
+    out={}
+    for origem in PROJ_ORDEM:
+        n=sum(_edev_e_proj[dev][origem].get(m,0) for m in ms)
+        keys=[k for m in ms for k in _edev_ek_proj[dev][origem].get(m,[])]
+        out[origem]={'n':n,'keys':keys}
+    return out
 
 devs_total=collections.Counter(x.get('assignee') for x in sweep if x.get('assignee'))
-devs_ordem=[nm for nm,_ in devs_total.most_common()]   # "por volume" — exclui não-atribuídos
+devs_ordem=[nm for nm,_ in devs_total.most_common() if nm not in NAO_DEV_PEM]   # "por volume" — exclui não-atribuídos e não-devs do PEM (defesa extra; sweep é só BUG, onde não se espera achá-los)
 devs_avatar={}
 for x in sweep:
     a=x.get('assignee')
     if a and a not in devs_avatar: devs_avatar[a]=x.get('assignee_avatar')
-# "Em desenvolvimento agora" combinado (BUG + BACKOFFICE) — MESMO critério/campos de
+# "Em desenvolvimento agora" combinado (BUG + BACKOFFICE + SUS + PEM, desde 19/10/2026) — MESMO critério/campos de
 # d['em_dev_devs'] acima (status ATUAL "Em Desenvolvimento", sem recorte de safra), só que a
 # partir de sweep_dev em vez de sweep. Estrutura PRÓPRIA do módulo Desenvolvedores
 # (d['devs']['em_dev_combinado'], não d['em_dev_devs']) — o painel de Bugs ("Cards em
@@ -1078,6 +1119,47 @@ _primeiro_mes=meses[0] if meses else None
 _time_mttr_por_mes={m:_time_mttr_dias(m) for m in meses}
 _time_mttr_acum_por_mes={m:_time_mttr_dias(_primeiro_mes,m) for m in meses} if _primeiro_mes else {}
 
+# MTTR em 3 recortes (DECISÃO DE 19/10/2026, card "MTTR pessoal" novo) — mesma base de dado
+# (entrega_data, igual ao MTTR que já existia) e mesmo critério (cards CRIADOS no período, régua
+# de _dev_cards), só filtrando por origem antes de calcular a mediana. "Time" de cada recorte é a
+# MEDIANA DAS MEDIANAS por pessoa (uma pessoa, um número, depois mediana desses números) — regra
+# pedida explicitamente pela Jane pra este card, DIFERENTE do "Time" que já existia nos outros
+# cards (mttr_time acima, que pega todos os cards de todo mundo juntos e tira uma mediana só).
+# "Só PEM" não calcula Time (a UI mostra "—" sempre, por pedido explícito).
+ORIGENS_SEM_PEM={'BUG','BACKOFFICE','SUS'}
+ORIGENS_COM_PEM={'BUG','BACKOFFICE','SUS','PEM'}
+ORIGENS_SO_PEM={'PEM'}
+def _dev_cards_origens(assignee,origens,ini,fim=None):
+    if fim is None: fim=ini
+    return [x for x in sweep_dev if x['c'] and x.get('assignee')==assignee and x['origem'] in origens
+            and ini<=x['c'].strftime('%Y-%m')<=fim]
+def _mttr_recorte(dev,origens,ini,fim=None):
+    return _dev_mttr_dias(_dev_cards_origens(dev,origens,ini,fim))
+def _time_mttr_recorte(origens,ini,fim=None):
+    vals=[v for v,_ in (_mttr_recorte(dv,origens,ini,fim) for dv in devs_ordem) if v is not None]
+    return round(statistics.median(vals),1) if vals else None
+_time_sem_pem_mes={m:_time_mttr_recorte(ORIGENS_SEM_PEM,m) for m in meses}
+_time_com_pem_mes={m:_time_mttr_recorte(ORIGENS_COM_PEM,m) for m in meses}
+_time_sem_pem_acum={m:_time_mttr_recorte(ORIGENS_SEM_PEM,_primeiro_mes,m) for m in meses} if _primeiro_mes else {}
+_time_com_pem_acum={m:_time_mttr_recorte(ORIGENS_COM_PEM,_primeiro_mes,m) for m in meses} if _primeiro_mes else {}
+def _mttr_cortes_dev(dev,ini,fim,time_sem,time_com):
+    v_sem,n_sem=_mttr_recorte(dev,ORIGENS_SEM_PEM,ini,fim)
+    v_com,n_com=_mttr_recorte(dev,ORIGENS_COM_PEM,ini,fim)
+    v_pem,n_pem=_mttr_recorte(dev,ORIGENS_SO_PEM,ini,fim)
+    return {'sem_pem':{'valor':v_sem,'n':n_sem,'time':time_sem},
+            'com_pem':{'valor':v_com,'n':n_com,'time':time_com},
+            'so_pem':{'valor':v_pem,'n':n_pem,'time':None}}
+
+# Cobertura de apontamento (timespent) dos cards PEM da pessoa no período — selo "baixa
+# cobertura de horas" quando < 50% (card Esforço). Só olha os cards PEM (BUG/BACKOFFICE/SUS já
+# tinham o próprio apontamento consolidado; a Jane pediu o selo especificamente pro PEM, cuja
+# cultura de apontar hora é mais nova/menos consistente).
+def _pem_cobertura_horas(dev,ini,fim=None):
+    cards=_dev_cards_origens(dev,ORIGENS_SO_PEM,ini,fim)
+    if not cards: return None
+    com_ts=sum(1 for x in cards if x.get('timespent') is not None)
+    return round(com_ts/len(cards),2)
+
 pessoas={}
 for dev in devs_ordem:
     kpi_mes={}; kpi_acum={}
@@ -1085,17 +1167,29 @@ for dev in devs_ordem:
         base=_dev_periodo(dev,m)
         conc_n,conc_keys=_edev_sum(dev,m)
         base['concluidos']=conc_n; base['concluidos_keys']=conc_keys
+        por_proj=_edev_sum_por_projeto(dev,m)
+        assert sum(v['n'] for v in por_proj.values())==conc_n, \
+            f'Soma por projeto ({dev}, {m}) diverge do total: {por_proj} != {conc_n}'
+        base['concluidos_por_projeto']=por_proj
         ano_ant_ym=_ano_ant(m)
         base['concluidos_ano_anterior']=_edev_sum(dev,ano_ant_ym)[0] if ano_ant_ym in meses else None
         base['mttr_time']=_time_mttr_por_mes.get(m)
+        base['mttr_cortes']=_mttr_cortes_dev(dev,m,m,_time_sem_pem_mes.get(m),_time_com_pem_mes.get(m))
+        base['pem_cobertura_horas']=_pem_cobertura_horas(dev,m)
         kpi_mes[m]=base
         baseA=_dev_periodo(dev,_primeiro_mes,m)
         conc_n_a,conc_keys_a=_edev_sum(dev,_primeiro_mes,m)
         baseA['concluidos']=conc_n_a; baseA['concluidos_keys']=conc_keys_a
+        por_proj_a=_edev_sum_por_projeto(dev,_primeiro_mes,m)
+        assert sum(v['n'] for v in por_proj_a.values())==conc_n_a, \
+            f'Soma por projeto acumulada ({dev}, até {m}) diverge do total: {por_proj_a} != {conc_n_a}'
+        baseA['concluidos_por_projeto']=por_proj_a
         primeiro_ant=_ano_ant(_primeiro_mes); m_ant=_ano_ant(m)
         baseA['concluidos_ano_anterior']=(_edev_sum(dev,primeiro_ant,m_ant)[0]
                                           if primeiro_ant in meses and m_ant in meses and primeiro_ant<=m_ant else None)
         baseA['mttr_time']=_time_mttr_acum_por_mes.get(m)
+        baseA['mttr_cortes']=_mttr_cortes_dev(dev,_primeiro_mes,m,_time_sem_pem_acum.get(m),_time_com_pem_acum.get(m))
+        baseA['pem_cobertura_horas']=_pem_cobertura_horas(dev,_primeiro_mes,m)
         kpi_acum[m]=baseA
     pessoas[dev]={'metrics_jira':{
         'avatar':devs_avatar.get(dev),
@@ -1106,6 +1200,8 @@ for dev in devs_ordem:
         'evolucao':{
             'concluidos':[_edev_e[dev].get(m,0) for m in meses],
             'concluidos_keys':[_edev_ek[dev].get(m,[]) for m in meses],
+            'por_projeto':{origem:[_edev_e_proj[dev][origem].get(m,0) for m in meses] for origem in PROJ_ORDEM},
+            'por_projeto_keys':{origem:[_edev_ek_proj[dev][origem].get(m,[]) for m in meses] for origem in PROJ_ORDEM},
         },
     }}
 
@@ -1287,18 +1383,28 @@ def _repasses_mes(dev,ini_ep,fim_ep):
                    f"aqui como observação."})
     return out
 
+_cv_faltando=[]  # assert "todo concluído do mês aparece no Ciclo de vida desse mês" (item 3, 19/10/2026)
 for dev in devs_ordem:
     cv_por_mes={}
     for m in meses:
         cards,ini_ep,fim_ep=_ciclo_vida_mes(dev,m)
         repasses=_repasses_mes(dev,ini_ep,fim_ep)
         cv_por_mes[m]={'n':len(cards),'keys':[c['key'] for c in cards],'cards':cards,'repasses':repasses}
+        _concluidos_m=set(pessoas[dev]['metrics_jira']['kpi_por_mes'][m]['concluidos_keys'])
+        _faltam=_concluidos_m-set(cv_por_mes[m]['keys'])
+        if _faltam: _cv_faltando.append((dev,m,sorted(_faltam)))
     pessoas[dev]['metrics_jira']['ciclo_vida']=cv_por_mes
     if dev in dev_status_series:
         pessoas[dev]['metrics_jira']['status_series']=dev_status_series[dev]
+if _cv_faltando:
+    print('AVISO: concluído(s) fora do Ciclo de vida do mesmo mês (deveria ser impossível):')
+    for _dev,_m,_keys in _cv_faltando: print(f'  {_dev} / {_m}: {_keys}')
+else:
+    print('OK: todo card concluído no mês aparece no Ciclo de vida desse mês.')
 
 d['devs']={'ordem':devs_ordem,'meses':meses,'pessoas':pessoas,'piso_amostra':PISO_AMOSTRA_SLA,
-           'status_kanban_ordem':status_kanban_ordem,'em_dev_combinado':em_dev_combinado}
+           'status_kanban_ordem':status_kanban_ordem,'em_dev_combinado':em_dev_combinado,
+           'proj_ordem':PROJ_ORDEM,'proj_cor':PROJ_COR,'proj_label':PROJ_LABEL,'proj_key':PROJ_KEY}
 
 # ==================== MÓDULO PRODUTOS E MELHORIA (SPA, build_dash.py — produtosModule()) ====================
 # NOVO EM 30/09/2026, a pedido da Jane, após levantamento de schema (projeto PEM, "Produtos e
@@ -1331,12 +1437,8 @@ d['devs']={'ordem':devs_ordem,'meses':meses,'pessoas':pessoas,'piso_amostra':PIS
 # painel (volume por ano, por módulo, série mensal, ranking) — "outras informações" da extração
 # (tempo Aprovado Produto→lançamento, origem cliente) ficaram só no relatório, não viraram
 # painel — não foram pedidas como parte da implementação.
-RES_EXCLUI_PEM={"Won't Do"}
-NAO_DEV_PEM={'Giovanna','Renato Canever'}
-sweep_pem_full=json.load(open('sweep_pem.json')) if os.path.exists('sweep_pem.json') else []
-for x in sweep_pem_full:
-    x['c']=pdt(x['created']); x['u']=pdt(x.get('updated'))
-sweep_pem=[x for x in sweep_pem_full if x['res'] not in RES_EXCLUI_PEM]
+# RES_EXCLUI_PEM/NAO_DEV_PEM/sweep_pem(_full) já carregados lá em cima, junto com sweep_dev
+# (DECISÃO DE 19/10/2026) — reaproveitados aqui, sem recarregar o arquivo.
 
 def _pem_lancado(x):
     """Data de 'lançado' (string ISO) = producao_data (1ª transição p/ Em produção/Em Produção,

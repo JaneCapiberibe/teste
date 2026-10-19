@@ -161,6 +161,8 @@ main{max-width:1180px;margin:0 auto;padding:28px 22px 60px}
 .mh-c:not([open])>summary::before{transform:rotate(-45deg);margin-bottom:0}
 .mh-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:6px 0 10px}
 .mh-kpi{background:var(--surface-1);border:1px solid var(--line);border-radius:12px;padding:12px 14px;text-align:center}
+.mh-kpi-mini{background:var(--surface-2);border-radius:8px;padding:6px 8px;text-align:left}
+.mh-kpi-mini.clickable{cursor:pointer}
 .mh-kpi-lbl{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3)}
 .mh-kpi-num{font-size:26px;font-weight:800;line-height:1.15;color:var(--text-1);margin:2px 0}
 .mh-kpi-sub{font-size:11px;color:var(--text-2)}
@@ -1116,7 +1118,9 @@ function statusBadge(s){
 // módulo Desenvolvedores soma as três fontes (gen_data.py). Mesmo padrão neutro de
 // statusBadge (não é uma dimensão com cor semântica já padronizada no dashboard).
 function origemBadge(o){
-  return `<span class="badge" style="background:var(--surface-2);color:var(--text-2)">${o||'—'}</span>`;
+  const D=DATA.devs, cor=(D&&D.proj_cor&&D.proj_cor[o])||null, lbl=(D&&D.proj_label&&D.proj_label[o])||o||'—';
+  if(!cor) return `<span class="badge" style="background:var(--surface-2);color:var(--text-2)">${o||'—'}</span>`;
+  return `<span class="badge" style="background:${cor}22;color:${cor};border:1px solid ${cor}55">${lbl}</span>`;
 }
 // filtroResp opcional (usado pelo módulo Desenvolvedores, clique em "Em desenvolvimento
 // agora" — reaproveita esta mesma lista/lógica, só filtrando as linhas, sem recriar nada).
@@ -1184,45 +1188,95 @@ function devGrid(){
     </button>`;
   }).join('')}</div>`;
 }
+// Divisão por projeto do card "Concluídos" (DECISÃO DE 19/10/2026, PEM somado ao módulo
+// Desenvolvedores) — barra segmentada proporcional + 4 mini cards, cores fixas de
+// DATA.devs.proj_cor/proj_label/proj_ordem (vindas de gen_data.py, PROJ_COR/PROJ_LABEL/
+// PROJ_ORDEM — fonte única, sem duplicar hex aqui). Cada segmento/número usa o MESMO clique
+// abrirCardsBar (key in (...)) do resto do dashboard, com as chaves exatas já calculadas no
+// Python — mais preciso que montar uma JQL por projeto/assignee/mês (que divergiria por fuso
+// ou card reaberto/reentrada, como a própria especificação alertou).
+function concluidosPorProjeto(k){
+  const D=DATA.devs, tot=k.concluidos, pp=k.concluidos_por_projeto||{};
+  const segs=D.proj_ordem.map(p=>{
+    const v=(pp[p]||{n:0,keys:[]}), pct=tot?Math.round(v.n/tot*1000)/10:0;
+    return {p,n:v.n,keys:v.keys,pct};
+  });
+  const barra=segs.filter(s=>s.n>0).map(s=>
+    `<div class="clickable" style="flex:${s.pct||0.0001};background:${D.proj_cor[s.p]};height:10px" data-keys="${s.keys.join(',')}" onclick="abrirCardsBar(this)" title="${D.proj_label[s.p]}: ${s.n} (${s.pct}%) · clique p/ ver no Jira"></div>`
+  ).join('<div style="width:2px"></div>');
+  const minis=segs.map(s=>
+    `<div class="mh-kpi-mini${s.n?' clickable':''}" ${s.n?`data-keys="${s.keys.join(',')}" onclick="abrirCardsBar(this)"`:''} title="${s.n?'Clique para ver no Jira':'Nenhum concluído no período'}">
+       <div style="display:flex;align-items:center;gap:5px"><i style="width:8px;height:8px;border-radius:2px;background:${D.proj_cor[s.p]};display:inline-block"></i><span style="font-size:11px;color:var(--text-3)">${D.proj_label[s.p]}</span></div>
+       <div style="font-size:15px;font-weight:600">${s.n}</div>
+     </div>`
+  ).join('');
+  return `<div style="display:flex;gap:2px;border-radius:4px;overflow:hidden;margin:8px 0 10px">${barra||'<div style="flex:1;height:10px;background:var(--line)"></div>'}</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">${minis}</div>`;
+}
+function mttrCortesCard(dev,k){
+  const c=k.mttr_cortes;
+  if(!c) return '';
+  const primNome=dev.split(' ')[0];
+  const row=(lbl,rec,big)=>{
+    const valTxt=rec.valor!=null?rec.valor:'N/D';
+    const timeTxt=lbl==='Só PEM'?'—':(rec.time!=null?rec.time:'—');
+    const amostra=lbl==='Só PEM'&&rec.n<5?`<div style="font-size:11px;color:var(--text-3);margin-top:2px">${rec.n} cards · amostra pequena</div>`:'';
+    return `<div style="display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:baseline;padding:${big?'6px 0':'4px 0'}">
+      <div style="font-size:12px;color:var(--text-2)">${lbl}${amostra}</div>
+      <div style="font-size:${big?'24px':'16px'};font-weight:${big?'500':'600'};text-align:right">${valTxt}</div>
+      <div style="font-size:${big?'16px':'14px'};color:var(--text-3);text-align:right;min-width:36px">${timeTxt}</div>
+    </div>`;
+  };
+  return `<div class="mh-kpi" style="grid-column:span 2" title="Produtos e melhoria inclui a fase de produto, por isso o prazo é bem maior; use Sem PEM para acompanhar o desenvolvimento">
+    <div style="display:flex;justify-content:space-between;align-items:baseline">
+      <div class="mh-kpi-lbl" style="margin-bottom:0">MTTR pessoal</div>
+      <div style="font-size:11px;color:var(--text-3)">dias úteis, mediana</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr auto auto;gap:10px;margin-top:6px">
+      <div></div><div style="font-size:11px;color:var(--text-3);text-align:right">${primNome}</div><div style="font-size:11px;color:var(--text-3);text-align:right">Time</div>
+    </div>
+    ${row('Sem PEM',c.sem_pem,true)}
+    <div style="border-top:1px solid var(--line);margin:2px 0"></div>
+    ${row('Com PEM',c.com_pem,false)}
+    ${row('Só PEM',c.so_pem,false)}
+  </div>`;
+}
 function devKpiCards(dev){
   const D=DATA.devs, acum=modoAcum('devs'), piso=D.piso_amostra;
   const mj=D.pessoas[dev].metrics_jira;
   const k=(acum?mj.kpi_acumulado_por_mes:mj.kpi_por_mes)[curSafra()];
   if(!k) return '';
   const seloAno=k.n_periodo<piso?`<span class="selo-amostra" title="Amostra pequena — menos de ${piso} bugs criados por ${dev} neste período. A comparação com o ano anterior pode não ser confiável.">!</span>`:'';
-  const seloMttr=k.mttr_n<piso?`<span class="selo-amostra" title="Amostra pequena — menos de ${piso} bugs de ${dev} com MTTR medido (1ª entrada em Em produção) neste período.">!</span>`:'';
   const periodoAnoTxt=acum?'no mesmo acumulado do ano passado':'no mesmo mês do ano passado';
-  const anoTxt=k.concluidos_ano_anterior!=null?`vs ${k.concluidos_ano_anterior} ${periodoAnoTxt}`:'sem dado do ano anterior';
+  const anoTxt=k.concluidos_ano_anterior!=null?`vs ${k.concluidos_ano_anterior} ${periodoAnoTxt} · mesma base de projetos`:'sem dado do ano anterior';
   const concKeys=(k.concluidos_keys||[]).join(',');
-  // "Em desenvolvimento agora" soma BUG + BACKOFFICE + SUS (BACKOFFICE 21/09/2026, SUS
-  // 28/09/2026) — usa DATA.devs.em_dev_combinado (estrutura própria do módulo
-  // Desenvolvedores), não DATA.em_dev_devs (só BUG, usado pelo painel de Bugs "Cards em
-  // desenvolvimento por desenvolvedor" — sem alteração ali). Abre o Jira direto com
-  // "key in (...)" das três fontes juntas; o próprio Jira já mostra o prefixo do projeto
-  // (BUG-123/MB-456/SUS-789) em cada resultado, então a identificação de origem já vem de
-  // graça nesse fluxo.
+  const seloCobertura=(k.pem_cobertura_horas!=null&&k.pem_cobertura_horas<0.5)
+    ?`<span class="selo-amostra" title="Baixa cobertura de horas — menos de 50% dos cards do PEM de ${dev} no período têm apontamento de timespent. O Esforço pode estar subestimado.">!</span>`:'';
+  // "Em desenvolvimento agora" soma BUG + BACKOFFICE + SUS + PEM (PEM desde 19/10/2026) — usa
+  // DATA.devs.em_dev_combinado (estrutura própria do módulo Desenvolvedores), não
+  // DATA.em_dev_devs (só BUG, usado pelo painel de Bugs "Cards em desenvolvimento por
+  // desenvolvedor" — sem alteração ali). Abre o Jira direto com "key in (...)" das quatro
+  // fontes juntas; o próprio Jira já mostra o prefixo do projeto (BUG-123/MB-456/SUS-789/
+  // PEM-123) em cada resultado, então a identificação de origem já vem de graça nesse fluxo.
   const emDevKeys=(D.em_dev_combinado||[]).filter(r=>r.resp===dev).map(r=>r.key).join(',');
-  return `<div class="mh-kpis" style="margin-top:4px">
-    <div class="mh-kpi clickable" data-keys="${concKeys}" onclick="abrirCardsBar(this)" title="Clique para ver os cards no Jira">
+  return `<div class="mh-kpis" style="margin-top:4px;grid-template-columns:repeat(2,1fr)">
+    <div class="mh-kpi" style="grid-column:span 2">
       <div class="mh-kpi-lbl">Concluídos${seloAno}</div>
-      <div class="mh-kpi-num">${k.concluidos}</div>
+      <div class="mh-kpi-num clickable" data-keys="${concKeys}" onclick="abrirCardsBar(this)" title="Clique para ver todos no Jira">${k.concluidos}</div>
       <div class="mh-kpi-sub">${anoTxt}</div>
+      ${concluidosPorProjeto(k)}
     </div>
     <div class="mh-kpi">
-      <div class="mh-kpi-lbl">Esforço (h)</div>
+      <div class="mh-kpi-lbl">Esforço (h)${seloCobertura}</div>
       <div class="mh-kpi-num">${k.esforco_h}</div>
-      <div class="mh-kpi-sub">horas apontadas, cards ativos</div>
-    </div>
-    <div class="mh-kpi">
-      <div class="mh-kpi-lbl">MTTR pessoal${seloMttr}</div>
-      <div class="mh-kpi-num">${k.mttr!=null?k.mttr:'N/D'}</div>
-      <div class="mh-kpi-sub">dias úteis${k.mttr_time!=null?` · média do time: ${k.mttr_time} dias`:' · sem média do time no período'}</div>
+      <div class="mh-kpi-sub">horas apontadas, cards ativos · 4 projetos</div>
     </div>
     <div class="mh-kpi clickable" data-keys="${emDevKeys}" onclick="abrirCardsBar(this)" title="Clique para ver os cards no Jira">
       <div class="mh-kpi-lbl">Em desenvolvimento agora</div>
       <div class="mh-kpi-num">${mj.em_dev_agora}</div>
       <div class="mh-kpi-sub">clique para ver no Jira</div>
     </div>
+    ${mttrCortesCard(dev,k)}
     ${cicloVidaCard(dev)}
   </div>
   ${window.__cvOpen?cicloVidaExpandido(dev):''}`;
@@ -1241,7 +1295,7 @@ function toggleCicloVida(){window.__cvOpen=!window.__cvOpen;renderModule();}
 function cicloVidaCard(dev){
   const D=DATA.devs, mj=D.pessoas[dev].metrics_jira, cur=curSafra();
   const cv=(mj.ciclo_vida||{})[cur]||{n:0,keys:[]};
-  return `<div class="mh-kpi clickable" onclick="toggleCicloVida()" title="Clique para ${window.__cvOpen?'recolher':'expandir'}">
+  return `<div class="mh-kpi clickable" style="grid-column:span 2" onclick="toggleCicloVida()" title="Clique para ${window.__cvOpen?'recolher':'expandir'}">
     <div class="mh-kpi-lbl">Ciclo de vida</div>
     <div class="mh-kpi-num">${cv.n}</div>
     <div class="mh-kpi-sub">cards c/ atividade em ${mesLbl(cur)} · clique p/ detalhar</div>
@@ -1289,7 +1343,7 @@ function cvLista(dev){
   const D=DATA.devs, mj=D.pessoas[dev].metrics_jira, cur=curSafra();
   const cv=(mj.ciclo_vida||{})[cur]||{cards:[],repasses:[]};
   const tabela=!cv.cards.length?`<div class="note">Nenhum card de ${dev} com mudança de status em ${mesLbl(cur)}.</div>`
-    :`<table><thead><tr><th>Card</th><th>Origem</th><th>Módulo</th><th>Prioridade</th><th>Status atual</th><th>Histórico do mês</th></tr></thead><tbody>${
+    :`<table><thead><tr><th>Card</th><th>Projeto</th><th>Módulo</th><th>Prioridade</th><th>Status atual</th><th>Histórico do mês</th></tr></thead><tbody>${
       cv.cards.map(c=>`<tr>
         <td><a class="jira-link" href="${c.url}" target="_blank" rel="noopener">${c.key}</a></td>
         <td>${origemBadge(c.origem)}</td>
@@ -1319,11 +1373,18 @@ function cicloVidaExpandido(dev){
 // por engano; agora os dois contam pelo mesmo critério, sem distinção). Barra clara = mês
 // corrente (mesmo padrão visual de sobraChart/escapeChart) — ainda em andamento, não é
 // projetado (concluído é um evento passado, não dá pra rodar o run-rate usado em criados).
+// Renomeado de "Evolução mês a mês" pra "Cards concluídos por mês" e empilhado por projeto
+// (DECISÃO DE 19/10/2026) — mesma régua oficial de sempre (mês de CONCLUSÃO via changelog),
+// só que quebrado em 4 segmentos por barra em vez de uma cor só. Ordem de baixo pra cima fixa
+// (DATA.devs.proj_ordem = Bug, Backoffice, Sustentação, Produtos e melhoria), pequeno espaço
+// entre segmentos, total no topo da barra.
 function devEvolChart(dev){
-  const D=DATA.devs, meses=D.meses, ev=D.pessoas[dev].metrics_jira.evolucao, cur=DATA.mes_corrente;
-  const vals=ev.concluidos, n=meses.length;
-  const W=1080,H=250,P=44;
-  const maxY=Math.max(4,...vals)*1.15;
+  const D=DATA.devs, meses=D.meses, mj=D.pessoas[dev].metrics_jira, ev=mj.evolucao, cur=DATA.mes_corrente;
+  const porProj=ev.por_projeto||{}, porProjKeys=ev.por_projeto_keys||{};
+  const totais=meses.map((m,i)=>D.proj_ordem.reduce((s,p)=>s+((porProj[p]||[])[i]||0),0));
+  const n=meses.length;
+  const W=1080,H=260,P=44,GAP=2;
+  const maxY=Math.max(4,...totais)*1.15;
   const bw=(W-2*P)/n*0.62;
   const xs=(i)=>P+(i+0.5)*(W-2*P)/n;
   const ys=(v)=>H-P-(v/maxY)*(H-2*P);
@@ -1331,12 +1392,21 @@ function devEvolChart(dev){
   let grid='';for(let g=0;g<=Math.ceil(maxY/step);g++){const val=g*step;const yy=ys(val);grid+=`<line x1="${P}" y1="${yy}" x2="${W-P}" y2="${yy}" stroke="${col('--line')}"/><text x="${P-6}" y="${yy+4}" text-anchor="end" fill="${col('--text-3')}" font-size="10">${val}</text>`;}
   let xl='';meses.forEach((m,i)=>{if(i%2===0||i===n-1)xl+=`<text x="${xs(i)}" y="${H-P+16}" text-anchor="middle" fill="${col('--text-3')}" font-size="9">${m.slice(2)}</text>`;});
   let bars='';meses.forEach((m,i)=>{
-    const v=vals[i]; const y=ys(v); const parc=m===cur; const kk=((ev.concluidos_keys||[])[i]||[]).join(',');
-    if(v>0) bars+=`<rect x="${(xs(i)-bw/2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${(H-P-y).toFixed(1)}" fill="${col('--s3')}" ${parc?'opacity="0.45"':''} rx="2" style="cursor:pointer" data-keys="${kk}" onclick="abrirCardsBar(this)"><title>${m}: ${v} concluído(s)${parc?' — mês corrente, ainda em andamento':''} · clique p/ ver os cards no Jira</title></rect>`;
-    bars+=`<text x="${xs(i).toFixed(1)}" y="${(y-4).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="${col('--text-1')}">${v||''}</text>`;
+    const parc=m===cur; let acc=0;
+    D.proj_ordem.forEach(p=>{
+      const v=(porProj[p]||[])[i]||0; if(!v) return;
+      const yBot=ys(acc), yTop=ys(acc+v);
+      const kk=((porProjKeys[p]||[])[i]||[]).join(',');
+      bars+=`<rect x="${(xs(i)-bw/2).toFixed(1)}" y="${yTop.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(0,yBot-yTop-GAP).toFixed(1)}" fill="${D.proj_cor[p]}" ${parc?'opacity="0.45"':''} rx="1.5" style="cursor:pointer" data-keys="${kk}" onclick="abrirCardsBar(this)"><title>${m} · ${D.proj_label[p]}: ${v}${parc?' — mês corrente, ainda em andamento':''} · clique p/ ver os cards no Jira</title></rect>`;
+      acc+=v;
+    });
+    const tot=totais[i];
+    if(tot>0) bars+=`<text x="${xs(i).toFixed(1)}" y="${(ys(tot)-4).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="700" fill="${col('--text-1')}">${tot}</text>`;
   });
   const band=safraBand((i)=>xs(i),(W-2*P)/n,P,H);
-  return `<div style="font-size:12px;color:var(--text-2);margin:2px 0 8px">Concluídos por mês, BUG + BACKOFFICE + SUS (mês de <b>conclusão</b> via changelog — mesma régua de "Bug por módulo"). Barra clara = mês corrente, ainda em andamento; faixa azul = safra em foco. Clique numa barra p/ ver os cards no Jira.</div>
+  const legenda=D.proj_ordem.map(p=>`<span><i class="dot" style="background:${D.proj_cor[p]}"></i>${D.proj_label[p]}</span>`).join('');
+  return `<div class="legend">${legenda}</div>
+    <div style="font-size:12px;color:var(--text-2);margin:2px 0 8px">Concluídos por mês de conclusão (changelog) em Bug, Backoffice, Sustentação e Produtos e melhoria. Barra clara é o mês corrente; faixa azul é a safra em foco.</div>
     <svg viewBox="0 0 ${W} ${H}" width="100%">${band}${grid}${xl}${bars}</svg>`;
 }
 function renderDevsModule(){
@@ -1350,9 +1420,9 @@ function renderDevsModule(){
    <h2>${si('gauge-high')}Detalhe do desenvolvedor</h2>
    <div class="panel">
      <div class="kpi-label" style="margin-bottom:10px">${dev} — ${acum?`acumulado até ${mesLbl(curSafra())}`:`safra ${mesLbl(curSafra())}`}${acumToggle('devs')}
-       <span class="info" data-tip="Todos os números e gráficos deste painel somam o projeto BUG, o projeto BACKOFFICE e o projeto SUS (BACKOFFICE desde 21/09/2026, SUS desde 28/09/2026 — a grade de avatares continua baseada só no BUG). Concluídos = cards cujo assignee é a pessoa selecionada e cuja 1ª transição para 'Em produção' (changelog) aconteceu dentro do período selecionado — mesma régua oficial de 'Bug por módulo'/Evolução por módulo: mês de CONCLUSÃO, não de criação (um bug criado em agosto e entregue em setembro conta como concluído de setembro da pessoa que entregou). O gráfico de evolução abaixo usa exatamente essa mesma régua. Esforço (h) e MTTR pessoal continuam sobre cards CRIADOS no período, tirados do conjunto combinado das três fontes (Esforço exclui Impedimento Dev/Produto e Cancelado Dev; MTTR = dias úteis entre criação e 1ª entrada em Em produção, comparado com a mediana do time no mesmo período, também combinada). 'Em desenvolvimento agora' é sempre o estado atual. 'Ciclo de vida' sempre usa o mês selecionado (não segue o alternador Mês/Acumulado) — veja o card para detalhe.">i</span></div>
+       <span class="info" data-tip="Todos os números e gráficos deste painel somam o projeto BUG, o projeto BACKOFFICE, o projeto SUS e o projeto PEM (Produtos e Melhoria) — BACKOFFICE desde 21/09/2026, SUS desde 28/09/2026, PEM desde 19/10/2026 (a grade de avatares continua baseada só no BUG; Giovanna e Renato Canever, não-devs do PEM, nunca entram em nenhuma métrica por pessoa). Concluídos = cards cujo assignee é a pessoa selecionada e cuja 1ª transição para 'Em produção' (changelog) aconteceu dentro do período selecionado — mesma régua oficial de 'Bug por módulo'/Evolução por módulo: mês de CONCLUSÃO, não de criação. Dividido nos 4 projetos (a soma bate sempre com o total). O gráfico 'Cards concluídos por mês' abaixo usa exatamente essa mesma régua, empilhado por projeto. Esforço (h) soma as horas apontadas dos 4 projetos (cards CRIADOS no período); MTTR pessoal mostra 3 recortes — Sem PEM (fluxo de desenvolvimento), Com PEM e Só PEM — dias úteis entre criação e 1ª entrada em Em produção. 'Em desenvolvimento agora' é sempre o estado atual. 'Ciclo de vida' sempre usa o mês selecionado (não segue o alternador Mês/Acumulado) — veja o card para detalhe.">i</span></div>
      ${devKpiCards(dev)}
-     <div class="kpi-label" style="margin:18px 0 6px">Evolução mês a mês — bugs concluídos</div>
+     <div class="kpi-label" style="margin:18px 0 6px">Cards concluídos por mês</div>
      ${devEvolChart(dev)}
    </div>`:'';
   document.getElementById('app').innerHTML=`
