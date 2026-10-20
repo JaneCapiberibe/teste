@@ -287,6 +287,8 @@ footer{max-width:1180px;margin:0 auto;padding:10px 18px 40px;color:var(--text-3)
 .dev-switch-btn{flex:none;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface-1);color:var(--text-2);border-radius:8px;padding:0 14px;height:32px;font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;transition:border-color .15s,color .15s}
 .dev-switch-btn:hover{border-color:var(--brand-blue);color:var(--brand-blue)}
 .dev-switch-btn .ic{width:14px;height:14px}
+.donut-seg{transition:opacity .15s}
+.donut-seg:hover{opacity:.82}
 .mh-kpi.clickable{cursor:pointer;transition:border-color .15s}
 .mh-kpi.clickable:hover{border-color:var(--brand-blue)}
 .mh-kpi.clickable .mh-kpi-num{color:var(--brand-blue);text-decoration:underline;text-underline-offset:3px}
@@ -1099,6 +1101,49 @@ function impedimentoSpotlight(){
     </div>
   </div>`;
 }
+// "Bugs em aberto por status" (NOVO EM 20/10/2026, a pedido da Jane) — donut com a fotografia AO
+// VIVO de todo o backlog aberto (DATA.bugs_abertos_status, gen_data.py), status atual, todas as
+// safras. Paleta fixa por nome de status (não cíclica — cada status sempre com a mesma cor,
+// mesmo que a lista de status com dado mude de uma atualização pra outra) — mais fina que
+// filaStatusColor() (que agrupa por categoria ampla pra "Composição da fila"): aqui cada status
+// precisa ficar visualmente distinto do vizinho (ex.: Impedimento Dev × Impedimento Produto).
+const STATUS_ABERTO_COR={
+  'Backlog':'#8a8f98','Não Iniciado':'#f0a500','Em Desenvolvimento':'#005FE8',
+  'IMPEDIMENTO DEV':'#eb6834','IMPEDIMENTO PRODUTO':'#e2384d','Merge Request':'#8b5cf6',
+  'Revisão QA':'#6b8e23','Reprovado QA':'#e87ba4','Aprovado QA':'#14b8a6','Revert':'#a8763e',
+  'Em produção':'#4da3ff','Em Produção':'#4da3ff'
+};
+function statusAbertoColor(s){return STATUS_ABERTO_COR[s]||'#9aa1ab';}
+function bugsAbertosDonut(){
+  const B=DATA.bugs_abertos_status;
+  if(!B||!B.itens||!B.itens.length) return '<div class="note">Nenhum bug em aberto no momento.</div>';
+  const itens=B.itens.filter(i=>i.n>0), tot=B.total||itens.reduce((a,i)=>a+i.n,0)||1;
+  const R=78, CX=90, CY=90, SW=30, RI=R-SW;
+  let ang=-90, arcs='';
+  itens.forEach(it=>{
+    const frac=it.n/tot, a0=ang, a1=ang+frac*360; ang=a1;
+    const big=a1-a0>=10; // evita número espremido em fatia fina demais
+    const rad=d=>(d*Math.PI)/180;
+    const mid=rad((a0+a1)/2), rr=(R+RI)/2;
+    const lx=(CX+rr*Math.cos(mid)).toFixed(1), ly=(CY+rr*Math.sin(mid)).toFixed(1);
+    const large=(a1-a0)>180?1:0;
+    const p0=[CX+R*Math.cos(rad(a0)),CY+R*Math.sin(rad(a0))], p1=[CX+R*Math.cos(rad(a1)),CY+R*Math.sin(rad(a1))];
+    const q0=[CX+RI*Math.cos(rad(a1)),CY+RI*Math.sin(rad(a1))], q1=[CX+RI*Math.cos(rad(a0)),CY+RI*Math.sin(rad(a0))];
+    const path=`M${p0[0].toFixed(2)},${p0[1].toFixed(2)} A${R},${R} 0 ${large} 1 ${p1[0].toFixed(2)},${p1[1].toFixed(2)} L${q0[0].toFixed(2)},${q0[1].toFixed(2)} A${RI},${RI} 0 ${large} 0 ${q1[0].toFixed(2)},${q1[1].toFixed(2)} Z`;
+    const pct=Math.round(frac*1000)/10;
+    arcs+=`<path class="donut-seg" d="${path}" fill="${statusAbertoColor(it.status)}" data-keys="${it.keys.join(',')}" onclick="abrirCardsBar(this)" stroke="${col('--surface-1')}" stroke-width="2" style="cursor:pointer"><title>${it.status}: ${it.n} (${pct}%) · clique p/ ver no Jira</title></path>`;
+    if(big) arcs+=`<text x="${lx}" y="${ly}" text-anchor="middle" dominant-baseline="middle" font-size="13" font-weight="700" fill="#fff" style="pointer-events:none">${it.n}</text>`;
+  });
+  const legend=itens.map(it=>`<span class="clickable" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px" data-keys="${it.keys.join(',')}" onclick="abrirCardsBar(this)" title="clique p/ ver no Jira"><i class="dot" style="background:${statusAbertoColor(it.status)}"></i>${it.status} <b>${it.n}</b></span>`).join('');
+  return `<div style="display:flex;align-items:center;gap:28px;flex-wrap:wrap">
+    <svg viewBox="0 0 180 180" width="220" height="220" style="flex:none">
+      ${arcs}
+      <text x="90" y="86" text-anchor="middle" font-size="26" font-weight="800" fill="${col('--text-1')}">${tot}</text>
+      <text x="90" y="104" text-anchor="middle" font-size="10.5" fill="${col('--text-3')}">em aberto</text>
+    </svg>
+    <div class="legend" style="flex:1;min-width:220px">${legend}</div>
+  </div>`;
+}
 function funilDetc(f){
   if(!f.detc||!f.detc.length) return '';
   const cm=detColors(), max=Math.max(1,...f.detc.map(i=>i.n));
@@ -1775,6 +1820,9 @@ function render(){
      <div class="note"><b>Como ler:</b> marque os módulos nos chips e o gráfico soma os selecionados. Barra laranja = criados, verde = concluídos (1ª entrada em "Em produção"), linha vermelha = quantos passaram pro mês seguinte (saldo acumulado da seleção). Regra fixa: <b>saldo que passa para o próximo mês = cards no início do mês + cards criados − cards concluídos</b>. "Todos" dá o agregado geral; marcar só um grupo (ex.: os módulos BIM) dá o recorte daquele grupo. Cancelado QA, Cancelado Dev e cards ATUALMENTE parados em Impedimento Produto ou Backlog não contam — quem só passou por lá mas foi concluído ou avançou conta normalmente. <b>Por que "concluídos" aqui pode ser maior que "Entregues" no Diagnóstico do mês, no mesmo mês:</b> aqui o mês que conta é o da CONCLUSÃO (1ª entrada em Em produção) — não importa quando o card foi criado, então um bug nascido em meses anteriores e só resolvido agora entra nos concluídos deste mês. O Diagnóstico do mês faz o caminho inverso: só olha os bugs CRIADOS naquele mês, e "Entregues" é quantos desses já estão com status atual de entregue — um bug criado em agosto e entregue em setembro conta como entregue no funil de AGOSTO (mês em que nasceu), não no de setembro. As duas leituras estão certas; medem populações diferentes de bugs (mês de conclusão × mês de criação).</div>
    </div>
    <h2>${si('filter')}Diagnóstico do mês — funil de entrega do dev</h2>${funilPanel()}
+   <h2>${si('bug')}Bugs em aberto por status <span class="info" data-tip="Fotografia AO VIVO de todo o backlog aberto, de todas as safras (não só a safra em foco) — status atual de cada card. 'Aberto' é tudo que ainda não chegou a Done/Concluído. Base líquida — exclui descartados pelo QA/Dev e o módulo Chat de Suporte. Clique numa fatia ou na legenda pra ver os cards no Jira.">i</span></h2>
+   <div class="panel">${bugsAbertosDonut()}
+     <div class="note"><b>Como ler:</b> fotografia de agora — todo bug ainda não concluído, em qualquer safra, pelo status atual no Kanban. Diferente de "Sobra por status" abaixo (que olha por mês de CRIAÇÃO do card), aqui é o total vivo do backlog neste exato momento. Clique numa fatia ou num item da legenda pra ver os cards no Jira.</div></div>
    <h2>${si('hourglass-half')}Sobra por status — número de cards por mês <span class="info" data-tip="Explorador de status: escolha um status no seletor e o gráfico mostra, mês a mês (por mês de criação do card), quantos cards estão nesse status HOJE. Ex.: 'Não Iniciado' mostra o que sobrou sem começar; 'Impedimento Dev' mostra os travados; 'Done' mostra os entregues. Barra clara = mês corrente. Base líquida — exclui descartados pelo QA e Chat de Suporte.">i</span></h2>
    <div class="panel">
      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
