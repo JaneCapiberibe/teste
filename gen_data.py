@@ -922,6 +922,29 @@ d['funil_default']=ref; d['mes_corrente']=cur_m
 if os.path.exists('impedimentos_live.json'):
     d['impedimentos']=json.load(open('impedimentos_live.json'))
 
+# NOVO EM 20/10/2026, a pedido da Jane: "Bugs em aberto por status" (donut) — fotografia AO VIVO
+# de todo o backlog aberto (TODAS as safras, não só a safra em foco — diferente de "Composição
+# da fila", que é por mês de criação), status atual, base líquida (sweep: já sem Cancelado QA/Dev,
+# sem o módulo Chat de Suporte). "Aberto" = ainda NÃO entregue — mesmo critério de "Entregues" do
+# funil (ST_ENTREGUE_FUNIL acima: "Em produção" conta como entregue, não como aberto, porque já
+# saiu das mãos do dev; só falta o fechamento administrativo pra Done/Concluído). Sem isso, "Em
+# produção" dominava o donut com cards que na prática já foram entregues. Inclui Backlog e
+# Impedimento Produto/Dev, que "Composição da fila" deixa de fora por serem etapas próprias do
+# funil. Ordem fixa do Kanban (mesma régua visual de FILA_STATUS_ORDEM), com Backlog/Impedimento
+# Produto inseridos nas posições que fazem sentido no fluxo. Keys exatas por status (não JQL) —
+# clique abre via abrirCardsBar, mesmo padrão de "Concluídos por projeto" (Desenvolvedores): mais
+# preciso que montar uma JQL à parte.
+ST_ABERTO_ORDEM=['Backlog','Não Iniciado','Em Desenvolvimento','IMPEDIMENTO DEV','IMPEDIMENTO PRODUTO',
+    'Merge Request','Revisão QA','Reprovado QA','Aprovado QA','Revert']
+_abertos=[x for x in sweep if x['status'] not in ST_ENTREGUE_FUNIL]
+_ab_cnt=collections.Counter(x['status'] for x in _abertos)
+_ab_keys=collections.defaultdict(list)
+for x in _abertos: _ab_keys[x['status']].append(x['key'])
+_ab_ordenado=sorted(_ab_cnt.items(),
+    key=lambda t:(ST_ABERTO_ORDEM.index(t[0]) if t[0] in ST_ABERTO_ORDEM else len(ST_ABERTO_ORDEM),-t[1]))
+d['bugs_abertos_status']={'total':len(_abertos),
+    'itens':[{'status':s,'n':n,'keys':_ab_keys[s]} for s,n in _ab_ordenado]}
+
 # ==================== MÓDULO DESENVOLVEDORES (SPA, build_dash.py — devsModule()) ====================
 # Grade de avatares + painel de detalhe por pessoa (dados só, sem gestão de pessoas — 1:1,
 # feedback, plano de carreira ficam engavetados, aguardando decisão de arquitetura futura).
