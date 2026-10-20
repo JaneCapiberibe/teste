@@ -287,8 +287,8 @@ footer{max-width:1180px;margin:0 auto;padding:10px 18px 40px;color:var(--text-3)
 .dev-switch-btn{flex:none;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface-1);color:var(--text-2);border-radius:8px;padding:0 14px;height:32px;font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;transition:border-color .15s,color .15s}
 .dev-switch-btn:hover{border-color:var(--brand-blue);color:var(--brand-blue)}
 .dev-switch-btn .ic{width:14px;height:14px}
-.donut-seg{transition:opacity .15s}
-.donut-seg:hover{opacity:.82}
+.chart-clickable{transition:opacity .15s}
+.chart-clickable:hover{opacity:.82}
 .mh-kpi.clickable{cursor:pointer;transition:border-color .15s}
 .mh-kpi.clickable:hover{border-color:var(--brand-blue)}
 .mh-kpi.clickable .mh-kpi-num{color:var(--brand-blue);text-decoration:underline;text-underline-offset:3px}
@@ -1131,7 +1131,7 @@ function bugsAbertosDonut(){
     const q0=[CX+RI*Math.cos(rad(a1)),CY+RI*Math.sin(rad(a1))], q1=[CX+RI*Math.cos(rad(a0)),CY+RI*Math.sin(rad(a0))];
     const path=`M${p0[0].toFixed(2)},${p0[1].toFixed(2)} A${R},${R} 0 ${large} 1 ${p1[0].toFixed(2)},${p1[1].toFixed(2)} L${q0[0].toFixed(2)},${q0[1].toFixed(2)} A${RI},${RI} 0 ${large} 0 ${q1[0].toFixed(2)},${q1[1].toFixed(2)} Z`;
     const pct=Math.round(frac*1000)/10;
-    arcs+=`<path class="donut-seg" d="${path}" fill="${statusAbertoColor(it.status)}" data-keys="${it.keys.join(',')}" onclick="abrirCardsBar(this)" stroke="${col('--surface-1')}" stroke-width="2" style="cursor:pointer"><title>${it.status}: ${it.n} (${pct}%) · clique p/ ver no Jira</title></path>`;
+    arcs+=`<path class="chart-clickable" d="${path}" fill="${statusAbertoColor(it.status)}" data-keys="${it.keys.join(',')}" onclick="abrirCardsBar(this)" stroke="${col('--surface-1')}" stroke-width="2" style="cursor:pointer"><title>${it.status}: ${it.n} (${pct}%) · clique p/ ver no Jira</title></path>`;
     if(big) arcs+=`<text x="${lx}" y="${ly}" text-anchor="middle" dominant-baseline="middle" font-size="13" font-weight="700" fill="#fff" style="pointer-events:none">${it.n}</text>`;
   });
   const legend=itens.map(it=>`<span class="clickable" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px" data-keys="${it.keys.join(',')}" onclick="abrirCardsBar(this)" title="clique p/ ver no Jira"><i class="dot" style="background:${statusAbertoColor(it.status)}"></i>${it.status} <b>${it.n}</b></span>`).join('');
@@ -1143,6 +1143,36 @@ function bugsAbertosDonut(){
     </svg>
     <div class="legend" style="flex:1;min-width:220px">${legend}</div>
   </div>`;
+}
+// "Bugs criados — ano a ano" (NOVO EM 20/10/2026, a pedido da Jane) — linha simples comparando
+// o total de bugs criados por mês-do-ano entre os 2 anos de DATA.bugs_criados_ano_a_ano
+// (gen_data.py: mesmo par de anos já usado em "Tendência dos módulos", mas aqui é CRIADOS puro,
+// agregado — sem Carga, sem recorte por módulo). Ano anterior fica numa linha fina e clara (só
+// contexto); ano corrente fica numa linha mais grossa com marcador em cada mês (foco da leitura).
+// Mês futuro do ano corrente não desenha ponto (fica None em gen_data.py).
+function criadosAnoChart(){
+  const A=DATA.bugs_criados_ano_a_ano;
+  if(!A||!A.anos||!A.anos.length) return '<div class="note">Sem dado de criados por ano.</div>';
+  const meses=A.meses, n=meses.length, W=1080,H=300,P=44, gw=(W-2*P)/(n-1), cx=i=>P+i*gw;
+  const [anoAnt,anoCur]=A.anos;
+  const sAnt=A.series[anoAnt]||meses.map(()=>null), sCur=A.series[anoCur]||meses.map(()=>null);
+  const kAnt=A.keys[anoAnt]||meses.map(()=>[]), kCur=A.keys[anoCur]||meses.map(()=>[]);
+  const allVals=[...sAnt,...sCur].filter(v=>v!=null);
+  const maxY=Math.max(4,Math.ceil((Math.max(...allVals,4)*1.15)/5)*5);
+  const ys=v=>H-P-(v/maxY)*(H-2*P);
+  let grid='';for(let g=0;g<=4;g++){const yy=P+g*(H-2*P)/4,val=Math.round(maxY*(1-g/4));grid+=`<line x1="${P}" y1="${yy}" x2="${W-P}" y2="${yy}" stroke="${col('--line')}"/><text x="${P-6}" y="${yy+4}" text-anchor="end" fill="${col('--text-3')}" font-size="10">${val}</text>`;}
+  let xl='';meses.forEach((mm,i)=>{xl+=`<text x="${cx(i).toFixed(1)}" y="${H-P+16}" text-anchor="middle" fill="${col('--text-3')}" font-size="10">${mm}</text>`;});
+  const pathOf=(serie)=>{let d='',started=false;
+    serie.forEach((v,i)=>{if(v==null){started=false;return;} d+=(started?'L':'M')+cx(i).toFixed(1)+' '+ys(v).toFixed(1)+' ';started=true;});
+    return d.trim();};
+  const lineAnt=`<path d="${pathOf(sAnt)}" fill="none" stroke="${col('--s1')}" stroke-width="2" opacity="0.38"/>`;
+  const lineCur=`<path d="${pathOf(sCur)}" fill="none" stroke="${col('--s1')}" stroke-width="2.6"/>`;
+  let dotsAnt='';sAnt.forEach((v,i)=>{if(v==null)return;
+    dotsAnt+=`<circle class="chart-clickable" cx="${cx(i).toFixed(1)}" cy="${ys(v).toFixed(1)}" r="3" fill="${col('--s1')}" opacity="0.38" data-keys="${(kAnt[i]||[]).join(',')}" onclick="abrirCardsBar(this)" style="cursor:pointer"><title>${meses[i]}/${anoAnt} · ${v} criado(s) · clique p/ ver no Jira</title></circle>`;});
+  let dotsCur='';sCur.forEach((v,i)=>{if(v==null)return;
+    dotsCur+=`<circle class="chart-clickable" cx="${cx(i).toFixed(1)}" cy="${ys(v).toFixed(1)}" r="4.2" fill="${col('--surface-1')}" stroke="${col('--s1')}" stroke-width="2.4" data-keys="${(kCur[i]||[]).join(',')}" onclick="abrirCardsBar(this)" style="cursor:pointer"><title>${meses[i]}/${anoCur} · ${v} criado(s) · clique p/ ver no Jira</title></circle>`;});
+  return `<div class="legend"><span><i class="dot" style="background:${col('--s1')};opacity:0.38"></i>${anoAnt}</span><span><i class="dot" style="background:${col('--s1')}"></i>${anoCur}</span></div>
+    <svg viewBox="0 0 ${W} ${H}" width="100%">${grid}${xl}${lineAnt}${lineCur}${dotsAnt}${dotsCur}</svg>`;
 }
 function funilDetc(f){
   if(!f.detc||!f.detc.length) return '';
@@ -1823,6 +1853,9 @@ function render(){
    <h2>${si('bug')}Bugs em aberto por status <span class="info" data-tip="Fotografia AO VIVO de todo o backlog aberto, de todas as safras (não só a safra em foco) — status atual de cada card. 'Aberto' é tudo que ainda não chegou a Done/Concluído. Base líquida — exclui descartados pelo QA/Dev e o módulo Chat de Suporte. Clique numa fatia ou na legenda pra ver os cards no Jira.">i</span></h2>
    <div class="panel">${bugsAbertosDonut()}
      <div class="note"><b>Como ler:</b> fotografia de agora — todo bug ainda não concluído, em qualquer safra, pelo status atual no Kanban. Diferente de "Sobra por status" abaixo (que olha por mês de CRIAÇÃO do card), aqui é o total vivo do backlog neste exato momento. Clique numa fatia ou num item da legenda pra ver os cards no Jira.</div></div>
+   <h2>${si('chart-line')}Bugs criados — ano a ano <span class="info" data-tip="Total de bugs criados por mês, comparando o ano corrente com o mesmo mês do ano anterior — mesma régua oficial de criados (base líquida: exclui descartados pelo QA/Dev e Chat de Suporte) usada em 'Bug por módulo'. Mês futuro do ano corrente não desenha ponto. Clique num ponto da linha pra ver os cards criados naquele mês no Jira.">i</span></h2>
+   <div class="panel"><div id="criadosanowrap">${criadosAnoChart()}</div>
+     <div class="note"><b>Como ler:</b> cada ponto é o total de bugs criados naquele mês (mesma régua oficial de "Bug por módulo" — base líquida). A linha clara e fina é o ano anterior (só contexto); a linha grossa com marcador em cada mês é o ano corrente. Clique num ponto pra ver os cards criados naquele mês no Jira.</div></div>
    <h2>${si('hourglass-half')}Sobra por status — número de cards por mês <span class="info" data-tip="Explorador de status: escolha um status no seletor e o gráfico mostra, mês a mês (por mês de criação do card), quantos cards estão nesse status HOJE. Ex.: 'Não Iniciado' mostra o que sobrou sem começar; 'Impedimento Dev' mostra os travados; 'Done' mostra os entregues. Barra clara = mês corrente. Base líquida — exclui descartados pelo QA e Chat de Suporte.">i</span></h2>
    <div class="panel">
      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
