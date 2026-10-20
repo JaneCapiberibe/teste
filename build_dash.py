@@ -1338,29 +1338,27 @@ function concluidosPorProjeto(k){
 function mttrCortesCard(dev,k){
   const c=k.mttr_cortes;
   if(!c) return '';
-  const primNome=dev.split(' ')[0];
-  const row=(lbl,rec,big)=>{
+  // Linha única por recorte (label à esquerda, valor + "time" à direita) em vez do grid de 3
+  // colunas com cabeçalho próprio — cabia mais alto que o card de Esforço ao lado quando o
+  // card ficou com metade da largura (MTTR + Ciclo de vida lado a lado). Mesma informação, só
+  // sem a linha de cabeçalho "Mauricio / Time" (o "time" agora fica junto de cada valor).
+  const row=(lbl,rec)=>{
     const valTxt=rec.valor!=null?rec.valor:'N/D';
-    const timeTxt=lbl==='Só PEM'?'—':(rec.time!=null?rec.time:'—');
-    const amostra=lbl==='Só PEM'&&rec.n<5?`<div style="font-size:11px;color:var(--text-3);margin-top:2px">${rec.n} cards · amostra pequena</div>`:'';
-    return `<div style="display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:baseline;padding:${big?'6px 0':'4px 0'}">
-      <div style="font-size:12px;color:var(--text-2)">${lbl}${amostra}</div>
-      <div style="font-size:${big?'24px':'16px'};font-weight:${big?'500':'600'};text-align:right">${valTxt}</div>
-      <div style="font-size:${big?'16px':'14px'};color:var(--text-3);text-align:right;min-width:36px">${timeTxt}</div>
+    const timeTxt=lbl==='Só PEM'?null:(rec.time!=null?rec.time:'—');
+    const amostra=lbl==='Só PEM'&&rec.n<5?` · <span style="color:var(--text-3)">amostra pequena</span>`:'';
+    return `<div style="display:flex;justify-content:space-between;align-items:baseline;line-height:1.15">
+      <span style="font-size:11px;color:var(--text-2)">${lbl}${amostra}</span>
+      <span style="font-size:13px;font-weight:700;white-space:nowrap">${valTxt}${timeTxt!=null?`<span style="font-size:10px;color:var(--text-3);font-weight:400;margin-left:5px">time ${timeTxt}</span>`:''}</span>
     </div>`;
   };
-  return `<div class="mh-kpi" style="grid-column:span 2" title="Produtos e melhoria inclui a fase de produto, por isso o prazo é bem maior; use Sem PEM para acompanhar o desenvolvimento">
-    <div style="display:flex;justify-content:space-between;align-items:baseline">
+  return `<div class="mh-kpi" title="Produtos e melhoria inclui a fase de produto, por isso o prazo é bem maior; use Sem PEM para acompanhar o desenvolvimento">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:4px;margin-bottom:1px">
       <div class="mh-kpi-lbl" style="margin-bottom:0">MTTR pessoal</div>
-      <div style="font-size:11px;color:var(--text-3)">dias úteis, mediana</div>
+      <div style="font-size:10px;color:var(--text-3)">dias úteis, mediana</div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr auto auto;gap:10px;margin-top:6px">
-      <div></div><div style="font-size:11px;color:var(--text-3);text-align:right">${primNome}</div><div style="font-size:11px;color:var(--text-3);text-align:right">Time</div>
-    </div>
-    ${row('Sem PEM',c.sem_pem,true)}
-    <div style="border-top:1px solid var(--line);margin:2px 0"></div>
-    ${row('Com PEM',c.com_pem,false)}
-    ${row('Só PEM',c.so_pem,false)}
+    ${row('Sem PEM',c.sem_pem)}
+    ${row('Com PEM',c.com_pem)}
+    ${row('Só PEM',c.so_pem)}
   </div>`;
 }
 function devKpiCards(dev){
@@ -1417,7 +1415,7 @@ function toggleCicloVida(){window.__cvOpen=!window.__cvOpen;renderModule();}
 function cicloVidaCard(dev){
   const D=DATA.devs, mj=D.pessoas[dev].metrics_jira, cur=curSafra();
   const cv=(mj.ciclo_vida||{})[cur]||{n:0,keys:[]};
-  return `<div class="mh-kpi clickable" style="grid-column:span 2" onclick="toggleCicloVida()" title="Clique para ${window.__cvOpen?'recolher':'expandir'}">
+  return `<div class="mh-kpi clickable" onclick="toggleCicloVida()" title="Clique para ${window.__cvOpen?'recolher':'expandir'}">
     <div class="mh-kpi-lbl">Ciclo de vida</div>
     <div class="mh-kpi-num">${cv.n}</div>
     <div class="mh-kpi-sub">cards c/ atividade em ${mesLbl(cur)} · clique p/ detalhar</div>
