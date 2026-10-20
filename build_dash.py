@@ -1343,10 +1343,10 @@ function mttrCortesCard(dev,k){
     const valTxt=rec.valor!=null?rec.valor:'N/D';
     const timeTxt=lbl==='Só PEM'?'—':(rec.time!=null?rec.time:'—');
     const amostra=lbl==='Só PEM'&&rec.n<5?`<div style="font-size:11px;color:var(--text-3);margin-top:2px">${rec.n} cards · amostra pequena</div>`:'';
-    return `<div style="display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:baseline;padding:${big?'6px 0':'4px 0'}">
-      <div style="font-size:12px;color:var(--text-2)">${lbl}${amostra}</div>
-      <div style="font-size:${big?'24px':'16px'};font-weight:${big?'500':'600'};text-align:right">${valTxt}</div>
-      <div style="font-size:${big?'16px':'14px'};color:var(--text-3);text-align:right;min-width:36px">${timeTxt}</div>
+    return `<div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:baseline;padding:${big?'3px 0':'2px 0'}">
+      <div style="font-size:11.5px;color:var(--text-2)">${lbl}${amostra}</div>
+      <div style="font-size:${big?'19px':'15px'};font-weight:${big?'600':'600'};text-align:right">${valTxt}</div>
+      <div style="font-size:${big?'14px':'13px'};color:var(--text-3);text-align:right;min-width:32px">${timeTxt}</div>
     </div>`;
   };
   return `<div class="mh-kpi" title="Produtos e melhoria inclui a fase de produto, por isso o prazo é bem maior; use Sem PEM para acompanhar o desenvolvimento">
@@ -1354,11 +1354,11 @@ function mttrCortesCard(dev,k){
       <div class="mh-kpi-lbl" style="margin-bottom:0">MTTR pessoal</div>
       <div style="font-size:11px;color:var(--text-3)">dias úteis, mediana</div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr auto auto;gap:10px;margin-top:6px">
-      <div></div><div style="font-size:11px;color:var(--text-3);text-align:right">${primNome}</div><div style="font-size:11px;color:var(--text-3);text-align:right">Time</div>
+    <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;margin-top:3px">
+      <div></div><div style="font-size:10.5px;color:var(--text-3);text-align:right">${primNome}</div><div style="font-size:10.5px;color:var(--text-3);text-align:right">Time</div>
     </div>
     ${row('Sem PEM',c.sem_pem,true)}
-    <div style="border-top:1px solid var(--line);margin:2px 0"></div>
+    <div style="border-top:1px solid var(--line);margin:1px 0"></div>
     ${row('Com PEM',c.com_pem,false)}
     ${row('Só PEM',c.so_pem,false)}
   </div>`;
