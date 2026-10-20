@@ -1652,6 +1652,26 @@ for x in sweep:
     cellaa[x['m']][anox][x['c'].month-1]+=1
     totaa[x['m']]+=1
 ordem_aa=[m for m,_ in totaa.most_common()]
+# NOVO EM 20/10/2026, a pedido da Jane: "Bugs criados — ano a ano" (linha, 2025 x 2026) — total
+# AGREGADO de bugs criados por mês-do-ano, comparando os 2 mesmos anos de ANOS_AA já usados em
+# "Tendência dos módulos" acima. Diferente daquele painel: aqui é CRIADOS puro (não Carga —
+# sem somar a sobra herdada do mês anterior) e é o TOTAL geral, não por módulo. Reaproveita
+# criaD/criaD_keys (já calculados no topo do arquivo, régua oficial de criados — base líquida,
+# _elegivel_evol) e ANOS_AA/MESES_LBL_AA/_cur_ano_aa/_cur_mes_idx_aa já computados acima — sem
+# cálculo novo, só reagrupado por (ano, mês-do-ano). Mês futuro do ano corrente fica None (linha
+# não desenha ponto), mesma convenção de cargaaa.
+_criados_aa={a:[0]*12 for a in ANOS_AA}
+_criados_aa_keys={a:[[] for _ in range(12)] for a in ANOS_AA}
+for ano in ANOS_AA:
+    for mi in range(12):
+        if ano==_cur_ano_aa and mi>_cur_mes_idx_aa:
+            _criados_aa[ano][mi]=None
+            continue
+        ym=f'{ano}-{mi+1:02d}'
+        _criados_aa[ano][mi]=criaD.get(ym,0)
+        _criados_aa_keys[ano][mi]=criaD_keys.get(ym,[])
+d['bugs_criados_ano_a_ano']={'meses':MESES_LBL_AA,'anos':list(ANOS_AA),'series':_criados_aa,
+    'keys':_criados_aa_keys,'ano_corrente':_cur_ano_aa,'mes_corrente_idx':_cur_mes_idx_aa}
 
 ST_ENTREGUE=('Em produção','Em Produção','Done','Concluído','Concluido')
 CARGA_CACHE_PATH='carga_modulo_cache.json'
