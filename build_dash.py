@@ -1349,8 +1349,8 @@ function mttrCortesCard(dev,k){
       <div style="font-size:${big?'16px':'14px'};color:var(--text-3);text-align:right;min-width:36px">${timeTxt}</div>
     </div>`;
   };
-  return `<div class="mh-kpi" style="grid-column:span 2" title="Produtos e melhoria inclui a fase de produto, por isso o prazo é bem maior; use Sem PEM para acompanhar o desenvolvimento">
-    <div style="display:flex;justify-content:space-between;align-items:baseline">
+  return `<div class="mh-kpi" title="Produtos e melhoria inclui a fase de produto, por isso o prazo é bem maior; use Sem PEM para acompanhar o desenvolvimento">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:4px">
       <div class="mh-kpi-lbl" style="margin-bottom:0">MTTR pessoal</div>
       <div style="font-size:11px;color:var(--text-3)">dias úteis, mediana</div>
     </div>
@@ -1417,7 +1417,7 @@ function toggleCicloVida(){window.__cvOpen=!window.__cvOpen;renderModule();}
 function cicloVidaCard(dev){
   const D=DATA.devs, mj=D.pessoas[dev].metrics_jira, cur=curSafra();
   const cv=(mj.ciclo_vida||{})[cur]||{n:0,keys:[]};
-  return `<div class="mh-kpi clickable" style="grid-column:span 2" onclick="toggleCicloVida()" title="Clique para ${window.__cvOpen?'recolher':'expandir'}">
+  return `<div class="mh-kpi clickable" onclick="toggleCicloVida()" title="Clique para ${window.__cvOpen?'recolher':'expandir'}">
     <div class="mh-kpi-lbl">Ciclo de vida</div>
     <div class="mh-kpi-num">${cv.n}</div>
     <div class="mh-kpi-sub">cards c/ atividade em ${mesLbl(cur)} · clique p/ detalhar</div>
