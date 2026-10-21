@@ -1016,6 +1016,18 @@ for _proj in OUTROS_PROJETOS:
     sweep_outros_full[_proj]=_recs
 def _tag_origem(cards,origem):
     return [dict(x,origem=origem) for x in cards]
+# NOVO EM 21/10/2026, a pedido da Jane: unifica qualquer status "em desenvolvimento"/"em
+# andamento" (os 14 projetos novos usam nomes/grafias diferentes pro status de trabalho ativo —
+# GTMS1 "Em andamento", PM "EM DESENVOLVIMENTO" maiúsculo — nenhum batia com o match exato
+# 'Em Desenvolvimento' usado só pro BUG). Normaliza acento/caixa e casa por substring — pega
+# qualquer grafia de "em desenvolvimento" ou "em andamento", em qualquer projeto.
+import unicodedata as _ud
+def _status_norm(s):
+    if not s: return ''
+    return _ud.normalize('NFKD',s).encode('ascii','ignore').decode('ascii').lower()
+def _em_dev_like(status):
+    s=_status_norm(status)
+    return 'em desenvolvimento' in s or 'em andamento' in s
 # sweep_dev/sweep_dev_full: MESMO papel de sweep/sweep_full, só que somando as QUATRO fontes —
 # usados em TODO o resto do módulo Desenvolvedores no lugar de sweep/sweep_full. devs_ordem/
 # devs_total/devs_avatar (grade de avatares) continuam em `sweep` (só BUG) de propósito — a
@@ -1164,14 +1176,16 @@ devs_avatar={}
 for x in sweep:
     a=x.get('assignee')
     if a and a not in devs_avatar: devs_avatar[a]=x.get('assignee_avatar')
-# "Em desenvolvimento agora" combinado (BUG + BACKOFFICE + SUS + PEM, desde 19/10/2026) — MESMO critério/campos de
-# d['em_dev_devs'] acima (status ATUAL "Em Desenvolvimento", sem recorte de safra), só que a
-# partir de sweep_dev em vez de sweep. Estrutura PRÓPRIA do módulo Desenvolvedores
-# (d['devs']['em_dev_combinado'], não d['em_dev_devs']) — o painel de Bugs ("Cards em
-# desenvolvimento por desenvolvedor") continua lendo só d['em_dev_devs'] (só BUG), sem alteração.
+# "Em desenvolvimento agora" combinado (BUG + BACKOFFICE + SUS + PEM + os 14 outros projetos) —
+# MESMO critério/campos de d['em_dev_devs'] acima, só que a partir de sweep_dev em vez de sweep,
+# e com o status "em desenvolvimento"-like (_em_dev_like acima, 21/10/2026) em vez do match exato
+# — os 14 projetos novos usam grafias diferentes pro status de trabalho ativo. Estrutura PRÓPRIA
+# do módulo Desenvolvedores (d['devs']['em_dev_combinado'], não d['em_dev_devs']) — o painel de
+# Bugs ("Cards em desenvolvimento por desenvolvedor") continua lendo só d['em_dev_devs'] (só BUG,
+# match exato 'Em Desenvolvimento'), sem alteração.
 em_dev_combinado=[]
 for x in sweep_dev:
-    if x['status']!='Em Desenvolvimento': continue
+    if not _em_dev_like(x['status']): continue
     edt=pdt(x.get('em_dev_data'))
     em_dev_combinado.append({'key':x['key'],'resp':x.get('assignee') or 'Sem responsável','avatar':x.get('assignee_avatar'),
                     'prio':x['prio'] or '—','mod':x['m'],'origem':x['origem'],
