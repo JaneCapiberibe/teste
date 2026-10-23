@@ -994,8 +994,40 @@ for x in sweep_pem_full:
     x['c']=pdt(x['created']); x['r']=pdt(x['resolved']); x['m']=mn('Produtos e Melhoria')
     x['u']=pdt(x.get('updated'))
 sweep_pem=[x for x in sweep_pem_full if x['res'] not in RES_EXCLUI_PEM]
+# NOVO EM 20/10/2026, a pedido da Jane: "puxar todos os kanbans do Jira que tiverem um
+# desenvolvedor como responsável" — os 14 projetos restantes do Jira, fora BUG/BACKOFFICE/SUS/
+# PEM (já tratados acima). Mesmo padrão de carregamento; levantamento de schema (20/10/2026)
+# confirmou que nenhum deles usa resolução "Cancelado X" (só "Itens concluídos"), então sem
+# exclusão de resolução por origem pra eles — RES_EXCLUI_OUTROS fica vazio em todos. Critério de
+# vínculo = Assignee (responsável atual), mesmo critério já usado em BUG/MB/SUS/PEM — decisão da
+# Jane, não watcher/reporter/menção. INFRA/PBIM/PLG estavam com 0 issues no levantamento; o
+# carregamento abaixo tolera isso de graça (sweep_<proj>.json só existe se fetch_jira.py achou
+# pelo menos 1 issue).
+OUTROS_PROJETOS=['DL','GTMS1','INFRA','IPCA','LDO','MEL','NF','OW','PBIM','PLG','PM','PP','SCDC','SOFIA']
+RES_EXCLUI_OUTROS={}
+sweep_outros_full={}
+for _proj in OUTROS_PROJETOS:
+    _fn=f'sweep_{_proj.lower()}.json'
+    _recs=json.load(open(_fn)) if os.path.exists(_fn) else []
+    for x in _recs:
+        x['c']=pdt(x['created']); x['r']=pdt(x['resolved']); x['m']=mn(x.get('modulo'))
+        x['u']=pdt(x.get('updated'))
+    RES_EXCLUI_OUTROS[_proj]=set()
+    sweep_outros_full[_proj]=_recs
 def _tag_origem(cards,origem):
     return [dict(x,origem=origem) for x in cards]
+# NOVO EM 21/10/2026, a pedido da Jane: unifica qualquer status "em desenvolvimento"/"em
+# andamento" (os 14 projetos novos usam nomes/grafias diferentes pro status de trabalho ativo —
+# GTMS1 "Em andamento", PM "EM DESENVOLVIMENTO" maiúsculo — nenhum batia com o match exato
+# 'Em Desenvolvimento' usado só pro BUG). Normaliza acento/caixa e casa por substring — pega
+# qualquer grafia de "em desenvolvimento" ou "em andamento", em qualquer projeto.
+import unicodedata as _ud
+def _status_norm(s):
+    if not s: return ''
+    return _ud.normalize('NFKD',s).encode('ascii','ignore').decode('ascii').lower()
+def _em_dev_like(status):
+    s=_status_norm(status)
+    return 'em desenvolvimento' in s or 'em andamento' in s
 # sweep_dev/sweep_dev_full: MESMO papel de sweep/sweep_full, só que somando as QUATRO fontes —
 # usados em TODO o resto do módulo Desenvolvedores no lugar de sweep/sweep_full. devs_ordem/
 # devs_total/devs_avatar (grade de avatares) continuam em `sweep` (só BUG) de propósito — a
@@ -1004,14 +1036,29 @@ def _tag_origem(cards,origem):
 # PEM que não é dev (NAO_DEV_PEM) fica de fora da grade do mesmo jeito, porque devs_ordem nunca
 # olha pro PEM pra decidir quem aparece como avatar.
 sweep_dev=(_tag_origem(sweep,'BUG')+_tag_origem(sweep_backoffice,'BACKOFFICE')
-           +_tag_origem(sweep_sus,'SUS')+_tag_origem([x for x in sweep_pem if x.get('assignee') not in NAO_DEV_PEM],'PEM'))
+           +_tag_origem(sweep_sus,'SUS')+_tag_origem([x for x in sweep_pem if x.get('assignee') not in NAO_DEV_PEM],'PEM')
+           +[y for _proj in OUTROS_PROJETOS for y in _tag_origem(sweep_outros_full[_proj],_proj)])
 sweep_dev_full=(_tag_origem(sweep_full,'BUG')+_tag_origem(sweep_backoffice_full,'BACKOFFICE')
-                +_tag_origem(sweep_sus_full,'SUS')+_tag_origem([x for x in sweep_pem_full if x.get('assignee') not in NAO_DEV_PEM],'PEM'))
-_RES_EXCLUI_POR_ORIGEM={'BUG':RES_EXCLUI_ACUM,'BACKOFFICE':RES_EXCLUI_BACKOFFICE,'SUS':RES_EXCLUI_SUS,'PEM':RES_EXCLUI_PEM}
+                +_tag_origem(sweep_sus_full,'SUS')+_tag_origem([x for x in sweep_pem_full if x.get('assignee') not in NAO_DEV_PEM],'PEM')
+                +[y for _proj in OUTROS_PROJETOS for y in _tag_origem(sweep_outros_full[_proj],_proj)])
+_RES_EXCLUI_POR_ORIGEM={'BUG':RES_EXCLUI_ACUM,'BACKOFFICE':RES_EXCLUI_BACKOFFICE,'SUS':RES_EXCLUI_SUS,'PEM':RES_EXCLUI_PEM,
+                        **RES_EXCLUI_OUTROS}
 PROJ_COR={'BUG':'#005FE8','BACKOFFICE':'#f0a500','SUS':'#1e9e5a','PEM':'#eb6834'}
 PROJ_LABEL={'BUG':'Bug','BACKOFFICE':'Backoffice','SUS':'Sustentação','PEM':'Produtos e melhoria'}
 PROJ_KEY={'BUG':'BUG','BACKOFFICE':'MB','SUS':'SUS','PEM':'PEM'}  # prefixo real do projeto no Jira, pra montar a JQL
 PROJ_ORDEM=['BUG','BACKOFFICE','SUS','PEM']  # ordem fixa usada em toda UI nova (barra, mini cards, legenda, pilha do gráfico)
+# Os 14 projetos novos (20/10/2026) ficam numa seção separada "outros projetos" na UI (lista
+# rolável/expansível, DECISÃO da Jane — não cabem como mini-cards de grade fixa igual os 4
+# acima). Cor própria por projeto (lista, não precisa ser tão distinguível quanto fatias de
+# pizza simultâneas) + rótulo amigável.
+PROJ_LABEL_OUTROS={'DL':'Data Lake','GTMS1':'Amostra de entrada no mercado','INFRA':'Infra/Devops',
+    'IPCA':'Integração Prime/Apollo','LDO':'Lista de Orçamento','MEL':'Melhorias','NF':'Nota fiscal',
+    'OW':'OrçaBIM Web','PBIM':'Produtos BIM','PLG':'Plugins BIM','PM':'Produto/Melhorias',
+    'PP':'Portal público','SCDC':'Sofia Criadora de Composições','SOFIA':'Sofia'}
+PROJ_COR_OUTROS={'DL':'#005FE8','GTMS1':'#eb6834','INFRA':'#1e9e5a','IPCA':'#f0a500','LDO':'#8b5cf6',
+    'MEL':'#e2384d','NF':'#14b8a6','OW':'#e87ba4','PBIM':'#6b8e23','PLG':'#a8763e','PM':'#4da3ff',
+    'PP':'#9b59b6','SCDC':'#2c3e50','SOFIA':'#c0392b'}
+PROJ_KEY_OUTROS={p:p for p in OUTROS_PROJETOS}
 def _elegivel_dev(x):
     """Equivalente a _elegivel_evol, mas pro escopo combinado do módulo Desenvolvedores (sem o
     filtro de itype — sweep.json/sweep_backoffice.json/sweep_sus.json/sweep_pem.json já vêm com
@@ -1075,10 +1122,18 @@ for x in sweep_dev_full:
     if not a: continue
     mc=_mes_concluido(x)
     if mc:
-        _edev_e[a][mc]+=1
-        _edev_ek[a][mc].append(x['key'])
         _edev_e_proj[a][x['origem']][mc]+=1
         _edev_ek_proj[a][x['origem']][mc].append(x['key'])
+# _edev_e/_edev_ek (o TOTAL de "Concluídos", usado em toda parte — Ciclo de vida, comparação com
+# ano anterior, assert de soma por projeto) soma só os 4 projetos de PROJ_ORDEM, de propósito:
+# os 14 "outros projetos" (20/10/2026) entram em _edev_e_proj (pra alimentar a lista separada de
+# _edev_sum_outros) mas NÃO entram no número principal de "Concluídos" nem na barra/mini-cards —
+# esse total já foi validado com a Jane pra BUG+MB+SUS+PEM; misturar os outros 14 ali mudaria
+# silenciosamente um número já aprovado.
+for _a in _edev_e_proj:
+    for _origem in PROJ_ORDEM:
+        for _m,_n in _edev_e_proj[_a][_origem].items(): _edev_e[_a][_m]+=_n
+        for _m,_ks in _edev_ek_proj[_a][_origem].items(): _edev_ek[_a][_m].extend(_ks)
 def _edev_sum(dev,ini,fim=None):
     """Concluídos (régua oficial) de `dev` no intervalo [ini,fim] de meses 'YYYY-MM' — soma dos
     meses fechados no calendário `meses`, não do changelog cru, pra nunca contar mês fora do
@@ -1101,6 +1156,19 @@ def _edev_sum_por_projeto(dev,ini,fim=None):
         keys=[k for m in ms for k in _edev_ek_proj[dev][origem].get(m,[])]
         out[origem]={'n':n,'keys':keys}
     return out
+def _edev_sum_outros(dev,ini,fim=None):
+    """Mesma ideia de _edev_sum_por_projeto, mas pros 14 projetos de OUTROS_PROJETOS (lista
+    rolável/expansível na UI, DECISÃO da Jane — não cabem como mini-cards de grade fixa). Só
+    projetos com n>0 aparecem (a UI lista só quem tem card)."""
+    if fim is None: fim=ini
+    ms=[m for m in meses if ini<=m<=fim]
+    out=[]
+    for origem in OUTROS_PROJETOS:
+        n=sum(_edev_e_proj[dev][origem].get(m,0) for m in ms)
+        if not n: continue
+        keys=[k for m in ms for k in _edev_ek_proj[dev][origem].get(m,[])]
+        out.append({'origem':origem,'n':n,'keys':keys})
+    return out
 
 devs_total=collections.Counter(x.get('assignee') for x in sweep if x.get('assignee'))
 devs_ordem=[nm for nm,_ in devs_total.most_common() if nm not in NAO_DEV_PEM]   # "por volume" — exclui não-atribuídos e não-devs do PEM (defesa extra; sweep é só BUG, onde não se espera achá-los)
@@ -1108,14 +1176,16 @@ devs_avatar={}
 for x in sweep:
     a=x.get('assignee')
     if a and a not in devs_avatar: devs_avatar[a]=x.get('assignee_avatar')
-# "Em desenvolvimento agora" combinado (BUG + BACKOFFICE + SUS + PEM, desde 19/10/2026) — MESMO critério/campos de
-# d['em_dev_devs'] acima (status ATUAL "Em Desenvolvimento", sem recorte de safra), só que a
-# partir de sweep_dev em vez de sweep. Estrutura PRÓPRIA do módulo Desenvolvedores
-# (d['devs']['em_dev_combinado'], não d['em_dev_devs']) — o painel de Bugs ("Cards em
-# desenvolvimento por desenvolvedor") continua lendo só d['em_dev_devs'] (só BUG), sem alteração.
+# "Em desenvolvimento agora" combinado (BUG + BACKOFFICE + SUS + PEM + os 14 outros projetos) —
+# MESMO critério/campos de d['em_dev_devs'] acima, só que a partir de sweep_dev em vez de sweep,
+# e com o status "em desenvolvimento"-like (_em_dev_like acima, 21/10/2026) em vez do match exato
+# — os 14 projetos novos usam grafias diferentes pro status de trabalho ativo. Estrutura PRÓPRIA
+# do módulo Desenvolvedores (d['devs']['em_dev_combinado'], não d['em_dev_devs']) — o painel de
+# Bugs ("Cards em desenvolvimento por desenvolvedor") continua lendo só d['em_dev_devs'] (só BUG,
+# match exato 'Em Desenvolvimento'), sem alteração.
 em_dev_combinado=[]
 for x in sweep_dev:
-    if x['status']!='Em Desenvolvimento': continue
+    if not _em_dev_like(x['status']): continue
     edt=pdt(x.get('em_dev_data'))
     em_dev_combinado.append({'key':x['key'],'resp':x.get('assignee') or 'Sem responsável','avatar':x.get('assignee_avatar'),
                     'prio':x['prio'] or '—','mod':x['m'],'origem':x['origem'],
@@ -1194,6 +1264,7 @@ for dev in devs_ordem:
         assert sum(v['n'] for v in por_proj.values())==conc_n, \
             f'Soma por projeto ({dev}, {m}) diverge do total: {por_proj} != {conc_n}'
         base['concluidos_por_projeto']=por_proj
+        base['concluidos_outros_projetos']=_edev_sum_outros(dev,m)
         ano_ant_ym=_ano_ant(m)
         base['concluidos_ano_anterior']=_edev_sum(dev,ano_ant_ym)[0] if ano_ant_ym in meses else None
         base['mttr_time']=_time_mttr_por_mes.get(m)
@@ -1207,6 +1278,7 @@ for dev in devs_ordem:
         assert sum(v['n'] for v in por_proj_a.values())==conc_n_a, \
             f'Soma por projeto acumulada ({dev}, até {m}) diverge do total: {por_proj_a} != {conc_n_a}'
         baseA['concluidos_por_projeto']=por_proj_a
+        baseA['concluidos_outros_projetos']=_edev_sum_outros(dev,_primeiro_mes,m)
         primeiro_ant=_ano_ant(_primeiro_mes); m_ant=_ano_ant(m)
         baseA['concluidos_ano_anterior']=(_edev_sum(dev,primeiro_ant,m_ant)[0]
                                           if primeiro_ant in meses and m_ant in meses and primeiro_ant<=m_ant else None)
@@ -1427,7 +1499,8 @@ else:
 
 d['devs']={'ordem':devs_ordem,'meses':meses,'pessoas':pessoas,'piso_amostra':PISO_AMOSTRA_SLA,
            'status_kanban_ordem':status_kanban_ordem,'em_dev_combinado':em_dev_combinado,
-           'proj_ordem':PROJ_ORDEM,'proj_cor':PROJ_COR,'proj_label':PROJ_LABEL,'proj_key':PROJ_KEY}
+           'proj_ordem':PROJ_ORDEM,'proj_cor':PROJ_COR,'proj_label':PROJ_LABEL,'proj_key':PROJ_KEY,
+           'proj_cor_outros':PROJ_COR_OUTROS,'proj_label_outros':PROJ_LABEL_OUTROS}
 
 # ==================== MÓDULO PRODUTOS E MELHORIA (SPA, build_dash.py — produtosModule()) ====================
 # NOVO EM 30/09/2026, a pedido da Jane, após levantamento de schema (projeto PEM, "Produtos e

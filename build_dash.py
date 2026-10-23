@@ -1333,7 +1333,30 @@ function concluidosPorProjeto(k){
      </div>`
   ).join('');
   return `<div style="display:flex;gap:2px;border-radius:4px;overflow:hidden;margin:8px 0 10px">${barra||'<div style="flex:1;height:10px;background:var(--line)"></div>'}</div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">${minis}</div>`;
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">${minis}</div>
+    ${outrosProjetosList(k)}`;
+}
+// "Outros projetos" (NOVO EM 20/10/2026, a pedido da Jane: "puxar todos os kanbans do Jira que
+// tiverem um desenvolvedor como responsável") — os 14 projetos fora BUG/Backoffice/Sustentação/
+// PEM não entram no total de "Concluídos" acima nem na barra/mini-cards (esse total já estava
+// validado com a Jane; DECISÃO: não misturar os 14 novos nele). Aparecem aqui como lista
+// separada e colapsável, só os projetos com pelo menos 1 concluído no período — cabe qualquer
+// quantidade sem precisar virar uma grade fixa.
+function outrosProjetosList(k){
+  const D=DATA.devs, itens=k.concluidos_outros_projetos||[];
+  if(!itens.length) return '';
+  const tot=itens.reduce((a,i)=>a+i.n,0);
+  const rows=itens.map(i=>{
+    const lbl=D.proj_label_outros[i.origem]||i.origem, cor=D.proj_cor_outros[i.origem]||'#9aa1ab';
+    return `<div class="clickable" style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;cursor:pointer" data-keys="${i.keys.join(',')}" onclick="abrirCardsBar(this)" title="Clique para ver no Jira">
+      <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2)"><i class="dot" style="background:${cor}"></i>${lbl} <span style="color:var(--text-3)">(${i.origem})</span></span>
+      <b style="font-size:13px">${i.n}</b>
+    </div>`;
+  }).join('');
+  return `<details style="margin-top:8px">
+    <summary style="cursor:pointer;font-size:11.5px;color:var(--text-3);user-select:none">Outros projetos (${tot} concluído${tot===1?'':'s'} em ${itens.length} projeto${itens.length===1?'':'s'})</summary>
+    <div style="margin-top:4px;max-height:220px;overflow-y:auto">${rows}</div>
+  </details>`;
 }
 function mttrCortesCard(dev,k){
   const c=k.mttr_cortes;

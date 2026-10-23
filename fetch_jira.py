@@ -168,7 +168,13 @@ def fetch_all_com_retentativa(jql='project = BUG ORDER BY created ASC', tentativ
 # campo vazio boa parte da base. Precisa do changelog (histórico de status) de cada issue.
 # "Em produção"/"Done"/"Concluído" convivem com variações de grafia no changelog.
 ST_PRODUCAO = ('Em produção', 'Em Produção')
-ST_DONE = ('Done', 'Concluído', 'Concluido')
+# 'Lançado' (GTMS1) e 'Produção' (PP) — nomes de status terminal próprios de 2 dos 14 projetos
+# novos somados ao módulo Desenvolvedores em 20/10/2026 (levantamento de schema confirmou: nenhum
+# deles usa resolução "Cancelado X" como BUG/SUS, só "Itens concluídos"; sem exclusão de
+# resolução por origem pra esses). Adicionados aqui, não em ST_PRODUCAO, porque fazem o mesmo
+# papel de fallback que Done/Concluído já fazem — card desses projetos nunca passa por "Em
+# produção" (não têm essa etapa no workflow deles).
+ST_DONE = ('Done', 'Concluído', 'Concluido', 'Lançado', 'Produção')
 ST_IMP_PRODUTO = 'IMPEDIMENTO PRODUTO'
 # DECISÃO DE 01/09/2026: unificação de escopo com evolucao_bugs.py — a partir de agora
 # o universo oficial é "project = BUG" (não mais busca por issuetype cruzando projetos, o
@@ -501,6 +507,25 @@ if __name__ == '__main__':
     status_changelog.update(status_changelog_pem)  # keys já vêm com o prefixo do projeto — sem colisão
     if recs_all_pem:
         build_sweep_extra(recs_all_pem, 'sweep_pem.json', 'PEM')
+
+    # NOVO EM 20/10/2026, a pedido da Jane: "todos os kanbans do Jira que tiverem um
+    # desenvolvedor como responsável" — os 14 projetos restantes (fora BUG/BACKOFFICE/SUS/PEM,
+    # já tratados acima). Mesmo padrão genérico de puxar_projeto/build_sweep_extra acima — sem
+    # filtro de issuetype, obrigatorio=False (projeto vazio hoje não derruba o pipeline).
+    # Levantamento de schema (20/10/2026): nenhum desses usa resolução "Cancelado X" como
+    # BUG/SUS (só "Itens concluídos"), então sem exclusão de resolução por origem pra eles —
+    # ver RES_EXCLUI_POR_ORIGEM_OUTROS em gen_data.py (hoje vazio pra todos). 3 deles (INFRA,
+    # PBIM, PLG) estavam com 0 issues nesse levantamento — segue puxando mesmo assim, sem custo
+    # (obrigatorio=False já tolera projeto vazio), caso ganhem issues no futuro.
+    OUTROS_PROJETOS = ['DL', 'GTMS1', 'INFRA', 'IPCA', 'LDO', 'MEL', 'NF', 'OW', 'PBIM', 'PLG',
+                        'PM', 'PP', 'SCDC', 'SOFIA']
+    for proj in OUTROS_PROJETOS:
+        print(f'Puxando do Jira ({proj})...')
+        recs_all_x, status_changelog_x = puxar_projeto(f'project = {proj} ORDER BY created ASC',
+                                                         obrigatorio=False, label=proj)
+        status_changelog.update(status_changelog_x)  # keys já vêm com o prefixo do projeto — sem colisão
+        if recs_all_x:
+            build_sweep_extra(recs_all_x, f'sweep_{proj.lower()}.json', proj)
 
     json.dump(status_changelog, open('status_changelog.json', 'w'), ensure_ascii=False)
     print('OK — arquivos gerados.')
