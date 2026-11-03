@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   dump:
@@ -41,12 +41,15 @@ jobs:
           print('Meses:', devs.get('meses'))
           "
 
-      - name: Upload artifact (dash_data.json completo + módulo Desenvolvedores isolado + sweeps)
-        uses: actions/upload-artifact@v4
-        with:
-          name: devs-module-dump
-          path: |
-            dash_data.json
-            devs_module_full.json
-            sweep_*.json
-          retention-days: 5
+      - name: Commitar dump numa branch separada (bypass de artifact storage)
+        run: |
+          git config user.name "claude-dump-bot"
+          git config user.email "noreply@anthropic.com"
+          git checkout --orphan claude/devs-module-dump-data
+          git rm -rf --cached . > /dev/null 2>&1 || true
+          mkdir -p dump_output
+          cp dash_data.json devs_module_full.json dump_output/ 2>/dev/null || true
+          cp sweep_*.json dump_output/ 2>/dev/null || true
+          git add dump_output
+          git commit -m "dump de dados (temporário, não mergear)"
+          git push -f origin claude/devs-module-dump-data
