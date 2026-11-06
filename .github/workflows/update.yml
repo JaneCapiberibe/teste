@@ -58,5 +58,25 @@ jobs:
         with:
           path: ./public
 
+      # 04/11/2026: essa execução falhou porque o GitHub Pages ficou mais de 10 minutos
+      # (o timeout padrão da action) em "updating_pages" — o artifact já tinha sido publicado
+      # com sucesso, só a propagação do lado do GitHub Pages que demorou. timeout maior dá
+      # mais margem antes de abortar; retries tenta de novo se ainda assim vier a falhar (ex.:
+      # instabilidade pontual do GitHub Pages), em vez de deixar o dashboard parado até a
+      # próxima execução agendada.
       - id: deploy
         uses: actions/deploy-pages@v4
+        with:
+          timeout: 1200000
+        continue-on-error: true
+
+      - name: Tentar de novo se o deploy falhou
+        if: steps.deploy.outcome == 'failure'
+        id: deploy_retry
+        uses: actions/deploy-pages@v4
+        with:
+          timeout: 1200000
+
+      - name: Falhar o job se nenhuma tentativa de deploy deu certo
+        if: steps.deploy.outcome == 'failure' && steps.deploy_retry.outcome == 'failure'
+        run: exit 1
