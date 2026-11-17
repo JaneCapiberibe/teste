@@ -2,7 +2,13 @@ name: Atualizar dashboard (2x/dia)
 
 on:
   schedule:
-    - cron: '25 12,18 * * *'  # 12:25 e 18:00 UTC = 09:25 e 15:00 (horário de Brasília). Ajuste se quiser.
+    # 17/11/2026: disparo antecipado pra compensar o atraso do agendador do GitHub Actions perto
+    # do meio-dia UTC (observado de 3h a 6h de atraso nesse horário, bem maior que em outros
+    # horários do dia) — o pedido era o dashboard estar PRONTO às 9:00 e 15:00 (Brasília), não
+    # necessariamente que o cron dispare exatamente nesses horários. Cron às 06:00 e 14:00 UTC
+    # (03:00 e 11:00 Brasília) dá margem de 6h e 4h respectivamente antes do horário-alvo.
+    # Ainda não há dado histórico de atraso exatamente nesses horários — se não bastar, ajustar.
+    - cron: '0 6,14 * * *'   # 06:00 e 14:00 UTC = 03:00 e 11:00 (horário de Brasília).
   workflow_dispatch:          # permite rodar manualmente pelo botão "Run workflow"
 
 permissions:
