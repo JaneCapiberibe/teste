@@ -70,11 +70,23 @@ jobs:
       # mais margem antes de abortar; retries tenta de novo se ainda assim vier a falhar (ex.:
       # instabilidade pontual do GitHub Pages), em vez de deixar o dashboard parado até a
       # próxima execução agendada.
+      #
+      # 23/11/2026: a falha de 22/11 não foi timeout — foi o deploy-pages buscando o artifact
+      # 0,3s depois do upload-pages-artifact terminar, antes do GitHub indexar ("Found 0
+      # artifact(s)"). O retry rodou igual de rápido e bateu no mesmo erro. Espera antes de cada
+      # tentativa dá tempo da indexação propagar.
+      - name: Esperar propagação do artifact antes do deploy
+        run: sleep 15
+
       - id: deploy
         uses: actions/deploy-pages@v4
         with:
           timeout: 1200000
         continue-on-error: true
+
+      - name: Esperar mais um pouco antes do retry
+        if: steps.deploy.outcome == 'failure'
+        run: sleep 30
 
       - name: Tentar de novo se o deploy falhou
         if: steps.deploy.outcome == 'failure'
