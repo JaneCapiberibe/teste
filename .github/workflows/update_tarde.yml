@@ -1,0 +1,17 @@
+name: Atualizar dashboard (tarde)
+
+# 23/11/2026: workflow separado do da manhã (update_manha.yml) — ver nota em update.yml sobre
+# por que isso existe. Cada um chama update.yml (workflow_call) com seu próprio cron isolado.
+on:
+  schedule:
+    - cron: '0 14 * * *'   # 14:00 UTC = 11:00 (horário de Brasília) — margem até o alvo das 15:00.
+  workflow_dispatch:
+
+jobs:
+  chamar:
+    uses: ./.github/workflows/update.yml
+    secrets: inherit
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
