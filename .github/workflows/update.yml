@@ -1,14 +1,14 @@
-name: Atualizar dashboard (2x/dia)
+name: Atualizar dashboard (execução)
 
+# 23/11/2026: isso era um único workflow com dois horários de cron (06:00 e 14:00 UTC) — mas só
+# a execução das 14:00 vinha disparando sozinha; a das 06:00 nunca rodou automaticamente num mês
+# inteiro de observação. Hipótese: o GitHub pula um disparo agendado quando há atraso/backlog no
+# MESMO workflow_id (comportamento documentado: "might skip scheduled runs to avoid backlog").
+# Virou um workflow reutilizável (workflow_call), chamado por dois workflows finos e
+# INDEPENDENTES (update_manha.yml e update_tarde.yml, cada um com seu próprio workflow_id e seu
+# próprio cron) — testando se isso evita o problema. Ver também esses dois arquivos.
 on:
-  schedule:
-    # 17/11/2026: disparo antecipado pra compensar o atraso do agendador do GitHub Actions perto
-    # do meio-dia UTC (observado de 3h a 6h de atraso nesse horário, bem maior que em outros
-    # horários do dia) — o pedido era o dashboard estar PRONTO às 9:00 e 15:00 (Brasília), não
-    # necessariamente que o cron dispare exatamente nesses horários. Cron às 06:00 e 14:00 UTC
-    # (03:00 e 11:00 Brasília) dá margem de 6h e 4h respectivamente antes do horário-alvo.
-    # Ainda não há dado histórico de atraso exatamente nesses horários — se não bastar, ajustar.
-    - cron: '0 6,14 * * *'   # 06:00 e 14:00 UTC = 03:00 e 11:00 (horário de Brasília).
+  workflow_call:
   workflow_dispatch:          # permite rodar manualmente pelo botão "Run workflow"
 
 permissions:
