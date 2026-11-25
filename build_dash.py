@@ -292,7 +292,44 @@ footer{max-width:1180px;margin:0 auto;padding:10px 18px 40px;color:var(--text-3)
 .mh-kpi.clickable{cursor:pointer;transition:border-color .15s}
 .mh-kpi.clickable:hover{border-color:var(--brand-blue)}
 .mh-kpi.clickable .mh-kpi-num{color:var(--brand-blue);text-decoration:underline;text-underline-offset:3px}
-@media(max-width:820px){.sidebar{width:68px;flex-basis:68px}.sidebar .lbl,.sidebar .sidebar-profile-info{display:none}.sidebar .side-item{justify-content:center;padding:10px 0}.sidebar .sidebar-profile{justify-content:center}}
+/* TESTE DE USABILIDADE MOBILE (25/11/2026), 2ª rodada — a sidebar virava um rail fino de
+   ícones soltos no celular (width:68px fixo); não vazava mais da tela, mas não parecia um app
+   de celular de verdade, era "sidebar de desktop encolhida". Abaixo de 820px ela some de vez,
+   dando lugar a uma barra superior compacta (marca + tema/notificação/sair) e uma barra
+   inferior fixa de módulos (Bugs/Produtos/Desenvolvedores) — o padrão de qualquer app nativo.
+   Ambas ficam escondidas acima de 820px (display:none default logo abaixo). */
+.mobile-topbar,.mobile-tabbar{display:none}
+@media(max-width:820px){
+  .sidebar{display:none}
+  .app-shell{display:block}
+  .mobile-topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;
+    position:fixed;top:0;left:0;right:0;z-index:40;height:56px;padding:0 14px;
+    background:var(--surface-1);border-bottom:1px solid var(--line)}
+  .mobile-topbar-brand{display:flex;align-items:center;gap:8px;min-width:0;font-size:13px;
+    font-weight:700;color:var(--brand-navy);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  :root[data-theme="dark"] .mobile-topbar-brand{color:var(--text-1)}
+  .mobile-topbar-brand img{height:26px;width:auto;flex:none}
+  .mobile-topbar-brand img.logo-dark{display:none}
+  :root[data-theme="dark"] .mobile-topbar-brand img.logo-light{display:none}
+  :root[data-theme="dark"] .mobile-topbar-brand img.logo-dark{display:block}
+  .mobile-topbar-icons{display:flex;align-items:center;gap:8px;flex:none}
+  .mobile-topbar-icons .icon-btn{width:34px;height:34px}
+  .mobile-topbar-avatar{background:var(--brand-navy);color:#fff;font-size:11px;font-weight:700;border-color:var(--brand-navy)}
+  .mobile-tabbar{display:flex;position:fixed;bottom:0;left:0;right:0;z-index:40;height:60px;
+    background:var(--surface-1);border-top:1px solid var(--line);
+    padding-bottom:env(safe-area-inset-bottom,0)}
+  .tabbar-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:3px;border:0;background:none;color:var(--text-3);font-family:inherit;font-size:10.5px;
+    font-weight:600;cursor:pointer}
+  .tabbar-item .ic{width:20px;height:20px}
+  .tabbar-item.on{color:var(--brand-blue)}
+  /* espaço pras barras fixas não cobrirem o começo/fim do conteúdo */
+  .main-col{padding-top:56px;padding-bottom:60px}
+  /* chips de módulo empilhavam em ~10 linhas antes de chegar no gráfico — vira carrossel
+     horizontal de 1 linha só (arraste pro lado), padrão comum de app (filtros de feed) */
+  .emchiprow{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px}
+  .emchiprow .emchip{flex:none}
+}
 /* TESTE DE USABILIDADE MOBILE (25/11/2026) — corrige scroll horizontal da página inteira no
    celular. Causa raiz: main{margin:0 auto} centraliza o conteúdo em telas largas (respeitando
    max-width:1180px), mas margem automática DESATIVA o stretch do flexbox no eixo cruzado (regra
@@ -364,10 +401,26 @@ footer{max-width:1180px;margin:0 auto;padding:10px 18px 40px;color:var(--text-3)
       <button class="sidebar-logout" onclick="logout()" title="Sair" aria-label="Sair"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg></button>
     </div>
   </aside>
+  <!-- TESTE DE USABILIDADE MOBILE (25/11/2026) — barra superior + inferior que substituem a
+       sidebar no celular (ver nota no CSS, acima, sobre o motivo); populadas por
+       renderSidebarNav() igual à nav da sidebar, só que em containers diferentes. -->
+  <header class="mobile-topbar" id="mobileTopbar">
+    <div class="mobile-topbar-brand">
+      <img class="logo-light" src="__LOGO__" alt="OrçaFascio"/>
+      <img class="logo-dark" src="__LOGO_DARK__" alt="OrçaFascio"/>
+      <span>Setor de Dev</span>
+    </div>
+    <div class="mobile-topbar-icons">
+      <button class="icon-btn" title="Notificações" aria-label="Notificações"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="badge">3</span></button>
+      <button class="icon-btn" onclick="tgl()" title="Alternar tema (claro/escuro)" aria-label="Alternar tema"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M4.93 4.93l1.41 1.41"/><path d="M17.66 17.66l1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M6.34 17.66l-1.41 1.41"/><path d="M19.07 4.93l-1.41 1.41"/></svg></button>
+      <button class="icon-btn mobile-topbar-avatar" onclick="logout()" title="Sair (Jane)" aria-label="Sair">JC</button>
+    </div>
+  </header>
   <div class="main-col">
     <main id="app"></main>
     <footer id="ft"></footer>
   </div>
+  <nav class="mobile-tabbar" id="mobileTabbar"></nav>
 </div>
 <div class="tt" id="tt"></div>
 
@@ -435,6 +488,11 @@ window.__sidebarCollapsed=false;
 function renderSidebarNav(){
   document.getElementById('sidebarNav').innerHTML=MODULES.map(m=>
     `<button class="side-item${m.key===window.__activeModule?' on':''}" onclick="setModule('${m.key}')" title="${m.label}">${svg(m.icon)}<span class="lbl">${m.label}</span></button>`
+  ).join('');
+  // mesma lista de módulos, barra inferior fixa (padrão de navegação de app no celular) — ver
+  // nota no HTML/CSS (mobile-tabbar) sobre por que isso substitui a sidebar abaixo de 820px.
+  document.getElementById('mobileTabbar').innerHTML=MODULES.map(m=>
+    `<button class="tabbar-item${m.key===window.__activeModule?' on':''}" onclick="setModule('${m.key}')">${svg(m.icon)}<span class="lbl">${m.label.split(' ')[0]}</span></button>`
   ).join('');
 }
 function setModule(key){
