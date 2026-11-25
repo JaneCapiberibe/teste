@@ -1,0 +1,146 @@
+{
+ "2024-12": {
+  "inicio": 0,
+  "criados": 2,
+  "concluidos": 0,
+  "acumulado": 2
+ },
+ "2025-01": {
+  "inicio": 2,
+  "criados": 105,
+  "concluidos": 70,
+  "acumulado": 37
+ },
+ "2025-02": {
+  "inicio": 37,
+  "criados": 60,
+  "concluidos": 61,
+  "acumulado": 36
+ },
+ "2025-03": {
+  "inicio": 36,
+  "criados": 73,
+  "concluidos": 74,
+  "acumulado": 35
+ },
+ "2025-04": {
+  "inicio": 35,
+  "criados": 64,
+  "concluidos": 40,
+  "acumulado": 59
+ },
+ "2025-05": {
+  "inicio": 59,
+  "criados": 85,
+  "concluidos": 91,
+  "acumulado": 53
+ },
+ "2025-06": {
+  "inicio": 53,
+  "criados": 73,
+  "concluidos": 69,
+  "acumulado": 57
+ },
+ "2025-07": {
+  "inicio": 57,
+  "criados": 57,
+  "concluidos": 72,
+  "acumulado": 42
+ },
+ "2025-08": {
+  "inicio": 42,
+  "criados": 68,
+  "concluidos": 73,
+  "acumulado": 37
+ },
+ "2025-09": {
+  "inicio": 37,
+  "criados": 69,
+  "concluidos": 83,
+  "acumulado": 23
+ },
+ "2025-10": {
+  "inicio": 23,
+  "criados": 62,
+  "concluidos": 63,
+  "acumulado": 22
+ },
+ "2025-11": {
+  "inicio": 22,
+  "criados": 59,
+  "concluidos": 51,
+  "acumulado": 30
+ },
+ "2025-12": {
+  "inicio": 30,
+  "criados": 29,
+  "concluidos": 37,
+  "acumulado": 22
+ },
+ "2026-01": {
+  "inicio": 22,
+  "criados": 38,
+  "concluidos": 30,
+  "acumulado": 30
+ },
+ "2026-02": {
+  "inicio": 30,
+  "criados": 47,
+  "concluidos": 33,
+  "acumulado": 44
+ },
+ "2026-03": {
+  "inicio": 44,
+  "criados": 62,
+  "concluidos": 52,
+  "acumulado": 54
+ },
+ "2026-04": {
+  "inicio": 54,
+  "criados": 92,
+  "concluidos": 110,
+  "acumulado": 36
+ },
+ "2026-05": {
+  "inicio": 36,
+  "criados": 79,
+  "concluidos": 70,
+  "acumulado": 45
+ },
+ "2026-06": {
+  "inicio": 45,
+  "criados": 60,
+  "concluidos": 66,
+  "acumulado": 39
+ },
+ "2026-07": {
+  "inicio": 39,
+  "criados": 96,
+  "concluidos": 94,
+  "acumulado": 41
+ },
+ "2026-08": {
+  "inicio": 41,
+  "criados": 66,
+  "concluidos": 83,
+  "acumulado": 24
+ },
+ "2026-09": {
+  "inicio": 24,
+  "criados": 67,
+  "concluidos": 69,
+  "acumulado": 22
+ },
+ "2026-10": {
+  "inicio": 22,
+  "criados": 67,
+  "concluidos": 64,
+  "acumulado": 25
+ },
+ "2026-11": {
+  "inicio": 25,
+  "criados": 83,
+  "concluidos": 79,
+  "acumulado": 29
+ }
+}

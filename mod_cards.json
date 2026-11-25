@@ -1,0 +1,2600 @@
+{
+ "cards": [
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-44",
+   "titulo": "14370 - Bases - Valores invertido na base SINAPI PB 11/2024",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-53",
+   "titulo": "14540 - Bases -  Erro ao procurar composição própria SJL-NPNC-215",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-54",
+   "titulo": "14543 - Bases -  Erro ao procurar composição própria ORC-GLP-067",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-62",
+   "titulo": "Lista de composição na Busca",
+   "ferramenta": "Busca de composições"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-63",
+   "titulo": "Alteração de valor de insumos proprios",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-69",
+   "titulo": "14644 - Bases - Erro nos valores das composições AGETOP CIVIL 08/2024",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-70",
+   "titulo": "14646 - Bases - Composições faltando na base ORSE 10/2024",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-74",
+   "titulo": "Bases- cliente reporta multiplicação incorreta do sistema",
+   "ferramenta": "Outros (não classificado)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-86",
+   "titulo": "Bases - Erro na importação de composição com código igual",
+   "ferramenta": "Importação / Exportação de planilha"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-90",
+   "titulo": "Bases - os grupos não são importados ao fazer a importação de insumos #15086",
+   "ferramenta": "Importação / Exportação de planilha"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-107",
+   "titulo": "Bases-composição 09182/ORSE zerada na nossa base mas tem valor na base oficial  prioridade por licitação #15441",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-108",
+   "titulo": "15450 - Bases - Erro em COMPOSIÇÃO CPOS 01/2025",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-136",
+   "titulo": "Bases- descrição errada#15363",
+   "ferramenta": "Descrição / Unidade / Tipificação"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-141",
+   "titulo": "Erro nas composições auxiliares da caern",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-149",
+   "titulo": "Bases - Composições faltando na IOPES 09/2024 e 10/2024",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-186",
+   "titulo": "Bases - Ao realizar uma importação utilizando a opção de atualizar composições já existentes na base os preços não são atualizados",
+   "ferramenta": "Importação / Exportação de planilha"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-212",
+   "titulo": "Bases - Ao buscar insumos da base SCO é possivel identificar que estão zerados",
+   "ferramenta": "Busca de composições"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-215",
+   "titulo": "NoMethodError: undefined method > for nil:NilClass",
+   "ferramenta": "Preço / valor divergente"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-221",
+   "titulo": "#9240 - Bases de Preço- Erro 500 ao tentar importar uma planilha de composições próprias marcando a opção de Atualizar composições existentes",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-225",
+   "titulo": "#17406 - bases de preço - divergência de preço",
+   "ferramenta": "Preço / valor divergente"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-228",
+   "titulo": "17463 - Bases - Erro ao importar composições com a opção Atualizar Composições Existentes marcada",
+   "ferramenta": "Importação / Exportação de planilha"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-237",
+   "titulo": "17677 - Bases - Erro na categorização do insumo I8588 da SEINFRA 028",
+   "ferramenta": "Insumos"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-254",
+   "titulo": "18168 - Bases - Erro 500 ao procurar composições pela descrição",
+   "ferramenta": "Descrição / Unidade / Tipificação"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-255",
+   "titulo": "#10038 - Bases de Preço -  erro ao encontrar insumos da base SBC",
+   "ferramenta": "Insumos"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-256",
+   "titulo": "18205  - Bases - Erro na descrição da composição 2140020 CAERN 05/2024",
+   "ferramenta": "Descrição / Unidade / Tipificação"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-261",
+   "titulo": "Bases - Adicionar criação de insumo dentro da composição própria",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-305",
+   "titulo": "Bases - Erro ao adicionar composições SICRO2 na base própria",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-310",
+   "titulo": "#10982 - Bases de preço - insumo faltando na composição.",
+   "ferramenta": "Insumos"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-311",
+   "titulo": "#10995- Base de preços - Erro 500 ao copiar composição",
+   "ferramenta": "Cópia de composição"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-316",
+   "titulo": "#19154 - Bases de preços - erro 500 ao fazer importação composições próprias.",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-331",
+   "titulo": "19786 - Bases - valores EMBASA 01/2025 invertidos no cadastro",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-336",
+   "titulo": "#11773 - Bases - Erro 500 ao acessar composição própria",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-337",
+   "titulo": "#11782 - Bases de preço - Descrição esta errada - EMBASA",
+   "ferramenta": "Descrição / Unidade / Tipificação"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-342",
+   "titulo": "20010 - Bases - Erro 500 ao acessar composição",
+   "ferramenta": "Composições (geral)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-349",
+   "titulo": "Revisão na base SINAPI",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-351",
+   "titulo": "#12156 - Bases - composições da orse zeradas",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-352",
+   "titulo": "Bases de preço - Erro ao tentar localizar uma composição no mês 01/2025",
+   "ferramenta": "Busca de composições"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-353",
+   "titulo": "Base Própria - Cadastro de composições próprias com o mesmo código",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-378",
+   "titulo": "#13041 - Bases de Preços - Composição vazia",
+   "ferramenta": "Preço / valor divergente"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-381",
+   "titulo": "13107 Erro 500 ao importar Insumos",
+   "ferramenta": "Importação / Exportação de planilha"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-386",
+   "titulo": "#21251 - Base de Preço - Itens de mão de obra não aparecem na extração da composição",
+   "ferramenta": "Relatório / Caderno técnico"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-388",
+   "titulo": "#21295 - Bases - Diferença de valores na composição Orse",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-391",
+   "titulo": "#13384 -  Orçamento -  O campo Adc. MO não aparece no relatório",
+   "ferramenta": "Relatório / Caderno técnico"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-393",
+   "titulo": "#13434 - Bases de preço - Valor de composição não bate com o da base.",
+   "ferramenta": "Preço / valor divergente"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-405",
+   "titulo": "Erro ao fazer buscas com certos caracteres especiais",
+   "ferramenta": "Busca de composições"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-409",
+   "titulo": "Problema com busca de composições com acentuação",
+   "ferramenta": "Busca de composições"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-420",
+   "titulo": "Bases de preço - Visualização de valores por encargos sociais.",
+   "ferramenta": "Preço / valor divergente"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-430",
+   "titulo": "Erro na busca de composições com caracteres especiais",
+   "ferramenta": "Busca de composições"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-436",
+   "titulo": "Relatorio d composição propria sem observação",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-442",
+   "titulo": "INSERÇÃO DE COMPOSIÇÃO DE MO SINAPI DA BASE PROPRIA",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-464",
+   "titulo": "Base de Preço - Composições próprias no modelo Sicro não carregam insumos",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-488",
+   "titulo": "Bases de Preço - Algumas composições da Orse estão com a unidade errada",
+   "ferramenta": "Descrição / Unidade / Tipificação"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-489",
+   "titulo": "#23240-Bases e preços-Cliente relatou diferença de preço no sistema na Base SIURB",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-490",
+   "titulo": "#15324 - Base de preços - erro ao criar composição.",
+   "ferramenta": "Preço / valor divergente"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-511",
+   "titulo": "#23661 - Base de Preço - Erro 500 ao tentar criar uma composição",
+   "ferramenta": "Preço / valor divergente"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-514",
+   "titulo": "#15897 - base de preços - Valores errados de insumo.",
+   "ferramenta": "Insumos"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-515",
+   "titulo": "Base de Preço - Composição própria modelo SINAPI como Atividades Auxiliares",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-520",
+   "titulo": "Bases - Erro ao tentar adicionar insumos na composição própria do modelo Sicro",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-527",
+   "titulo": "Erro na busca de composições - caracteres inválidos",
+   "ferramenta": "Busca de composições"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-529",
+   "titulo": "16080#-Bases e preços-Cliente ao tentar copiar composição de codigo: 101972, 102187 ,102183 , gera erro 500",
+   "ferramenta": "Cópia de composição"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-532",
+   "titulo": "#16136 - Bases de preços - caderno técnico não aparece na pesquisa de composições.",
+   "ferramenta": "Busca de composições"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-533",
+   "titulo": "#24084 - Bases de Preço - Erro 500 ao tentar importar composições com insumos IOPES",
+   "ferramenta": "Importação / Exportação de planilha"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-538",
+   "titulo": "#16261 - bases de preços - insumos faltando na composição",
+   "ferramenta": "Insumos"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-542",
+   "titulo": "Base de Preço - Código de Insumo não é preenchido automaticamente ao criar insumo dentro de composição",
+   "ferramenta": "Insumos"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-545",
+   "titulo": "Base de Preço - Ao criar insumo dentro de composição com Estados diferentes",
+   "ferramenta": "Insumos"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-554",
+   "titulo": "#24523 - Orçamento - Cliente não consegue sincronizar com a base própria após atualizar o código da composição",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-571",
+   "titulo": "Base de Preços - Valor retornando como Undefined",
+   "ferramenta": "Preço / valor divergente"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-573",
+   "titulo": "#25082 - Base de Preço - Insumo de mão de obra SICRO zerado na base",
+   "ferramenta": "Insumos"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-578",
+   "titulo": "Bug busca de composições",
+   "ferramenta": "Busca de composições"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-579",
+   "titulo": "Base de Preço - Composições da AGETOP CIVIL com valores diferentes da base",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-596",
+   "titulo": "#17713 - Bases e preços - Cliente ao tentar editar composição propria com insumo da SINAPI,o insumo mesmo existindo consta como :não encontrado",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-597",
+   "titulo": "#17743 - Bases de preço - Erro ao adicionar insumos de 06/25 da SINAPI",
+   "ferramenta": "Insumos"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-601",
+   "titulo": "#17861 - Base de preços - Base sinapi sem tipificação nas composições",
+   "ferramenta": "Descrição / Unidade / Tipificação"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-605",
+   "titulo": "#17900 - Bases de preço - item Mensalista esta como horista na plataforma",
+   "ferramenta": "Preço / valor divergente"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-621",
+   "titulo": "Base de Preço - Insumos da SCO estão zerados",
+   "ferramenta": "Insumos"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-633",
+   "titulo": "#18540 - Bases e preços - Cliente ao verificar site oficial da CAERN e entrar na composição observa que alguns itens não constam dentro da mesma",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-634",
+   "titulo": "Base de Preços - Valores onerado e desonerado não aparecem na busca de preços da CAERN",
+   "ferramenta": "Busca de composições"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-638",
+   "titulo": "Base de Preço - Composições da SIURB Infra com valores divergentes",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-641",
+   "titulo": "Filtro por tipo da SINAPI",
+   "ferramenta": "Busca de composições"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-656",
+   "titulo": "#19133 - Preço de Composições da SETOP estão errados em relação a base",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-678",
+   "titulo": "Composições - Ao pesquisar composições próprias, a ação não é realizada pois o sistema não carrega",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-690",
+   "titulo": "Gestão de base",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-697",
+   "titulo": "#19901 - Base de Preço - erro ao passar as paginas na busca por composições próprias",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-698",
+   "titulo": "Base de Preço - Composição da SBC com preço divergente",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-704",
+   "titulo": "Base de Preço - Ajustes no relatórios de baixar composições na lista de composições",
+   "ferramenta": "Importação / Exportação de planilha"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-707",
+   "titulo": "#20013 - No orçaprime ao buscar a base SEDOP na data 02/25 vem tudo em branco",
+   "ferramenta": "Busca de composições"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-718",
+   "titulo": "#20178 - Bancos - Diversos erros na base SETOP",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-722",
+   "titulo": "Base de Preço - Composições da SETOP com valor estão zerados",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-742",
+   "titulo": "#28522 - Bases - Valor de consumo da composição esta zerado",
+   "ferramenta": "Preço / valor divergente"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-751",
+   "titulo": "Erro ao realizar busca de composições",
+   "ferramenta": "Busca de composições"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-754",
+   "titulo": "#20865 - Ao tentar inserir um insumo da SETOP em uma composição própria, a ação não era concretizada.",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-762",
+   "titulo": "#21002 - Bases - Erro ao Exportar Composições da IOPES",
+   "ferramenta": "Importação / Exportação de planilha"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-771",
+   "titulo": "#21192 - Bases - valores diferentes em composição da siurb",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-774",
+   "titulo": "Base de Preço - Composição está com valor de consumo divergente da base oficial",
+   "ferramenta": "Preço / valor divergente"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-795",
+   "titulo": "#21648 - Bases - Erro ao adicionar insumo da sbc em composição própria",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-796",
+   "titulo": "#29449 - Algumas composições da Agetop Rodoviária estavam com a descrição incompletas",
+   "ferramenta": "Descrição / Unidade / Tipificação"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-808",
+   "titulo": "#21871 - Bases - Erro 500 ao tentar abrir composições da SBC e SETOP",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-809",
+   "titulo": "Bases - Composicoes da FDE desorganizadas",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-824",
+   "titulo": "Base de Preço - Erro ao adicionar Composição Auxiliar/Insumo em uma Composição na base própria",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-830",
+   "titulo": "#22319 - Bases  - composições da SICRO puxando o tipo errado na base",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-838",
+   "titulo": "#30380 - Ao inserir um insumo em uma composição própria, o mesmo não é localizado",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-845",
+   "titulo": "#22811 - Bases e preços - Cliente relata que preços da Base CDHU nos valores Com desoneração não estão condizentes com a base oficial",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-846",
+   "titulo": "Base - Erro 500 ao abrir composição da SEDOP",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-854",
+   "titulo": "#23041 - A tipificação das composições de mão de obra da Sinapi estão zeradas",
+   "ferramenta": "Descrição / Unidade / Tipificação"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-855",
+   "titulo": "Base de Preço - Composições da SINAPI sem a tipificação aparecendo na busca",
+   "ferramenta": "Busca de composições"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-861",
+   "titulo": "Gestão de base própria - Cálculo de itens carregando infinitamente",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-863",
+   "titulo": "Base de Preço - Composições auxiliares da CAEMA",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-876",
+   "titulo": "Grupo de Insumos - Botão de salvar disponível para clique",
+   "ferramenta": "Insumos"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-880",
+   "titulo": "Base de Preço - Botão de caderno técnico está redirecionando para a mesma página",
+   "ferramenta": "Relatório / Caderno técnico"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-893",
+   "titulo": "#23959 - Bases e preços - Insumos da SINAPI e SBC estão com valores unitários e coeficientes e constam como zerado no total",
+   "ferramenta": "Insumos"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-895",
+   "titulo": "Lista de Orçamento/Composições - Erro 502 ao tentar navegar em ambas telas",
+   "ferramenta": "Composições (geral)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-896",
+   "titulo": "#31764 - Bases de Preço - Quando importada a composição, a coluna modelo esta importando incorretamente.",
+   "ferramenta": "Importação / Exportação de planilha"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-901",
+   "titulo": "Base de Preço - Ferramenta de editar valor dos insumos de um estado está com lentidão",
+   "ferramenta": "Insumos"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-907",
+   "titulo": "#24323 - Bases - valor da CAERN diferente da base oficial",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-908",
+   "titulo": "Base de Preço - Composições Auxiliares da CAERN não abrem",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-909",
+   "titulo": "55 11 95840-7300 - Bases de preço - Valores com desoneração das composições da versão 197 de 04/2025 da CDHU na orçafascio estão diferentes da base",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-923",
+   "titulo": "Base de Preço - Erro 500 ao tentar copiar composição",
+   "ferramenta": "Cópia de composição"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-938",
+   "titulo": "#25145 - Bases e preços - Cliente relata erro nas descrições da base DER-PR",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-948",
+   "titulo": "Constante com nome errado",
+   "ferramenta": "Descrição / Unidade / Tipificação"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-954",
+   "titulo": "#25467 - Bases de preço - Cliente percebe que o valor unitário não aparece quando gera relatório da composição",
+   "ferramenta": "Relatório / Caderno técnico"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-956",
+   "titulo": "Base de Preço - Insumo com tipo indicado como sem tipificação",
+   "ferramenta": "Insumos"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-959",
+   "titulo": "#25574 - Bases de preço - Erro 500 ao tentar excluir vários insumos na base própria",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-976",
+   "titulo": "#26172 - Bases de preço - Unidade de certas composições da EMBASA dentro da Orçafascio divergem da base oficial",
+   "ferramenta": "Descrição / Unidade / Tipificação"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-989",
+   "titulo": "#26578 - Erro 500 ao realizar cópia da composição RO-00961",
+   "ferramenta": "Cópia de composição"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-990",
+   "titulo": "Base de Preço - Composições da SETOP sem preço no sistema em 2023",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-991",
+   "titulo": "#26700 - Bases de preço - Descrições de certas composições da EMBASA dentro da orçafascio divergem da base oficial",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1028",
+   "titulo": "#27417 - Bases de Preço - Ao copiar composição da SBC na data 06/2023, não é possível adicionar nenhum insumo na mesma",
+   "ferramenta": "Cópia de composição"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1036",
+   "titulo": "#27655 - Bases e preços - Cópia de uma composição DERPR retirando item",
+   "ferramenta": "Cópia de composição"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1039",
+   "titulo": "#27714 - Bases de preço - Erro 500 ao tentar importar planilha de composições próprias dentro do sistema",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1042",
+   "titulo": "Base de Preço - Composições da DERPR e SETOP não estão sendo exportadas",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1045",
+   "titulo": "#27791 - Bases de preço - Ao importar planilha de insumos para base própria, alguns códigos são importados com divergências em relação a planilha original",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1047",
+   "titulo": "#27844 - Embasa com descrição duplicada na base orçafacio",
+   "ferramenta": "Cópia de composição"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1055",
+   "titulo": "#28003 - Bases de preço - Unidade de composição da base ORSE difere do relatório oficial",
+   "ferramenta": "Relatório / Caderno técnico"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1057",
+   "titulo": "#28034 - Ao criar uma composição no estado do Rio Grande do Sul e exportá-la, o estado no relatório está como Sergipe",
+   "ferramenta": "Relatório / Caderno técnico"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1059",
+   "titulo": "Base de Preço - Dados da IOPES com divergência de itens e códigos",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1076",
+   "titulo": "#28618 - Bases e preços - Divergência de preços entre a base da ORSE e OrçaFascio",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1086",
+   "titulo": "#29010 - Ao tentar adicionar um insumo próprio em uma composição por código o mesmo não é retornado",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1102",
+   "titulo": "#29350 - Orçamento - Usuário relatou mensagem de erro de permissão ao tentar acessar orçamento que ele possui permissão de acesso pelo link.",
+   "ferramenta": "Erro técnico (500 / stack)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1108",
+   "titulo": "Base de Preço - Insumos da SICRO com o tipo Consultoria",
+   "ferramenta": "Insumos"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1118",
+   "titulo": "Usuarios novos estao recebendo R$100 de saldo da Sofia",
+   "ferramenta": "SOFIA (IA)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1124",
+   "titulo": "Avaliação da sofia não está sendo salva",
+   "ferramenta": "SOFIA (IA)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1126",
+   "titulo": "#37353 - Bases de preço - Ao criar itens próprios e os adicioná-los em uma composição própria, o cálculo do valor final dos itens está sendo calculado está incorretamente",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1171",
+   "titulo": "SOFIA retorna erro 500 quando utilizada em composição própria modelo SINAPI que possui apenas bases rodoviárias como referência.",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1188",
+   "titulo": "Backup de Composições de usuário",
+   "ferramenta": "Erro técnico (500 / stack)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1196",
+   "titulo": "#31344 - Ao realizar exportação do caderno técnico de uma composição própria, o sistema apresenta erro",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1201",
+   "titulo": "Bases de Preço - Não é possível adicionar itens dentro de uma composição própria na base após tentativa de adição sem coeficientes.",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1221",
+   "titulo": "#39202 - Bases de preço - Itens da SETOP no sistema estão com valores divergentes da base oficial",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1247",
+   "titulo": "#32336 - Bases e preços - Ao emitir relatório da composição aparece nos códigos o aviso Emp",
+   "ferramenta": "Relatório / Caderno técnico"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1251",
+   "titulo": "#32369 - Base de preços - Ao verificar os itens de uma composição, foi observado que a unidade de um item não está de acordo com a base SICRO3",
+   "ferramenta": "Descrição / Unidade / Tipificação"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1254",
+   "titulo": "#39855 - SOFIA - Usuário não recebeu os 5 créditos grátis da SOFIA ao criar licença",
+   "ferramenta": "SOFIA (IA)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1266",
+   "titulo": "#32565 - Bases de preço - Ao editar estado de composição própria modelo SICRO, alteração não é salva",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1269",
+   "titulo": "Bases de preço - Importação de planilha de insumos próprios é feita a partir da primeira coluna, ignorando configuração definida pelo usuário",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1287",
+   "titulo": "Base de Preço - Composições do tipo Encargos Complementares está com o tipo 0",
+   "ferramenta": "Preço / valor divergente"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1312",
+   "titulo": "Base de Preço - Composições não são buscadas com a opção de todos os bancos",
+   "ferramenta": "Busca de composições"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1321",
+   "titulo": "Erro na busca de composições e ferramenta de autocompletar",
+   "ferramenta": "Busca de composições"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1322",
+   "titulo": "Composições ORSE sem preço definido",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1356",
+   "titulo": "+55 65 9302-5555 - OrçaFascio Prime - Ao abrir busca de composições, filtro por data é ignorado da busca de composição para todos os bancos",
+   "ferramenta": "Busca de composições"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1359",
+   "titulo": "Base de Preço - Erro 500 ao tentar abrir composição da gestão de base própria",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1376",
+   "titulo": "#41622 - Bases de preço - Ao tentar acessar certo item da SUDECAP, o sistema gera erro 500",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1391",
+   "titulo": "OrçaPrime - Erro 500 ao entrar em composição própria",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1423",
+   "titulo": "#42401 - Banco de Preços - Erro 500 ao abrir composições próprias",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1426",
+   "titulo": "#35137 - Bases e preços - Composições da FDE não estão atualizadas para o mês vigente",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1433",
+   "titulo": "#42438 - Orçamento - Não é possível emitir o relatório de caderno técnico",
+   "ferramenta": "Relatório / Caderno técnico"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1443",
+   "titulo": "#35544 - Bases de Preço - Erro 500 ao abrir composição própria",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1462",
+   "titulo": "#35853 - Bases de preço - Divergência de preço em composição da ORSE",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1484",
+   "titulo": "Bases de preço - Importação de planilha de composições próprias permite recursividade entre composições próprias",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1485",
+   "titulo": "#36119 - Banco de preços - Ao criar uma composição própria utilizando a IA, ao finalizar o processo, o sistema dá erro.",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1488",
+   "titulo": "#36184 - Base de Preços - Preço de certa composição da Seinfra está com valor divergente da base oficial",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1511",
+   "titulo": "#36648 - Banco de Preços - Divergência de valores em itens da base SETOP",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1512",
+   "titulo": "#43891 - Bases de preço - Erro 500 ao acessar a gestão de base própria",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1513",
+   "titulo": "Bases de preço - Cópia de composição da IOPES adota modelo civil",
+   "ferramenta": "Cópia de composição"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1514",
+   "titulo": "Bases de preço - Erro ao exportar cópia de composições da AGETOP RODOVIÁRIA e DERPR",
+   "ferramenta": "Importação / Exportação de planilha"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1539",
+   "titulo": "#44272 - Bases de preço - Erro ao criar composição",
+   "ferramenta": "Preço / valor divergente"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1551",
+   "titulo": "Bases de Preço - Códigos das composições da SCO não são editados ao mudar encargo do orçamento",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1552",
+   "titulo": "#37490 - Bases de Preço - Composição auxiliar da EMOP está com preço incorreto dentro de composição própria",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1563",
+   "titulo": "#44909 - Bases e Preço - Divergência de preço em insumos da SICRO dentro de composição própria modelo rodoviário",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1605",
+   "titulo": "#38331 - Bases de preço - Erro 500 ao copiar composição da IOPES",
+   "ferramenta": "Cópia de composição"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1619",
+   "titulo": "#38516 - Base de Preços - Erro 500 ao acessar composição",
+   "ferramenta": "Preço / valor divergente"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1651",
+   "titulo": "Bases de preço - Erro ao importar planilha de composições próprias com mais de 5000 linhas",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1652",
+   "titulo": "Delete em development remove documentos no Solr",
+   "ferramenta": "Erro técnico (500 / stack)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1712",
+   "titulo": "#39992 - Bases de preço - Descrição de composição 070461 da SBC está incorreta",
+   "ferramenta": "Descrição / Unidade / Tipificação"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1724",
+   "titulo": "Erro 500 ao abrir composições próprias",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1749",
+   "titulo": "#40230 - Bases de preço - Divergência de preço em composições da SBC 09/2025",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1757",
+   "titulo": "#47594 - Bases de Preço - Item Zerado na base SCO",
+   "ferramenta": "Bases oficiais (SINAPI/SETOP/…)"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1759",
+   "titulo": "#40423 - Bases de preços - Erro 500 ao excluir várias composições",
+   "ferramenta": "Preço / valor divergente"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1765",
+   "titulo": "#40503 - Bases de preço - Insumo 001322 da SBC 01/2026 está com a descrição errada",
+   "ferramenta": "Insumos"
+  },
+  {
+   "mod": "Bases de Preço",
+   "key": "BUG-1780",
+   "titulo": "CHAT-202608131102-LG0FTT - Gestão de Base Própria - Substituição de item não funciona",
+   "ferramenta": "Base própria / Gestão de base"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-45",
+   "titulo": "Atualizar a gem do Sentry e adicionar suporte a delayed_job e stackprof",
+   "ferramenta": "Outros (não classificado)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-66",
+   "titulo": "VALORES DE ONERADO E DESONERADO",
+   "ferramenta": "Outros (não classificado)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-103",
+   "titulo": "Não está sendo possível pesquisar usuários no app e no backoffice",
+   "ferramenta": "CRM / Backoffice / Vendas / Marketing"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-109",
+   "titulo": "Erro no login no sistema",
+   "ferramenta": "Login / acesso"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-115",
+   "titulo": "Erro ao gerar proposta",
+   "ferramenta": "CRM / Backoffice / Vendas / Marketing"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-118",
+   "titulo": "Erro ao enviar a proposta no backoffice",
+   "ferramenta": "CRM / Backoffice / Vendas / Marketing"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-130",
+   "titulo": "TypeError: no implicit conversion of nil into String",
+   "ferramenta": "Erro técnico (500 / stack)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-134",
+   "titulo": "Cadastros- cliente tinha um perfil lead pago que foi importado para uma empresa gov. #15632",
+   "ferramenta": "Ativação / senha / convite"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-167",
+   "titulo": "Disponibilizar dados de acesso dos usuários na área de administração da empresa",
+   "ferramenta": "Login / acesso"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-182",
+   "titulo": "Bug- Geração de proposta",
+   "ferramenta": "CRM / Backoffice / Vendas / Marketing"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-188",
+   "titulo": "Backoffice - O e-mail possui duplicidade no sistema fazendo com que o usuario não consiga realizar o login corretamente",
+   "ferramenta": "E-mail (duplicado / cadastro / troca)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-189",
+   "titulo": "Erro na atualização de cobrança",
+   "ferramenta": "CRM / Backoffice / Vendas / Marketing"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-194",
+   "titulo": "Administrar Empresas - E-mail de cadastro duplicado",
+   "ferramenta": "E-mail (duplicado / cadastro / troca)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-223",
+   "titulo": "Busca no backoffice",
+   "ferramenta": "CRM / Backoffice / Vendas / Marketing"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-229",
+   "titulo": "Lead não converteu - Não liberou licença",
+   "ferramenta": "Licença / módulos / permissões"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-265",
+   "titulo": "#18317 - Administrar Empresas - Erro ao logar no sistema",
+   "ferramenta": "Login / acesso"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-267",
+   "titulo": "Bug no rodízio do SDR",
+   "ferramenta": "CRM / Backoffice / Vendas / Marketing"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-274",
+   "titulo": "#18317 - Administrar Empresas - Erro ao logar no sistema",
+   "ferramenta": "Login / acesso"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-275",
+   "titulo": "Cadastro - Cliente com dois cadastros com mesmo E-mail",
+   "ferramenta": "E-mail (duplicado / cadastro / troca)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-278",
+   "titulo": "Administrar Empresa - Ao realizar um cadastro de usuario é dado erro 500",
+   "ferramenta": "Usuário: excluir / cadastrar"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-283",
+   "titulo": "Backoffice- Erro na geração de boleto do gerencianet",
+   "ferramenta": "CRM / Backoffice / Vendas / Marketing"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-285",
+   "titulo": "Backoffice - Empresas que compram e não saem do CRM",
+   "ferramenta": "CRM / Backoffice / Vendas / Marketing"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-286",
+   "titulo": "NameError: uninitialized constant Admin::Pagamento::Gerencianet",
+   "ferramenta": "CRM / Backoffice / Vendas / Marketing"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-315",
+   "titulo": "#19149 - Usuário - Duplicidade de e-mail",
+   "ferramenta": "E-mail (duplicado / cadastro / troca)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-348",
+   "titulo": "20181 - Cadastro - Erro 500 ao excluir usuário",
+   "ferramenta": "Usuário: excluir / cadastrar"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-390",
+   "titulo": "Bug visual no vencimento da licença",
+   "ferramenta": "Licença / módulos / permissões"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-399",
+   "titulo": "Bug na tela de HOME",
+   "ferramenta": "UI / home / telas"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-400",
+   "titulo": "#21539 - Cadastro/Administrar Empresa - Erro 500 ao acessar conta do usuário",
+   "ferramenta": "Login / acesso"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-407",
+   "titulo": "Erro ao criar Empresa no Prime",
+   "ferramenta": "Empresa (show / editar / dados)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-412",
+   "titulo": "#21874 - Usuários - Usuário está duplicado no sistema",
+   "ferramenta": "E-mail (duplicado / cadastro / troca)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-418",
+   "titulo": "Administrar/Cadastrar Empresa - Erro 500 ao excluir o usuário",
+   "ferramenta": "Usuário: excluir / cadastrar"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-431",
+   "titulo": "Cadastro/Administrar Empresa - Orçafascio teste com erro 500",
+   "ferramenta": "Licença / módulos / permissões"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-440",
+   "titulo": "Bug na tela de vendas realizadas",
+   "ferramenta": "CRM / Backoffice / Vendas / Marketing"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-445",
+   "titulo": "Correção nas observações no show da empresa",
+   "ferramenta": "Empresa (show / editar / dados)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-446",
+   "titulo": "Erro no link de movimentações da empresa",
+   "ferramenta": "Ativação / senha / convite"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-449",
+   "titulo": "Erro na ação de abertura de card",
+   "ferramenta": "Outros (não classificado)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-450",
+   "titulo": "Erro na tela de vendas realizadas",
+   "ferramenta": "CRM / Backoffice / Vendas / Marketing"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-454",
+   "titulo": "Filtro CRM empresas",
+   "ferramenta": "CRM / Backoffice / Vendas / Marketing"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-455",
+   "titulo": "Erro no campo de pesquisa empresas",
+   "ferramenta": "Empresa (show / editar / dados)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-456",
+   "titulo": "Faltando item nos modais de transição de coluna",
+   "ferramenta": "Outros (não classificado)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-457",
+   "titulo": "Bug no fluxo de descarte de lead",
+   "ferramenta": "CRM / Backoffice / Vendas / Marketing"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-463",
+   "titulo": "Erro na adição de observação dentro do CRM",
+   "ferramenta": "CRM / Backoffice / Vendas / Marketing"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-476",
+   "titulo": "#15131 Ao alterar, o e-mail de cadastro da como e-mail não cadastrado",
+   "ferramenta": "E-mail (duplicado / cadastro / troca)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-480",
+   "titulo": "15225#-Cadastro/Administrar minha empresa-Cliente ao tentar excluir usuário da erro 500",
+   "ferramenta": "Usuário: excluir / cadastrar"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-481",
+   "titulo": "Lista de Clientes",
+   "ferramenta": "Outros (não classificado)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-498",
+   "titulo": "#15612 -Cadastro/Administrar empresa-Cliente não consegue acessar a plataforma",
+   "ferramenta": "Login / acesso"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-548",
+   "titulo": "Prime - (Administrar Empresa) Solicitação de troca de ADM da licença",
+   "ferramenta": "Licença / módulos / permissões"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-568",
+   "titulo": "Administrar empresa - Excluir usuário teste do cliente",
+   "ferramenta": "Licença / módulos / permissões"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-582",
+   "titulo": "Cadastrar Usuários - Usuário está com email duplicado",
+   "ferramenta": "E-mail (duplicado / cadastro / troca)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-591",
+   "titulo": "#17598 - Cadastro - Ao adicionar um usuário novo na licença, o mesmo não conseguia acessar o sistema, pois o seu e-mail está duplicado",
+   "ferramenta": "E-mail (duplicado / cadastro / troca)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-593",
+   "titulo": "email duplicado",
+   "ferramenta": "E-mail (duplicado / cadastro / troca)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-598",
+   "titulo": "Mensagem de erro com má formatação ao logar com Azure",
+   "ferramenta": "Login / acesso"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-606",
+   "titulo": "Botão aparecendo na home do sistema",
+   "ferramenta": "UI / home / telas"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-622",
+   "titulo": "Cadastro/Administrar Empresa - Card de Backup para recuperação de licença",
+   "ferramenta": "Licença / módulos / permissões"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-628",
+   "titulo": "#18353 - Ao excluir usurário da erro 500",
+   "ferramenta": "Usuário: excluir / cadastrar"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-630",
+   "titulo": "#18467  - Cadastros - erro ao entrar no perfil do aluno",
+   "ferramenta": "Login / acesso"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-635",
+   "titulo": "#18601 - Cadastro/Administrar empresa -  Cliente com conta duplicada",
+   "ferramenta": "E-mail (duplicado / cadastro / troca)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-661",
+   "titulo": "#19229-Cadastro/Administrar minha Empresa-Cliente Tem email duplicado",
+   "ferramenta": "E-mail (duplicado / cadastro / troca)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-699",
+   "titulo": "Erro na função de send_email",
+   "ferramenta": "Erro técnico (500 / stack)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-732",
+   "titulo": "Administrar Empresa - Cadastro de usuário não ativa",
+   "ferramenta": "Usuário: excluir / cadastrar"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-781",
+   "titulo": "#21391 - cadastros - e-mail duplicado",
+   "ferramenta": "E-mail (duplicado / cadastro / troca)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-789",
+   "titulo": "Email- Cadastros - e-mail duplicado",
+   "ferramenta": "E-mail (duplicado / cadastro / troca)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-794",
+   "titulo": "Erro no modal da home",
+   "ferramenta": "UI / home / telas"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-802",
+   "titulo": "NoMethodError: undefined method id for nil:NilClass",
+   "ferramenta": "Erro técnico (500 / stack)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-807",
+   "titulo": "Cadastro/Administrar Empresa - Usuário necessita voltar para licença anterior",
+   "ferramenta": "Licença / módulos / permissões"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-810",
+   "titulo": "#21823 - Cadastros - Erro no carregamento ao passar de pagina",
+   "ferramenta": "Outros (não classificado)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-826",
+   "titulo": "Tela com opacidade do banner ao abrir o sistema",
+   "ferramenta": "CRM / Backoffice / Vendas / Marketing"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-842",
+   "titulo": "Cadastrar/Administrar Empresa - email duplicado",
+   "ferramenta": "E-mail (duplicado / cadastro / troca)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-852",
+   "titulo": "#22871 - E-mail de acesso duplicado",
+   "ferramenta": "E-mail (duplicado / cadastro / troca)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-857",
+   "titulo": "E-mail de acesso duplicado",
+   "ferramenta": "E-mail (duplicado / cadastro / troca)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-869",
+   "titulo": "Bug ao enviar para CSM",
+   "ferramenta": "CRM / Backoffice / Vendas / Marketing"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-883",
+   "titulo": "Problema ao gerar relatório de marketing",
+   "ferramenta": "CRM / Backoffice / Vendas / Marketing"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-885",
+   "titulo": "Banner/Marketing - Configuração de data do Marketing",
+   "ferramenta": "CRM / Backoffice / Vendas / Marketing"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-904",
+   "titulo": "Marketing - Campanha para conta grátis não funciona",
+   "ferramenta": "CRM / Backoffice / Vendas / Marketing"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-906",
+   "titulo": "Cliente precisou apagar um insumo e precisa do backup do dia 30/10/2015",
+   "ferramenta": "Outros (não classificado)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-911",
+   "titulo": "Cadastro/Administrar Empresa - Tela de login não está responsiva para telas menores",
+   "ferramenta": "Login / acesso"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-924",
+   "titulo": "Administrar Empresa - Permissões dos plugins foram resetadas",
+   "ferramenta": "Licença / módulos / permissões"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-925",
+   "titulo": "Administrar/Cadastrar Empresa - Usuários com a licença dos plugin",
+   "ferramenta": "Licença / módulos / permissões"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-931",
+   "titulo": "Remover a verificação dos métodos do Maurício que influenciam nos plugins",
+   "ferramenta": "Licença / módulos / permissões"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-933",
+   "titulo": "Bug em funções sendo chamadas sem referência",
+   "ferramenta": "Erro técnico (500 / stack)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-946",
+   "titulo": "#25333 - Cadastro / Administrar empresa - Cliente fez cadastro com email que não existe e por conta disso, não consegue visualizar o email de ativação de sua conta",
+   "ferramenta": "Ativação / senha / convite"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-951",
+   "titulo": "#25356 - Cliente está com licença no e-mail errado",
+   "ferramenta": "Licença / módulos / permissões"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1006",
+   "titulo": "#26844 - Cliente não consegue trocar e-mail de acesso no orçaprime",
+   "ferramenta": "Login / acesso"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1020",
+   "titulo": "Home - Mensagem não está formatada no formato correto",
+   "ferramenta": "UI / home / telas"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1024",
+   "titulo": "Função de troca de e-mail no OrçaPrime não esta funcionando",
+   "ferramenta": "E-mail (duplicado / cadastro / troca)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1026",
+   "titulo": "#27373 - cliente tem email duplicado no sistema",
+   "ferramenta": "E-mail (duplicado / cadastro / troca)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1040",
+   "titulo": "#27754 - Cadastro / Administrar empresa - Erro 500 ao tentar cadastrar encargo social",
+   "ferramenta": "Usuário: excluir / cadastrar"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1062",
+   "titulo": "#28138 - Cliente com dois módulos de orçamento ativo e não consegue usar",
+   "ferramenta": "Licença / módulos / permissões"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1072",
+   "titulo": "Vendedor demitido ainda aparecce no rodizio",
+   "ferramenta": "CRM / Backoffice / Vendas / Marketing"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1116",
+   "titulo": "#29720 - Administrar/Cadastros - Erro 500 ao habilitar permissão",
+   "ferramenta": "Licença / módulos / permissões"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1120",
+   "titulo": "Usuarios nao receberam bonus OF",
+   "ferramenta": "Usuário: excluir / cadastrar"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1139",
+   "titulo": "#30170 - Cadastrar/Administrar Empresa - Usuário possui o mesmo email em contas diferentes",
+   "ferramenta": "E-mail (duplicado / cadastro / troca)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1141",
+   "titulo": "#30216 - Cadastro - E-mail duplicado dentro do sistema",
+   "ferramenta": "E-mail (duplicado / cadastro / troca)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1161",
+   "titulo": "#30713 - Cadastro/ Administrar Empresa - Ao fazer redefinição de senha, o link de confirmação não é encaminhado no corpo do e-mail",
+   "ferramenta": "Ativação / senha / convite"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1162",
+   "titulo": "Cadastrar/Administrar Empresa - Link de ativação não está sendo enviado para novos usuários",
+   "ferramenta": "Ativação / senha / convite"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1163",
+   "titulo": "Correção do envio de redefinição de senha",
+   "ferramenta": "Ativação / senha / convite"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1173",
+   "titulo": "Ajustar email duplicados",
+   "ferramenta": "E-mail (duplicado / cadastro / troca)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1200",
+   "titulo": "#31388 - Cadastro - E-mail duplicado dentro do sistema",
+   "ferramenta": "E-mail (duplicado / cadastro / troca)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1205",
+   "titulo": "Administrar empresa/Cadastro - E-mail duplicado dentro do sistema",
+   "ferramenta": "E-mail (duplicado / cadastro / troca)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1217",
+   "titulo": "Cadastro/ Administrar Empresa - E-mail duplicado",
+   "ferramenta": "E-mail (duplicado / cadastro / troca)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1220",
+   "titulo": "#31808 - Cadastrar/Administrar Empresa - Usuário de um setor está tendo acesso a orçamentos de outros setores, mesmo sem possuir permissão.",
+   "ferramenta": "Login / acesso"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1244",
+   "titulo": "Corrigir bug de cadastro de e-mails",
+   "ferramenta": "E-mail (duplicado / cadastro / troca)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1263",
+   "titulo": "atualizar view do show da empresa",
+   "ferramenta": "Empresa (show / editar / dados)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1265",
+   "titulo": "Administrar Empresa - Data do OF Medição do usuário não está condizente com sua licença",
+   "ferramenta": "Licença / módulos / permissões"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1267",
+   "titulo": "+55 85 9115-6129 - Cadastro / Administrar empresa - Usuário não consegue adicionar mais de 7 usuários na licença, mesmo possuindo limite de 10 usuários",
+   "ferramenta": "Licença / módulos / permissões"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1270",
+   "titulo": "#32642 - Administrar empresa - Usuário adquiriu OF medição dia 25/02/2026, mas licença ainda está em período de testes",
+   "ferramenta": "Licença / módulos / permissões"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1278",
+   "titulo": "#32881 - Administrar empresa - Módulo OF elétrico não está ativo na licença, mesmo após usuário realizar aquisição",
+   "ferramenta": "Licença / módulos / permissões"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1280",
+   "titulo": "Administração - Webinar criado no backoffice apresenta diferença de -3h no horário",
+   "ferramenta": "CRM / Backoffice / Vendas / Marketing"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1283",
+   "titulo": "corrigir tipos de empresa para gerar relatórios",
+   "ferramenta": "Empresa (show / editar / dados)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1300",
+   "titulo": "#33440 - Cadastro - Ao cadastrar novo empreiteiro, e-mail de confirmação não está sendo enviado",
+   "ferramenta": "Ativação / senha / convite"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1301",
+   "titulo": "Administrar Empresa - Link de importação de usuário está indo quebrado no outlook",
+   "ferramenta": "Ativação / senha / convite"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1330",
+   "titulo": "Ajustar email duplicado",
+   "ferramenta": "E-mail (duplicado / cadastro / troca)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1338",
+   "titulo": "OrçaPrime - Erro ao tentar logar no Prime",
+   "ferramenta": "Login / acesso"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1372",
+   "titulo": "Administrar Empresa - Erro 500 ao cadastrar uma nova conta e ativar o teste",
+   "ferramenta": "Ativação / senha / convite"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1378",
+   "titulo": "#41669 - Cadastro - E-mail de importação de usuário não envia link correto para um Webmail",
+   "ferramenta": "Ativação / senha / convite"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1384",
+   "titulo": "Home OrçaFascio - Erro ao baixar OrçaBim 3 na OrçaFascio",
+   "ferramenta": "UI / home / telas"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1399",
+   "titulo": "Cadastro - Erro 500 ao ativar teste do sistema",
+   "ferramenta": "Ativação / senha / convite"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1450",
+   "titulo": "#43032  - Cadastro - Erro 500 ao acessar aba de clientes",
+   "ferramenta": "Login / acesso"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1461",
+   "titulo": "#35851 - Cadastros - Supervisor cadastrado na obra não tem acesso ao diário de obras",
+   "ferramenta": "Login / acesso"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1480",
+   "titulo": "#36077- Cadastro- Cliente não consegue abrir o link do e-mail de usuário importado",
+   "ferramenta": "Ativação / senha / convite"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1498",
+   "titulo": "Administrar empresa/Cadastro - E-mail duplicado dentro do sistema",
+   "ferramenta": "E-mail (duplicado / cadastro / troca)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1568",
+   "titulo": "Administrar Empresa - Email de ativação não está chegando para os usuários",
+   "ferramenta": "Ativação / senha / convite"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1570",
+   "titulo": "Administrar Empresa - Botão para acessar o OF Medição está indisponível para usuários que compraram a licença",
+   "ferramenta": "Login / acesso"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1622",
+   "titulo": "#38513- Cadastro/Administrar Empresas- Contas de Licença Estudantil apresentam estar em fase de Teste mesmo em período vigente da Licença",
+   "ferramenta": "Licença / módulos / permissões"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1632",
+   "titulo": "Correção dos tipos de dados do payload dos eventos no orquestrador.",
+   "ferramenta": "Erro técnico (500 / stack)"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1644",
+   "titulo": "Tirar o botão de entrar como teste do ar",
+   "ferramenta": "Login / acesso"
+  },
+  {
+   "mod": "Cadastro/Administrar Empresa",
+   "key": "BUG-1728",
+   "titulo": "#40096 - Cadastro/ Administrar empresa - E-mail de usuário está duplicado",
+   "ferramenta": "E-mail (duplicado / cadastro / troca)"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-180",
+   "titulo": "Orçamento - Erro 500 ao abrir orçamento o mesmo não exibe as informarções do orçamento",
+   "ferramenta": "Outros (não classificado)"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-439",
+   "titulo": "Medição - Ao realizar medição, há divergência com o valor do orçamento",
+   "ferramenta": "Cálculo / valor divergente"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-637",
+   "titulo": "Medição - Cliente não está conseguindo gerar relatório",
+   "ferramenta": "Relatório / Curva ABC / exportar"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-849",
+   "titulo": "#22853 - Medição - Erro ao criar uma Medição",
+   "ferramenta": "Criar / acessar medição (erro)"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-943",
+   "titulo": "(77) 99331-985 - Cliente não tem o modulo de medição e esta conseguindo criar a mesmas",
+   "ferramenta": "Criar / acessar medição (erro)"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-974",
+   "titulo": "#26008 - OF Medição - Usuário não consegue emitir relatório de curva ABC",
+   "ferramenta": "Relatório / Curva ABC / exportar"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1034",
+   "titulo": "OF MEDIÇÃO - Importações não estão sendo realizadas",
+   "ferramenta": "Importação (orçamento / itens / planilha)"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1056",
+   "titulo": "OF Medição - Usuário não consegue gerar relatório de medição de obra",
+   "ferramenta": "Relatório / Curva ABC / exportar"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1060",
+   "titulo": "#28110 - OF Medição - Ao criar uma medição e selecionar a opção de Importar os itens de um orçamento do Orçafascio, o usuário não conseguia localizar o seu orçamento.",
+   "ferramenta": "Importação (orçamento / itens / planilha)"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1101",
+   "titulo": "#29318 - OF Medição - Quantidades dos insumos na Curva ABC de insumos gerada na orçafascio difere das quantidades dos insumos na Curva ABC de insumos por medição gerado no OF medição",
+   "ferramenta": "Relatório / Curva ABC / exportar"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1123",
+   "titulo": "#37320 - OF Medição - Ao extrair o relatório Medição da obra e fazer a soma das medições executadas, o valor apresentado não está de acordo com o cálculo",
+   "ferramenta": "Relatório / Curva ABC / exportar"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1151",
+   "titulo": "+55 51 8012-7272 - Medição - Ao tentar acessar medição, empreiteiro é direcionado a tela de erro 500",
+   "ferramenta": "Aprovação / fiscal / empreiteiro"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1152",
+   "titulo": "#38000 - OF Medição - Ao fazer importação de uma planilha sintética para o OF Medição, o valor final não batia com o da planilha.",
+   "ferramenta": "Importação (orçamento / itens / planilha)"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1153",
+   "titulo": "OF Medicao - Precos divergente ao importar itens da OrcaFascio para nova Medicao",
+   "ferramenta": "Importação (orçamento / itens / planilha)"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1154",
+   "titulo": "#30527 - OF Medição - Planilha de Medição por Empreiteiro esta desconfigurada",
+   "ferramenta": "Aprovação / fiscal / empreiteiro"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1160",
+   "titulo": "#30678 - OF medição - Usuário não consegue se cadastrar no OF manager",
+   "ferramenta": "Criar / acessar medição (erro)"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1176",
+   "titulo": "#30959 - OF medição - Cliente ao tentar importar medição ja existente o botão de continuar trava e não deixa prosseguir o procedimento",
+   "ferramenta": "Importação (orçamento / itens / planilha)"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1195",
+   "titulo": "#31337 - Medição - ao vincular orçamento com medição(antigo) a medição fica 0,10 centavos a menos que o orçamento",
+   "ferramenta": "Importação (orçamento / itens / planilha)"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1210",
+   "titulo": "#31504 - Orçamento - Mensagem de erro é exibida ao tentar abrir orçamento",
+   "ferramenta": "Outros (não classificado)"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1241",
+   "titulo": "#32291 - OF medição - Edição de quantidade orçada não está sendo alterada",
+   "ferramenta": "Cálculo / valor divergente"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1242",
+   "titulo": "#32277 - OF medição - Usuário não consegue inserir imagens no relatório fotográfico",
+   "ferramenta": "Relatório fotográfico / armazenamento"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1276",
+   "titulo": "#32715 - OF Medição - Quantidades executadas dos itens em relatório de Medição da obra são impressas com cifrão, mesmo não se tratando de valores monetários",
+   "ferramenta": "Relatório / Curva ABC / exportar"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1323",
+   "titulo": "#41026 - Medição - Ao exportar o relatório de Medição da Obra mostrando apenas itens com quantidades, o saldo total está diferente da medição",
+   "ferramenta": "Relatório / Curva ABC / exportar"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1390",
+   "titulo": "#34474 - OF Medição -  Valor Total Executado não atualiza ao editar quantidade em Aditivo",
+   "ferramenta": "Cálculo / valor divergente"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1396",
+   "titulo": "#34545 - Medição - Erro 500 quando empreiteiro acessa medição",
+   "ferramenta": "Aprovação / fiscal / empreiteiro"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1401",
+   "titulo": "OF Medição - Esta sendo possível editar uma medição após a mesma ser aprovada pelo fiscal",
+   "ferramenta": "Aprovação / fiscal / empreiteiro"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1411",
+   "titulo": "#34951 - OF Medição - Cliente não consegue adicionar imagens no relatório fotográfico",
+   "ferramenta": "Relatório fotográfico / armazenamento"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1452",
+   "titulo": "#35741 - OF Medição - Cliente esta com 0/0,1 MB de armazenamento e não consegue inserir fotos no relatorio fotografico",
+   "ferramenta": "Relatório fotográfico / armazenamento"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1476",
+   "titulo": "#36047 - OF Medição - Ao tentar incluir imagens no relatório fotográfico no OF Medição, o sistema não realiza a inclusão",
+   "ferramenta": "Relatório fotográfico / armazenamento"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1507",
+   "titulo": "#36548 - OF medição - Erro ao gerar relatório de medição",
+   "ferramenta": "Relatório / Curva ABC / exportar"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1517",
+   "titulo": "#36722 - OF Medição - Edição de coeficiente de item não é salvo na coluna Orçado ao atualizar a página",
+   "ferramenta": "Cálculo / valor divergente"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1528",
+   "titulo": "#36883 - Medição - Erro ao criar medição",
+   "ferramenta": "Criar / acessar medição (erro)"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1542",
+   "titulo": "#37299 - OF medição - Cliente tem 0/0MB de armazenamento e não consegue inserir foto no relatório fotográfico",
+   "ferramenta": "Relatório fotográfico / armazenamento"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1571",
+   "titulo": "OF Medição - Armazenamento zerado",
+   "ferramenta": "Relatório fotográfico / armazenamento"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1575",
+   "titulo": "#37903- OF Medição - Não é possível adicionar imagens no relatório fotográfico por falta de armazenamento",
+   "ferramenta": "Relatório fotográfico / armazenamento"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1576",
+   "titulo": "Medição - Empreiteiro da obra não consegue enviar medição para aprovação do fiscal",
+   "ferramenta": "Aprovação / fiscal / empreiteiro"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1578",
+   "titulo": "#37945 - Medição - Usuário não consegue gerar medição de seu orçamento",
+   "ferramenta": "Criar / acessar medição (erro)"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1580",
+   "titulo": "#37946 - Medição - Ao gerar o relatório fotográfico da medição, o mesmo não é carregado",
+   "ferramenta": "Relatório fotográfico / armazenamento"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1586",
+   "titulo": "OF medição - Empreiteiro não consegue aceitar convite para se juntar a obra enviado por email",
+   "ferramenta": "Aprovação / fiscal / empreiteiro"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1587",
+   "titulo": "OF medição - Não é possível criar medição",
+   "ferramenta": "Criar / acessar medição (erro)"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1592",
+   "titulo": "OF Medição - Não está sendo possível acessar o OF Medição",
+   "ferramenta": "Criar / acessar medição (erro)"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1597",
+   "titulo": "OF medição - Medição adota mesmo nome da obra na importação de medição",
+   "ferramenta": "Importação (orçamento / itens / planilha)"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1602",
+   "titulo": "#38299 - OF Medição - Ao gerar relatórios de certa medição, o sistema extrai a planilha de outra medição",
+   "ferramenta": "Importação (orçamento / itens / planilha)"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1623",
+   "titulo": "OF Medição - Cálculo aparecendo no quantitativo",
+   "ferramenta": "Cálculo / valor divergente"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1626",
+   "titulo": "#38594 - OF Medição - Ao preencher o valor executado da medição, os percentuais não estão de acordo com o preço",
+   "ferramenta": "Cálculo / valor divergente"
+  },
+  {
+   "mod": "Medição",
+   "key": "BUG-1751",
+   "titulo": "#40271 - OF medição - Cliente tem 0/0MB de armazenamento e não consegue inserir foto no relatório fotográfico",
+   "ferramenta": "Relatório fotográfico / armazenamento"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-111",
+   "titulo": "Erro ao tentar excluir Tarefas do Diario",
+   "ferramenta": "Tarefas / movimentação de material"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-113",
+   "titulo": "Erro no diário na funcionalidade de materiais de movimentações",
+   "ferramenta": "Tarefas / movimentação de material"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-114",
+   "titulo": "Erro ao gerar relatório no Diário",
+   "ferramenta": "Relatório do diário"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-116",
+   "titulo": "Erro ao gerar o relatório no diário referente a etapa",
+   "ferramenta": "Relatório do diário"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-117",
+   "titulo": "Erro ao gerar relatório no Diário referente ao quantitativo do orçamento",
+   "ferramenta": "Relatório do diário"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-119",
+   "titulo": "Erro no upload de foto no relatório fotográfico",
+   "ferramenta": "Relatório do diário"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-120",
+   "titulo": "Erro ao gerar relatório no Diário referente ao quantitativo do orçamento referente de composições",
+   "ferramenta": "Relatório do diário"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-121",
+   "titulo": "Erro ao deletar movimentação no diário de obra",
+   "ferramenta": "Tarefas / movimentação de material"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-124",
+   "titulo": "Erro no diário na listagem de movimentação de material",
+   "ferramenta": "Tarefas / movimentação de material"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-127",
+   "titulo": "Erro ao atualizar descrição da fotografia",
+   "ferramenta": "Foto / imagem"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-128",
+   "titulo": "Erro na visualizações de relatórios do diário",
+   "ferramenta": "Relatório do diário"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-263",
+   "titulo": "#10139 - Diario de obras - não esta passando as paginas na busca",
+   "ferramenta": "Criar / editar / excluir diário"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-419",
+   "titulo": "#14084 - Diário de Obras - Ao tentar gerar relatório e seguir ao próximo passo, a tela volta a página principal do diário de obras",
+   "ferramenta": "Relatório do diário"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-433",
+   "titulo": "#14508 - Diario de obras - empreiteiros externos não estão conseguindo criar novos darios",
+   "ferramenta": "Aplicativo (mobile / iOS)"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-483",
+   "titulo": "#15282 - Diario de Obras - Erros de adição de tarefas no diário de obras.",
+   "ferramenta": "Tarefas / movimentação de material"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-660",
+   "titulo": "#19210 - Diário de Obras - Ao tentar entrar em um diário de obra, a ação não é realizada e abre a página de Erro 500",
+   "ferramenta": "Criar / editar / excluir diário"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-812",
+   "titulo": "#21909 -Diario de Obras-Cliente ao entrar no App de Diario de obras, ocorre erro ao selecionar qualquer obra",
+   "ferramenta": "Aplicativo (mobile / iOS)"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-844",
+   "titulo": "#22798 - Diário de obras - Erro ao adicionar imagem no diário de obras",
+   "ferramenta": "Foto / imagem"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-850",
+   "titulo": "Diário de Obras - Erro 500 ao tentar adicionar uma imagem",
+   "ferramenta": "Foto / imagem"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-899",
+   "titulo": "#24058 - Diario de obras - No aplicativo não é possível aplicar observações",
+   "ferramenta": "Observação"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-1208",
+   "titulo": "+55 98 8418-2419 - Diário de Obras - Mensagem de erro é exibida ao tentar criar diário de obras dentro do aplicativo",
+   "ferramenta": "Aplicativo (mobile / iOS)"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-1249",
+   "titulo": "Diário de Obras - Ajustes para realizar no aplicativo diário de obras",
+   "ferramenta": "Aplicativo (mobile / iOS)"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-1431",
+   "titulo": "#42601 - Diário de Obras - Erro ao adicionar observação em diário de obra",
+   "ferramenta": "Observação"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-1489",
+   "titulo": "#36222 - Diário de obras - Fiscal externo não consegue aprovar diário de obras",
+   "ferramenta": "Aprovação / fiscal"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-1495",
+   "titulo": "Diário de Obras - Erro ao adicionar observação em diário de obra",
+   "ferramenta": "Observação"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-1499",
+   "titulo": "#36372 - Diário de Obras - Não é possível editar diário de obras",
+   "ferramenta": "Criar / editar / excluir diário"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-1509",
+   "titulo": "#36552 - Diário de obras - Usuário não consegue excluir diário de obras criado",
+   "ferramenta": "Criar / editar / excluir diário"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-1534",
+   "titulo": "#36947 - Diário de Obras - Cliente não consegue acessar o aplicativo do Diário de Obras",
+   "ferramenta": "Aplicativo (mobile / iOS)"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-1554",
+   "titulo": "#37506 - Diário de obras - Não é possível adicionar observação ao relatório após aprovação do fiscal",
+   "ferramenta": "Relatório do diário"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-1572",
+   "titulo": "Diário de Obras - Botões de pesquisar e adicionar não funcionam no IOS",
+   "ferramenta": "Aplicativo (mobile / iOS)"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-1579",
+   "titulo": "#37948 - Diário de obras - Não é possível gerar relatório de um diário de obras",
+   "ferramenta": "Relatório do diário"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-1601",
+   "titulo": "#38287 - Diário de Obras - Não é possível gerar relatório de diário",
+   "ferramenta": "Relatório do diário"
+  },
+  {
+   "mod": "Diario de Obras",
+   "key": "BUG-1697",
+   "titulo": "46816- Cliente relatou erro ao utilizar aplicativo do Medição, está apresentando mensagem de Ocorreu um erro no servidor ao tentar salvar a Medição feita",
+   "ferramenta": "Aplicativo (mobile / iOS)"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-112",
+   "titulo": "Erro na extração dos componentes do planejamento",
+   "ferramenta": "Carregar / abrir / criar planejamento"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-122",
+   "titulo": "Erro no planejamento referente a diagrama",
+   "ferramenta": "Diagrama de rede / caminho crítico / linha de base"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-123",
+   "titulo": "Erro no planejamento ao redefinir atividade",
+   "ferramenta": "Diagrama de rede / caminho crítico / linha de base"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-125",
+   "titulo": "Erro no planejamento ao atualizar atividade",
+   "ferramenta": "Atividade (ativar / mover / redefinir)"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-262",
+   "titulo": "Planejamento - Erro ao carregar planejamento",
+   "ferramenta": "Carregar / abrir / criar planejamento"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-282",
+   "titulo": "#18588 - Planejamento - Mês de março está com apenas 29 dias",
+   "ferramenta": "Cálculo (dias / quantitativos / produção)"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-292",
+   "titulo": "#18724 - Planejamento - planejamento só fica atualizando",
+   "ferramenta": "Carregar / abrir / criar planejamento"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-308",
+   "titulo": "#19055 - Planejamento - planejamento não copia a estrutura",
+   "ferramenta": "Copiar estrutura"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-314",
+   "titulo": "#18815 - Planejamento - Erro 500 ao criar novo planejamento",
+   "ferramenta": "Carregar / abrir / criar planejamento"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-333",
+   "titulo": "#11739 - Planejamento - Quantitativos sendo multiplicados errado.",
+   "ferramenta": "Cálculo (dias / quantitativos / produção)"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-347",
+   "titulo": "20129 - Planejamento - Erro ao abrir o planejamento",
+   "ferramenta": "Carregar / abrir / criar planejamento"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-411",
+   "titulo": "#13900 - Planejamento- Cliente reporta a falta da caixa de atv",
+   "ferramenta": "Atividade (ativar / mover / redefinir)"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-424",
+   "titulo": "14360-Planejamento-Cliente veicula o orçamento ao planejamento , ao entrar o planejamento não carrega as informações pedidas",
+   "ferramenta": "Carregar / abrir / criar planejamento"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-441",
+   "titulo": "#14627 - Planejamento -  planejamento só fica carregando e não abre.",
+   "ferramenta": "Carregar / abrir / criar planejamento"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-460",
+   "titulo": "#22709 - Planejamento - Visualização do diagrama de redes está se alterado",
+   "ferramenta": "Diagrama de rede / caminho crítico / linha de base"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-609",
+   "titulo": "Planejamento - Relatórios de histograma com nome divergente",
+   "ferramenta": "Relatório / Cronograma físico financeiro"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-649",
+   "titulo": "#18967 - Produtividade de equipe não aparece igual  no planejamento",
+   "ferramenta": "Cálculo (dias / quantitativos / produção)"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-652",
+   "titulo": "#19005 - Planejamento - Erro ao entrar em planejamento, não carrega a linha de base",
+   "ferramenta": "Carregar / abrir / criar planejamento"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-939",
+   "titulo": "#25183 - Erro 500 ao gerar relatório do cronograma em planejamento",
+   "ferramenta": "Relatório / Cronograma físico financeiro"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-1016",
+   "titulo": "Planejamento - Caminho crítico não está aparecendo no relatório de Diagrama de Rede em PDF",
+   "ferramenta": "Relatório / Cronograma físico financeiro"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-1065",
+   "titulo": "Planejamento - Cálculo de dias efetivos não está correto",
+   "ferramenta": "Cálculo (dias / quantitativos / produção)"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-1198",
+   "titulo": "#38823 - Planejamento - Cronograma fisico financeiro ao fazer a divisão de etapas os valores aparecem cheios ao invés de divididos",
+   "ferramenta": "Relatório / Cronograma físico financeiro"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-1290",
+   "titulo": "#33198 - Planejamento - Ao tentar ativar uma ativadade a ação não é realizada",
+   "ferramenta": "Atividade (ativar / mover / redefinir)"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-1440",
+   "titulo": "#35454 - Planejamento - Composições apresentam valor 1 de Produção de Equipe dentro do planejamento",
+   "ferramenta": "Cálculo (dias / quantitativos / produção)"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-1469",
+   "titulo": "#43244 - Planejamento - Atividade do planejamento nao muda de posicao",
+   "ferramenta": "Atividade (ativar / mover / redefinir)"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-1523",
+   "titulo": "#44107 - OrçaPrime - Valor total do relatório Cronograma Físico Financeiro não apresenta o mesmo valor do total do orçamento",
+   "ferramenta": "Relatório / Cronograma físico financeiro"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-1530",
+   "titulo": "#36889 - Planejamento - Ao tentar Criar Planejamento, o sistema informa: Atenção! Planejamento não encontrado",
+   "ferramenta": "Carregar / abrir / criar planejamento"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-1582",
+   "titulo": "#37968 - Planejamento - Relatório Cronograma físico financeiro em XSLX exibe valor negativo",
+   "ferramenta": "Relatório / Cronograma físico financeiro"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-1633",
+   "titulo": "#38834 - Planejamento - Planejamento não é criado pois não é carregado",
+   "ferramenta": "Carregar / abrir / criar planejamento"
+  },
+  {
+   "mod": "Planejamento",
+   "key": "BUG-1635",
+   "titulo": "#38911 - Planejamento - Não é possível acessar planejamento",
+   "ferramenta": "Carregar / abrir / criar planejamento"
+  }
+ ],
+ "labels": {
+  "Medição": [
+   "Relatório fotográfico / armazenamento",
+   "Aprovação / fiscal / empreiteiro",
+   "Importação (orçamento / itens / planilha)",
+   "Relatório / Curva ABC / exportar",
+   "Cálculo / valor divergente",
+   "Criar / acessar medição (erro)",
+   "Cadastro / licença / manager",
+   "Outros (não classificado)"
+  ],
+  "Bases de Preço": [
+   "Base própria / Gestão de base",
+   "Importação / Exportação de planilha",
+   "Busca de composições",
+   "Cópia de composição",
+   "Insumos",
+   "Relatório / Caderno técnico",
+   "Descrição / Unidade / Tipificação",
+   "Bases oficiais (SINAPI/SETOP/…)",
+   "Preço / valor divergente",
+   "SOFIA (IA)",
+   "Erro técnico (500 / stack)",
+   "Composições (geral)",
+   "Outros (não classificado)"
+  ],
+  "Planejamento": [
+   "Carregar / abrir / criar planejamento",
+   "Relatório / Cronograma físico financeiro",
+   "Diagrama de rede / caminho crítico / linha de base",
+   "Atividade (ativar / mover / redefinir)",
+   "Cálculo (dias / quantitativos / produção)",
+   "Copiar estrutura",
+   "Outros (não classificado)"
+  ],
+  "Diario de Obras": [
+   "Relatório do diário",
+   "Foto / imagem",
+   "Observação",
+   "Aplicativo (mobile / iOS)",
+   "Aprovação / fiscal",
+   "Tarefas / movimentação de material",
+   "Criar / editar / excluir diário",
+   "Outros (não classificado)"
+  ],
+  "Cadastro/Administrar Empresa": [
+   "E-mail (duplicado / cadastro / troca)",
+   "Login / acesso",
+   "Ativação / senha / convite",
+   "Licença / módulos / permissões",
+   "CRM / Backoffice / Vendas / Marketing",
+   "Usuário: excluir / cadastrar",
+   "Empresa (show / editar / dados)",
+   "Erro técnico (500 / stack)",
+   "UI / home / telas",
+   "Outros (não classificado)"
+  ]
+ }
+}

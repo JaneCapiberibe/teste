@@ -1,0 +1,9 @@
+{
+ "total": 10,
+ "produto": 7,
+ "dev": 3,
+ "snapshot": "2026-11-25",
+ "url_all": "https://orcafascio.atlassian.net/issues?jql=project%20%3D%20BUG%20AND%20status%20in%20%28%22IMPEDIMENTO%20DEV%22%2C%22IMPEDIMENTO%20PRODUTO%22%29%20AND%20%28customfield_10073%20is%20EMPTY%20OR%20customfield_10073%20%21%3D%20%22Chat%20de%20Suporte%22%29",
+ "url_produto": "https://orcafascio.atlassian.net/issues?jql=project%20%3D%20BUG%20AND%20status%20%3D%20%22IMPEDIMENTO%20PRODUTO%22%20AND%20%28customfield_10073%20is%20EMPTY%20OR%20customfield_10073%20%21%3D%20%22Chat%20de%20Suporte%22%29",
+ "url_dev": "https://orcafascio.atlassian.net/issues?jql=project%20%3D%20BUG%20AND%20status%20%3D%20%22IMPEDIMENTO%20DEV%22%20AND%20%28customfield_10073%20is%20EMPTY%20OR%20customfield_10073%20%21%3D%20%22Chat%20de%20Suporte%22%29"
+}
