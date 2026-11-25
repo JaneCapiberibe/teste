@@ -172,10 +172,10 @@ main{max-width:1180px;margin:0 auto;padding:28px 22px 60px}
 .safra-chip.prod.novo{border-color:rgba(30,158,90,.35)}.safra-chip.prod.novo b{color:#1e9a63}
 .safra-chip.prod.antigo{border-color:rgba(138,143,163,.5)}.safra-chip.prod.antigo b{color:var(--text-2)}
 .info{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--s1);color:#fff;font-size:10px;font-weight:700;cursor:help;margin-left:6px;position:relative;font-style:normal;vertical-align:middle;letter-spacing:0}
-.info:hover::after{content:attr(data-tip);position:absolute;left:0;top:150%;width:300px;max-width:80vw;background:var(--brand-navy);color:#fff;padding:11px 13px;border-radius:9px;font-size:11.5px;font-weight:400;line-height:1.45;z-index:30;box-shadow:0 8px 26px rgba(4,4,58,.35);white-space:normal;text-align:left;text-transform:none}
-.info:hover::before{content:"";position:absolute;left:5px;top:132%;border:6px solid transparent;border-bottom-color:var(--brand-navy);z-index:30}
-.info.tl:hover::after{left:auto;right:0}
-.info.tl:hover::before{left:auto;right:5px}
+.info:hover::after,.info.active::after{content:attr(data-tip);position:absolute;left:0;top:150%;width:300px;max-width:80vw;background:var(--brand-navy);color:#fff;padding:11px 13px;border-radius:9px;font-size:11.5px;font-weight:400;line-height:1.45;z-index:30;box-shadow:0 8px 26px rgba(4,4,58,.35);white-space:normal;text-align:left;text-transform:none}
+.info:hover::before,.info.active::before{content:"";position:absolute;left:5px;top:132%;border:6px solid transparent;border-bottom-color:var(--brand-navy);z-index:30}
+.info.tl:hover::after,.info.tl.active::after{left:auto;right:0}
+.info.tl:hover::before,.info.tl.active::before{left:auto;right:5px}
 th .info{margin-left:4px}
 h2{font-size:13px;letter-spacing:.3px;color:var(--s1);margin:32px 4px 12px;font-weight:700}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:13px}
@@ -293,6 +293,51 @@ footer{max-width:1180px;margin:0 auto;padding:10px 18px 40px;color:var(--text-3)
 .mh-kpi.clickable:hover{border-color:var(--brand-blue)}
 .mh-kpi.clickable .mh-kpi-num{color:var(--brand-blue);text-decoration:underline;text-underline-offset:3px}
 @media(max-width:820px){.sidebar{width:68px;flex-basis:68px}.sidebar .lbl,.sidebar .sidebar-profile-info{display:none}.sidebar .side-item{justify-content:center;padding:10px 0}.sidebar .sidebar-profile{justify-content:center}}
+/* TESTE DE USABILIDADE MOBILE (25/11/2026) — corrige scroll horizontal da página inteira no
+   celular. Causa raiz: main{margin:0 auto} centraliza o conteúdo em telas largas (respeitando
+   max-width:1180px), mas margem automática DESATIVA o stretch do flexbox no eixo cruzado (regra
+   real da spec CSS) — então main parava de encolher pro espaço disponível (322px num iPhone) e
+   voltava a se dimensionar pelo conteúdo (678px), vazando pra fora da tela. Abaixo de 820px
+   (mesmo breakpoint do rail da sidebar acima) tira a margem automática. overflow-x:hidden no
+   body é rede de segurança contra qualquer filho futuro que ainda force largura maior — sem
+   isso, qualquer regressão volta a rolar a PÁGINA inteira de lado em vez de só o elemento
+   culpado. Tabelas (table-scroll, injetado via JS) continuam roláveis por conta própria.*/
+@media(max-width:820px){
+  main#app{margin:0;width:100%;max-width:100%}
+  body{overflow-x:hidden}
+  /* a dica (.info, antes só :hover) agora também abre com toque — mas um ícone perto da borda
+     esquerda de uma tela estreita projetava a caixa de 300px pra fora da tela, cortando o texto
+     (overflow-x:hidden acima evita rolar a página, mas o texto ficava ilegível mesmo assim). No
+     mobile vira uma folha fixa ancorada embaixo da tela, sempre dentro da largura visível,
+     independente de onde o ícone estiver. */
+  .info:hover::after,.info.active::after,.info.tl:hover::after,.info.tl.active::after{
+    position:fixed;left:16px;right:16px;top:auto;bottom:16px;width:auto;max-width:none;
+    max-height:60vh;overflow-y:auto}
+  .info:hover::before,.info.active::before,.info.tl:hover::before,.info.tl.active::before{display:none}
+  /* o MESMO bug (min-width:auto não deixa item de flex/grid encolher abaixo do conteúdo)
+     apareceu em 3 lugares diferentes short (main, .grid2>.panel, .bar-track dentro das listas
+     "Esforço por módulo"/"Bugs concluídos") — regra ampla em vez de caçar um a um; min-width:0
+     não tem efeito nenhum em elemento que não seja item de flex/grid, então não quebra nada
+     fora desses casos. */
+  main#app *{min-width:0}
+  /* nos 278-322px reais de um celular, 190px fixos de rótulo não deixa espaço quase nenhum pra
+     barra+valor (por isso a régua virava 519-557px nessas listas) */
+  .bar-row .lbl{width:112px}
+  /* tap targets pequenos (chips de módulo/tendência, ~25-27px) ficam mais fáceis de tocar */
+  .emchip,.trend-chip,.fila-chip{min-height:36px}
+}
+/* Tabelas (SLA, squads, cards em dev, módulo, alerta de parados) nunca tiveram wrapper de
+   rolagem própria — no mobile, sem isso, a tabela força a PÁGINA inteira a rolar de lado em vez
+   de só ela. .table-scroll é aplicado via JS (wrapTablesForMobile(), chamado depois de cada
+   render) a toda <table> que ainda não tem esse wrapper. Degradê na borda direita + "arraste"
+   avisam que dá pra arrastar, já que não existe scrollbar visível no touch. */
+.table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%;position:relative}
+.table-scroll.has-more::after{content:"";position:absolute;top:0;right:0;bottom:0;width:28px;
+  background:linear-gradient(90deg,transparent,var(--surface-1));pointer-events:none}
+.table-scroll table{white-space:nowrap}
+/* "Parado há" (.heat) e outras colunas numéricas não podem quebrar linha dentro da tabela —
+   dentro de .table-scroll isso vira "arraste pro lado" em vez de texto espremido/ilegível. */
+.heat{white-space:nowrap}
 </style></head>
 <body>
 <div class="app-shell">
@@ -344,7 +389,7 @@ function tgl(){const r=document.documentElement;const cur=r.getAttribute('data-t
 const cs=()=>getComputedStyle(document.documentElement);
 function col(v){return cs().getPropertyValue(v).trim();}
 
-function ico(t,left){return '<span class="info'+(left?' tl':'')+'" data-tip="'+t+'" onclick="event.stopPropagation()">i</span>';}
+function ico(t,left){return '<span class="info'+(left?' tl':'')+'" data-tip="'+t+'" onclick="infoTap(event,this)">i</span>';}
 function mesLbl(m){const [y,mo]=m.split('-');return ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'][+mo-1]+'/'+y.slice(2);}
 /* ===== Ícones SVG inline (sem CDN — renderizam em qualquer lugar, inclusive no artifact) ===== */
 const ICONS={
@@ -430,7 +475,35 @@ function renderModule(){
   else if(window.__activeModule==='devs') renderDevsModule();
   else if(window.__activeModule==='produtos') renderProdutosModule();
   else renderPlaceholderModule(window.__activeModule);
+  wrapTablesForMobile();
 }
+// TESTE DE USABILIDADE MOBILE (25/11/2026) — toda <table> nasce sem wrapper de rolagem própria;
+// sem isso, no celular ela força a PÁGINA inteira a rolar de lado em vez de só ela. Chamado a
+// cada renderModule() porque o innerHTML de #app é recriado do zero em todo render — um wrapper
+// adicionado antes não sobrevive. has-more (degradê na borda) só aparece quando a tabela
+// realmente precisa de scroll, pra não mostrar uma dica de "arraste" em tabela que já cabe.
+function wrapTablesForMobile(){
+  document.querySelectorAll('#app table').forEach(t=>{
+    if(t.parentElement && t.parentElement.classList.contains('table-scroll')) return;
+    const w=document.createElement('div');
+    w.className='table-scroll';
+    t.parentNode.insertBefore(w,t);
+    w.appendChild(t);
+    if(w.scrollWidth>w.clientWidth+2) w.classList.add('has-more');
+  });
+}
+// ícone "i" (dica) só aparecia no :hover do mouse — no toque (celular) nunca tinha como abrir.
+// infoTap() é chamado pelo onclick de quem passa por ico() (também corta propagação, pra não
+// disparar o clique do card/linha por trás, ex. mh-kpi.clickable); o listener em document pega
+// os poucos ".info" escritos direto no HTML sem passar por ico() (sem onclick próprio) e fecha
+// qualquer dica aberta ao tocar fora — delegado em document (não por elemento) pra sobreviver a
+// innerHTML sendo recriado a cada render.
+function closeAllInfoTips(){ document.querySelectorAll('.info.active').forEach(x=>x.classList.remove('active')); }
+function infoTap(e,el){ e.stopPropagation(); const wasActive=el.classList.contains('active'); closeAllInfoTips(); if(!wasActive) el.classList.add('active'); }
+document.addEventListener('click',function(e){
+  const info=e.target.closest('.info');
+  if(info) infoTap(e,info); else closeAllInfoTips();
+});
 window.__safra=null;
 function curSafra(){return window.__safra || DATA.funil_default;}
 // chama renderModule() (não render() direto) — mesmo motivo de tgl()/setModoAcum(): o
